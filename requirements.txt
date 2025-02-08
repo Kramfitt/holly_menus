@@ -1,0 +1,6 @@
+python-dotenv
+schedule
+pyyaml
+logging
+datetime
+# Add any other dependencies your app uses 

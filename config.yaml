@@ -1,0 +1,36 @@
+# config.yaml
+schedule:
+  send_days_before: 3
+  menu_duration_days: 14
+  send_time: "09:00"  # When to send on scheduled day
+
+seasons:
+  summer:
+    start_date: "2024-04-01"  # April 1st
+    template_path: "templates/summer"  # Folder containing Summer_Week_1.pdf etc
+  winter:
+    start_date: "2024-10-01"  # October 1st
+    template_path: "templates/winter"  # Folder containing Winter_Week_1.pdf etc
+
+recipients:
+  primary:
+    email: "recipient@example.com"
+    name: "Primary Contact"
+  backup:  # Optional backup recipient
+    email: "backup@example.com"
+    name: "Backup Contact"
+
+email:
+  smtp_server: "smtp.gmail.com"
+  smtp_port: 587
+  sender_email: "your-sender@example.com"
+  sender_name: "Menu System"
+
+paths:
+  output: "output"  # Where to save generated menus
+  logs: "logs"      # Where to save log files
+
+# Optional preview settings
+preview:
+  enabled: true
+  preview_email: "preview@example.com"
