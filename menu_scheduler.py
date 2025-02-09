@@ -4,11 +4,17 @@ from datetime import datetime, timedelta
 import logging
 import yaml
 from menu_autosender import load_config, calculate_next_menu_date, process_menu
+import os
+import sys
+
+# Add immediate print for debugging
+print("Script starting...", file=sys.stderr)
 
 def should_send_menu(config):
     """
     Determine if we should send a menu today
     """
+    print("Checking if menu should be sent...", file=sys.stderr)
     current_date = datetime.now()
     next_schedule = calculate_next_menu_date(current_date)
     
@@ -16,7 +22,7 @@ def should_send_menu(config):
     should_send = days_until_start == config['schedule']['send_days_before']
     
     if should_send:
-        logging.info(f"Menu due for sending: {next_schedule.menu_type} Week {next_schedule.week_number}")
+        print(f"Menu due for sending: {next_schedule.menu_type} Week {next_schedule.week_number}", file=sys.stderr)
     
     return should_send, next_schedule
 
@@ -62,22 +68,32 @@ def run_scheduler():
 
 if __name__ == "__main__":
     try:
-        # Load config and setup logging
+        # Basic print statements that should show up immediately
+        print("=== STARTING MENU SCHEDULER ===", file=sys.stderr)
+        print(f"Python version: {sys.version}", file=sys.stderr)
+        print(f"Current directory: {os.getcwd()}", file=sys.stderr)
+        print("Attempting to list directory contents:", file=sys.stderr)
+        print(os.listdir('.'), file=sys.stderr)
+        
+        # Try loading config
+        print("Attempting to load config...", file=sys.stderr)
         config = load_config()
+        print("Config loaded successfully", file=sys.stderr)
         
         # Setup logging
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            stream=sys.stderr  # Ensure logging goes to stderr
         )
         
-        # Add clear startup message
         logging.info("=== Menu Scheduler Starting Up ===")
+        logging.info(f"Current working directory: {os.getcwd()}")
         logging.info("Service initialized and running...")
         
         # Start the scheduler
         run_scheduler()
         
     except Exception as e:
-        logging.error(f"Fatal error in scheduler: {str(e)}")
+        print(f"Fatal error in scheduler: {str(e)}", file=sys.stderr)
         raise
