@@ -7,8 +7,9 @@ WORKDIR /app
 
 # Copy requirements first for better caching
 COPY requirements.txt .
-# Install as non-root user
-RUN pip install --user -r requirements.txt
+
+# Install packages globally (removing --user flag)
+RUN pip install -r requirements.txt
 
 # Copy the rest of the application
 COPY . .
