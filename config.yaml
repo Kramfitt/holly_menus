@@ -6,11 +6,11 @@ schedule:
 
 seasons:
   summer:
-    start_date: "2024-04-01"  # April 1st
-    template_path: "templates/summer"  # Update path if needed
+    start_date: "2023-12-01"  # December 1st (Southern Hemisphere summer)
+    template_path: "templates/summer"
   winter:
-    start_date: "2024-10-01"  # October 1st
-    template_path: "templates/winter"  # Update path if needed
+    start_date: "2024-06-01"  # June 1st (Southern Hemisphere winter)
+    template_path: "templates/winter"
 
 recipients:
   primary:

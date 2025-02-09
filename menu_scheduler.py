@@ -286,21 +286,25 @@ def validate_template_structure(config):
     
     # Check if template directory exists
     if not os.path.exists(template_path):
-        raise FileNotFoundError(f"Template directory not found: {template_path}")
+        # Create the directory if it doesn't exist
+        os.makedirs(template_path, exist_ok=True)
+        print(f"Created template directory: {template_path}", file=sys.stderr)
         
-    # Check for all required week files
-    for week in range(1, 5):
-        filename = f"{current_season.capitalize()}_Week_{week}.pdf"
-        full_path = os.path.join(template_path, filename)
-        
-        if not os.path.exists(full_path):
-            missing_files.append(full_path)
+    # Only check files if it's the current season
+    if (current_season == "summer" and is_summer) or (current_season == "winter" and not is_summer):
+        # Check for all required week files
+        for week in range(1, 5):
+            filename = f"{current_season.capitalize()}_Week_{week}.pdf"
+            full_path = os.path.join(template_path, filename)
+            
+            if not os.path.exists(full_path):
+                missing_files.append(full_path)
 
-    if missing_files:
-        raise FileNotFoundError(
-            f"Missing {current_season} template files:\n" + 
-            "\n".join(f"- {f}" for f in missing_files)
-        )
+        if missing_files:
+            raise FileNotFoundError(
+                f"Missing {current_season} template files:\n" + 
+                "\n".join(f"- {f}" for f in missing_files)
+            )
     
     print(f"{current_season.capitalize()} template structure validation successful!", file=sys.stderr)
 
