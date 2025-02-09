@@ -102,7 +102,7 @@ def add_dates_to_pdf(original_pdf_path, menu_details):
         for day in range(7):
             current_date = start_date + timedelta(days=day)
             date_text = current_date.strftime('%a %d %b')  # e.g., "Mon 3 Feb"
-            marker = f"{{{{DATE-{day+1}}}}}}"
+            marker = f"{{{{DATE-{day+1}}}}}"
             
             # Find position of this marker and place date there
             # (We'll add marker detection code)
