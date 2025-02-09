@@ -14,16 +14,16 @@ seasons:
 
 recipients:
   primary:
-    email: "recipient@example.com"
+    email: ""  # Set via RECIPIENT_EMAIL env var
     name: "Primary Contact"
   backup:  # Optional backup recipient
-    email: "backup@example.com"
+    email: ""  # Set via BACKUP_EMAIL env var if needed
     name: "Backup Contact"
 
 email:
-  smtp_server: "smtp.gmail.com"
-  smtp_port: 587
-  sender_email: "your-sender@example.com"
+  smtp_server: ""  # Set via SMTP_SERVER env var
+  smtp_port: 587  # Set via SMTP_PORT env var
+  sender_email: ""  # Set via SENDER_EMAIL env var
   sender_name: "Menu System"
 
 paths:
@@ -32,5 +32,5 @@ paths:
 
 # Optional preview settings
 preview:
-  enabled: true
-  preview_email: "preview@example.com"
+  enabled: false
+  preview_email: ""  # Set via PREVIEW_EMAIL env var if needed
