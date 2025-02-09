@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Menu Service Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .status {
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .active {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .inactive {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Menu Service Dashboard</h1>
+    
+    <div class="status {{ 'active' if state.active else 'inactive' }}">
+        Service is currently: <strong>{{ "ACTIVE" if state.active else "PAUSED" }}</strong>
+        {% if state.last_updated %}
+        <br>Last updated: {{ state.last_updated.strftime('%Y-%m-%d %H:%M:%S') }}
+        {% endif %}
+    </div>
+
+    <button onclick="toggleService()" id="toggleBtn">
+        {{ "Pause Service" if state.active else "Resume Service" }}
+    </button>
+
+    <script>
+        function toggleService() {
+            fetch('/toggle', {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    location.reload();
+                });
+        }
+    </script>
+</body>
+</html> 
