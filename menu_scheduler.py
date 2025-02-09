@@ -107,7 +107,11 @@ def add_dates_to_pdf(original_pdf_path, menu_details):
             # Find position of this marker and place date there
             # (We'll add marker detection code)
             
-            c.drawString(marker_x, marker_y, date_text)
+            # TODO: Need to implement marker detection to get x,y coordinates
+            # For now, place dates in fixed positions
+            x = 100  # Left margin
+            y = 750 - (day * 20)  # Start from top, move down for each date
+            c.drawString(x, y, date_text)
         
         c.save()
         
