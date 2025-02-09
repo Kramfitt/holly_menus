@@ -6,8 +6,13 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# Load environment variables
+# Load environment variables and add debug prints
+print("Loading environment variables...")
 load_dotenv()
+print(f"SMTP_SERVER: {os.getenv('SMTP_SERVER')}")
+print(f"SMTP_USERNAME: {os.getenv('SMTP_USERNAME')}")
+print(f"SMTP_PASSWORD length: {len(os.getenv('SMTP_PASSWORD', ''))}")
+print(f"RECIPIENT_EMAILS: {os.getenv('RECIPIENT_EMAILS')}")
 
 def should_send_emails():
     try:
@@ -20,8 +25,8 @@ def send_email():
     # Email settings from environment variables
     smtp_server = os.getenv('SMTP_SERVER')
     smtp_port = int(os.getenv('SMTP_PORT'))
-    username = os.getenv('SMTP_USERNAME')
-    password = os.getenv('SMTP_PASSWORD')
+    username = 'ashvillenz@gmail.com' #os.getenv('SMTP_USERNAME')
+    password = 'ktrf xmyb zcku jayt'#os.getenv('SMTP_PASSWORD')
     recipients = os.getenv('RECIPIENT_EMAILS').split(',')
 
     # Create message
@@ -33,10 +38,15 @@ def send_email():
     body = "This is a test email from the menu service."
     msg.attach(MIMEText(body, 'plain'))
 
-    # Send email
+    # Send email - using same code as test_smtp.py
     try:
         server = smtplib.SMTP(smtp_server, smtp_port)
         server.starttls()
+        
+        # Debug print
+        print(f"Attempting login with username: {username}")
+        print(f"Password length: {len(password)}")
+        
         server.login(username, password)
         server.send_message(msg)
         server.quit()
