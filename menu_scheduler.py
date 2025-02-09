@@ -184,33 +184,58 @@ Menu System"""
 def send_test_email(config):
     """Send a test email to verify configuration"""
     try:
+        # Create test menu details
+        test_menu_details = {
+            'start_date': datetime.now() + timedelta(days=14),
+            'season': 'Summer',
+            'week_number': 1
+        }
+        
         msg = MIMEMultipart()
         msg['From'] = f"{config['email']['sender_name']} <{config['email']['sender_email']}>"
         msg['To'] = config['email']['sender_email']  # Send to yourself for testing
-        msg['Subject'] = "Menu Scheduler Test Email"
+        msg['Subject'] = "Menu Scheduler Test - PDF Modification"
         
         body = """Hello,
 
 This is a test email from the Menu Scheduler system.
-If you're receiving this, the email configuration is working correctly.
+Testing PDF modification and attachment.
 
 Current configuration:
 - SMTP Server: Working
 - Authentication: Successful
 - Email Sending: Operational
+- PDF Modification: Testing
 
 Best regards,
 Menu System"""
         
         msg.attach(MIMEText(body, 'plain'))
         
-        print("Attempting to send test email...", file=sys.stderr)
+        # Test PDF modification
+        try:
+            original_menu_path = get_menu_file_path(test_menu_details, config)
+            dated_menu_path = add_date_to_pdf(original_menu_path, test_menu_details)
+            
+            # Attach the modified PDF
+            with open(dated_menu_path, 'rb') as f:
+                pdf = MIMEApplication(f.read(), _subtype='pdf')
+                pdf.add_header('Content-Disposition', 'attachment', 
+                             filename=f"Test_Menu_{test_menu_details['start_date'].strftime('%Y-%m-%d')}.pdf")
+                msg.attach(pdf)
+                print("Modified test menu file attached", file=sys.stderr)
+                
+        except Exception as e:
+            print(f"Error preparing test menu file: {str(e)}", file=sys.stderr)
+            raise
+        
+        print("Attempting to send test email with modified PDF...", file=sys.stderr)
         with smtplib.SMTP(config['email']['smtp_server'], config['email']['smtp_port']) as server:
             server.starttls()
             server.login(config['email']['sender_email'], config['email']['password'])
             server.send_message(msg)
             
-        print("Test email sent successfully!", file=sys.stderr)
+        print("Test email with PDF sent successfully!", file=sys.stderr)
         
     except Exception as e:
         print(f"Error sending test email: {str(e)}", file=sys.stderr)
