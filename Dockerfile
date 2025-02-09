@@ -5,6 +5,9 @@ RUN useradd -m -u 1000 appuser
 
 WORKDIR /app
 
+# Create a test script
+RUN echo "print('Hello from test script')" > test.py
+
 # Copy requirements first for better caching
 COPY requirements.txt .
 
@@ -23,4 +26,5 @@ USER appuser
 # Make it clear this is a background worker
 ENV IS_WORKER=true
 
-CMD ["python", "menu_scheduler.py"]
+# Try running the test script first
+CMD ["sh", "-c", "python test.py && python menu_scheduler.py"]
