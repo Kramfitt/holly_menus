@@ -92,14 +92,54 @@ Menu System"""
         print(f"Error sending menu email: {str(e)}", file=sys.stderr)
         raise
 
+def send_test_email(config):
+    """Send a test email to verify configuration"""
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = f"{config['email']['sender_name']} <{config['email']['sender_email']}>"
+        msg['To'] = config['email']['sender_email']  # Send to yourself for testing
+        msg['Subject'] = "Menu Scheduler Test Email"
+        
+        body = """Hello,
+
+This is a test email from the Menu Scheduler system.
+If you're receiving this, the email configuration is working correctly.
+
+Current configuration:
+- SMTP Server: Working
+- Authentication: Successful
+- Email Sending: Operational
+
+Best regards,
+Menu System"""
+        
+        msg.attach(MIMEText(body, 'plain'))
+        
+        print("Attempting to send test email...", file=sys.stderr)
+        with smtplib.SMTP(config['email']['smtp_server'], config['email']['smtp_port']) as server:
+            server.starttls()
+            server.login(config['email']['sender_email'], config['email']['password'])
+            server.send_message(msg)
+            
+        print("Test email sent successfully!", file=sys.stderr)
+        
+    except Exception as e:
+        print(f"Error sending test email: {str(e)}", file=sys.stderr)
+        raise
+
 def check_and_send_menu():
     """Check if a menu needs to be sent today and send if needed"""
     try:
         config = load_config()
         current_date = datetime.now()
-        menu_details = determine_menu_details(current_date)
         
-        # Calculate days until menu start
+        # For testing: Send a test email every 5 minutes
+        if current_date.minute % 5 == 0:
+            print("Sending test email...", file=sys.stderr)
+            send_test_email(config)
+            return
+            
+        menu_details = determine_menu_details(current_date)
         days_until_start = (menu_details['start_date'] - current_date).days
         
         if days_until_start == config['schedule']['send_days_before']:
