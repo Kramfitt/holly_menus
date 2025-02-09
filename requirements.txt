@@ -1,6 +1,3 @@
 python-dotenv
 schedule
-pyyaml
-logging
-datetime
-# Add any other dependencies your app uses 
+pyyaml # if you're using SMTP for email
