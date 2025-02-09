@@ -7,10 +7,10 @@ schedule:
 seasons:
   summer:
     start_date: "2024-04-01"  # April 1st
-    template_path: "templates/summer"  # Folder containing Summer_Week_1.pdf etc
+    template_path: "templates/summer"  # Update path if needed
   winter:
     start_date: "2024-10-01"  # October 1st
-    template_path: "templates/winter"  # Folder containing Winter_Week_1.pdf etc
+    template_path: "templates/winter"  # Update path if needed
 
 recipients:
   primary:
