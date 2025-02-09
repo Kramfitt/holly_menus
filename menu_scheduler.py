@@ -59,6 +59,28 @@ def determine_menu_details(current_date):
         'week_number': week_number
     }
 
+def get_menu_file_path(menu_details, config):
+    """Get the path to the correct menu template file"""
+    try:
+        season = menu_details['season']
+        week_number = menu_details['week_number']
+        template_path = config['seasons'][season.lower()]['template_path']
+        
+        # Expected filename format: "Summer_Week_1.pdf" or "Winter_Week_1.pdf"
+        filename = f"{season}_Week_{week_number}.pdf"
+        full_path = os.path.join(template_path, filename)
+        
+        print(f"Looking for menu file: {full_path}", file=sys.stderr)
+        
+        if not os.path.exists(full_path):
+            raise FileNotFoundError(f"Menu file not found: {full_path}")
+            
+        return full_path
+        
+    except Exception as e:
+        print(f"Error finding menu file: {str(e)}", file=sys.stderr)
+        raise
+
 def send_menu(menu_details, config):
     """Send the menu via email"""
     try:
@@ -78,7 +100,18 @@ Menu System"""
         
         msg.attach(MIMEText(body, 'plain'))
         
-        # TODO: Attach menu file once we implement menu generation
+        # Attach menu file
+        try:
+            menu_path = get_menu_file_path(menu_details, config)
+            with open(menu_path, 'rb') as f:
+                pdf = MIMEApplication(f.read(), _subtype='pdf')
+                pdf.add_header('Content-Disposition', 'attachment', 
+                             filename=os.path.basename(menu_path))
+                msg.attach(pdf)
+                print(f"Menu file attached: {menu_path}", file=sys.stderr)
+        except Exception as e:
+            print(f"Error attaching menu file: {str(e)}", file=sys.stderr)
+            raise
         
         # Send email
         with smtplib.SMTP(config['email']['smtp_server'], config['email']['smtp_port']) as server:
@@ -150,6 +183,45 @@ def check_and_send_menu():
             
     except Exception as e:
         print(f"Error in check_and_send_menu: {str(e)}", file=sys.stderr)
+
+def validate_template_structure(config):
+    """Validate that all required menu template files exist"""
+    print("Validating template structure...", file=sys.stderr)
+    missing_files = []
+    current_date = datetime.now()
+    
+    # Determine current season
+    year = current_date.year
+    summer_start = datetime.strptime(f"{year}-" + config['seasons']['summer']['start_date'][5:], "%Y-%m-%d")
+    winter_start = datetime.strptime(f"{year}-" + config['seasons']['winter']['start_date'][5:], "%Y-%m-%d")
+    
+    is_summer = (summer_start <= current_date < winter_start)
+    current_season = "summer" if is_summer else "winter"
+    
+    print(f"Current season is: {current_season.capitalize()}", file=sys.stderr)
+    
+    # Only validate the current season's templates
+    template_path = config['seasons'][current_season]['template_path']
+    
+    # Check if template directory exists
+    if not os.path.exists(template_path):
+        raise FileNotFoundError(f"Template directory not found: {template_path}")
+        
+    # Check for all required week files
+    for week in range(1, 5):
+        filename = f"{current_season.capitalize()}_Week_{week}.pdf"
+        full_path = os.path.join(template_path, filename)
+        
+        if not os.path.exists(full_path):
+            missing_files.append(full_path)
+
+    if missing_files:
+        raise FileNotFoundError(
+            f"Missing {current_season} template files:\n" + 
+            "\n".join(f"- {f}" for f in missing_files)
+        )
+    
+    print(f"{current_season.capitalize()} template structure validation successful!", file=sys.stderr)
 
 try:
     # Load initial config
