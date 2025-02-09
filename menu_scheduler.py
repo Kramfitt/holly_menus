@@ -85,11 +85,9 @@ def get_menu_file_path(menu_details, config):
         print(f"Error finding menu file: {str(e)}", file=sys.stderr)
         raise
 
-def add_date_to_pdf(original_pdf_path, menu_details):
-    """Add the menu date to the PDF"""
+def add_dates_to_pdf(original_pdf_path, menu_details):
+    """Add all week dates to the PDF"""
     try:
-        print(f"Adding date to PDF: {original_pdf_path}", file=sys.stderr)
-        
         # Create temporary files
         temp_dir = tempfile.mkdtemp()
         date_layer = os.path.join(temp_dir, "date.pdf")
@@ -99,9 +97,18 @@ def add_date_to_pdf(original_pdf_path, menu_details):
         c = canvas.Canvas(date_layer, pagesize=letter)
         c.setFont("Helvetica", 12)
         
-        # Add the date text
-        date_text = f"Menu for week starting {menu_details['start_date'].strftime('%B %d, %Y')}"
-        c.drawString(50, 750, date_text)  # Adjust position as needed
+        # Calculate all dates for the week
+        start_date = menu_details['start_date']
+        for day in range(7):
+            current_date = start_date + timedelta(days=day)
+            date_text = current_date.strftime('%a %d %b')  # e.g., "Mon 3 Feb"
+            marker = f"{{{{DATE-{day+1}}}}}}"
+            
+            # Find position of this marker and place date there
+            # (We'll add marker detection code)
+            
+            c.drawString(marker_x, marker_y, date_text)
+        
         c.save()
         
         # Merge original PDF with date layer
@@ -150,7 +157,7 @@ Menu System"""
         # Get and modify the menu file
         try:
             original_menu_path = get_menu_file_path(menu_details, config)
-            dated_menu_path = add_date_to_pdf(original_menu_path, menu_details)
+            dated_menu_path = add_dates_to_pdf(original_menu_path, menu_details)
             
             # Attach the modified PDF
             with open(dated_menu_path, 'rb') as f:
@@ -215,7 +222,7 @@ Menu System"""
         # Test PDF modification
         try:
             original_menu_path = get_menu_file_path(test_menu_details, config)
-            dated_menu_path = add_date_to_pdf(original_menu_path, test_menu_details)
+            dated_menu_path = add_dates_to_pdf(original_menu_path, test_menu_details)
             
             # Attach the modified PDF
             with open(dated_menu_path, 'rb') as f:
