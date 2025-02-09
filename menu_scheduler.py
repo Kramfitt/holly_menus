@@ -65,23 +65,15 @@ if __name__ == "__main__":
         # Load config and setup logging
         config = load_config()
         
-        # Ensure logs directory exists
-        import os
-        os.makedirs(config['paths']['logs'], exist_ok=True)
-        
         # Setup logging
         logging.basicConfig(
-            filename=f"{config['paths']['logs']}/scheduler.log",
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
         
-        # Add console logging
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-        logging.getLogger().addHandler(console_handler)
-        
-        logging.info("Starting menu scheduler service")
+        # Add clear startup message
+        logging.info("=== Menu Scheduler Starting Up ===")
+        logging.info("Service initialized and running...")
         
         # Start the scheduler
         run_scheduler()
