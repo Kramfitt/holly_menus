@@ -1,3 +1,5 @@
 python-dotenv
 schedule
 pyyaml # if you're using SMTP for email
+PyPDF2==3.0.1
+reportlab==4.0.8

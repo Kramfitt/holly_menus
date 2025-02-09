@@ -10,6 +10,10 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
+from PyPDF2 import PdfReader, PdfWriter
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+import tempfile
 
 print("=== MENU SCHEDULER STARTING ===", file=sys.stderr)
 
@@ -81,8 +85,51 @@ def get_menu_file_path(menu_details, config):
         print(f"Error finding menu file: {str(e)}", file=sys.stderr)
         raise
 
+def add_date_to_pdf(original_pdf_path, menu_details):
+    """Add the menu date to the PDF"""
+    try:
+        print(f"Adding date to PDF: {original_pdf_path}", file=sys.stderr)
+        
+        # Create temporary files
+        temp_dir = tempfile.mkdtemp()
+        date_layer = os.path.join(temp_dir, "date.pdf")
+        output_path = os.path.join(temp_dir, "menu_with_date.pdf")
+        
+        # Create the date layer
+        c = canvas.Canvas(date_layer, pagesize=letter)
+        c.setFont("Helvetica", 12)
+        
+        # Add the date text
+        date_text = f"Menu for week starting {menu_details['start_date'].strftime('%B %d, %Y')}"
+        c.drawString(50, 750, date_text)  # Adjust position as needed
+        c.save()
+        
+        # Merge original PDF with date layer
+        original = PdfReader(original_pdf_path)
+        date_layer_pdf = PdfReader(date_layer)
+        
+        writer = PdfWriter()
+        page = original.pages[0]
+        page.merge_page(date_layer_pdf.pages[0])
+        writer.add_page(page)
+        
+        # Save the result
+        with open(output_path, 'wb') as output_file:
+            writer.write(output_file)
+        
+        print(f"Date added successfully, temporary file: {output_path}", file=sys.stderr)
+        return output_path
+        
+    except Exception as e:
+        print(f"Error adding date to PDF: {str(e)}", file=sys.stderr)
+        raise
+    finally:
+        # Cleanup will happen in the calling function
+        pass
+
 def send_menu(menu_details, config):
     """Send the menu via email"""
+    temp_dir = None
     try:
         msg = MIMEMultipart()
         msg['From'] = f"{config['email']['sender_name']} <{config['email']['sender_email']}>"
@@ -100,17 +147,21 @@ Menu System"""
         
         msg.attach(MIMEText(body, 'plain'))
         
-        # Attach menu file
+        # Get and modify the menu file
         try:
-            menu_path = get_menu_file_path(menu_details, config)
-            with open(menu_path, 'rb') as f:
+            original_menu_path = get_menu_file_path(menu_details, config)
+            dated_menu_path = add_date_to_pdf(original_menu_path, menu_details)
+            
+            # Attach the modified PDF
+            with open(dated_menu_path, 'rb') as f:
                 pdf = MIMEApplication(f.read(), _subtype='pdf')
                 pdf.add_header('Content-Disposition', 'attachment', 
-                             filename=os.path.basename(menu_path))
+                             filename=f"Menu_{menu_details['start_date'].strftime('%Y-%m-%d')}.pdf")
                 msg.attach(pdf)
-                print(f"Menu file attached: {menu_path}", file=sys.stderr)
+                print(f"Modified menu file attached", file=sys.stderr)
+                
         except Exception as e:
-            print(f"Error attaching menu file: {str(e)}", file=sys.stderr)
+            print(f"Error preparing menu file: {str(e)}", file=sys.stderr)
             raise
         
         # Send email
@@ -124,6 +175,11 @@ Menu System"""
     except Exception as e:
         print(f"Error sending menu email: {str(e)}", file=sys.stderr)
         raise
+    finally:
+        # Clean up temporary files
+        if temp_dir and os.path.exists(temp_dir):
+            import shutil
+            shutil.rmtree(temp_dir)
 
 def send_test_email(config):
     """Send a test email to verify configuration"""
@@ -223,22 +279,50 @@ def validate_template_structure(config):
     
     print(f"{current_season.capitalize()} template structure validation successful!", file=sys.stderr)
 
-try:
-    # Load initial config
-    print("Loading config...", file=sys.stderr)
-    config = load_config()
-    print("Config loaded successfully", file=sys.stderr)
+def list_server_files():
+    """List all files in the application directory"""
+    print("\n=== SERVER FILE STRUCTURE ===", file=sys.stderr)
     
-    # Run check_and_send_menu every minute for testing
-    # Later we'll change this to run at 9 AM
-    schedule.every(1).minutes.do(check_and_send_menu)
-    print("Schedule set up successfully", file=sys.stderr)
+    def print_directory_tree(startpath, prefix=''):
+        """Print the directory tree structure"""
+        for entry in os.listdir(startpath):
+            path = os.path.join(startpath, entry)
+            print(f"{prefix}├── {entry}", file=sys.stderr)
+            if os.path.isdir(path):
+                print_directory_tree(path, prefix + "│   ")
     
-    print("Starting scheduler loop...", file=sys.stderr)
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
+    try:
+        print(f"Current working directory: {os.getcwd()}", file=sys.stderr)
+        print("\nDirectory contents:", file=sys.stderr)
+        print_directory_tree('.')
+        print("\n=== END FILE STRUCTURE ===\n", file=sys.stderr)
+    except Exception as e:
+        print(f"Error listing files: {str(e)}", file=sys.stderr)
 
-except Exception as e:
-    print(f"Error in main loop: {str(e)}", file=sys.stderr)
-    raise
+# Add this to your startup code:
+if __name__ == "__main__":
+    try:
+        print("=== STARTING MENU SCHEDULER ===", file=sys.stderr)
+        
+        # List all files on startup
+        list_server_files()
+        
+        # Load initial config
+        config = load_config()
+        print("Config loaded successfully", file=sys.stderr)
+        
+        # Validate template structure
+        validate_template_structure(config)
+        
+        # Setup schedule
+        schedule.every(1).minutes.do(check_and_send_menu)
+        print("Schedule set up successfully", file=sys.stderr)
+        
+        print("Starting scheduler loop...", file=sys.stderr)
+        while True:
+            schedule.run_pending()
+            time.sleep(60)
+            
+    except Exception as e:
+        print(f"Error in main loop: {str(e)}", file=sys.stderr)
+        raise
