@@ -4,11 +4,14 @@ import schedule
 import time
 import yaml
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 
-print("=== SCHEDULER TEST ===", file=sys.stderr)
-print(f"Current directory: {os.getcwd()}", file=sys.stderr)
+print("=== MENU SCHEDULER STARTING ===", file=sys.stderr)
 
 def load_config():
     # Load environment variables
@@ -30,14 +33,83 @@ def load_config():
     print("Configuration loaded with environment variables", file=sys.stderr)
     return config
 
-def test_job():
+def determine_menu_details(current_date):
+    """Calculate which menu should be sent based on the date"""
+    config = load_config()
+    
+    # Calculate next menu start date (2 weeks from now)
+    next_date = current_date + timedelta(days=14)
+    
+    # Determine season
+    year = next_date.year
+    summer_start = datetime.strptime(f"{year}-" + config['seasons']['summer']['start_date'][5:], "%Y-%m-%d")
+    winter_start = datetime.strptime(f"{year}-" + config['seasons']['winter']['start_date'][5:], "%Y-%m-%d")
+    
+    is_summer = (summer_start <= next_date < winter_start)
+    season = "Summer" if is_summer else "Winter"
+    season_start = summer_start if is_summer else winter_start
+    
+    # Calculate week number (1-4)
+    weeks_since_start = ((next_date - season_start).days // 14)
+    week_number = (weeks_since_start % 4) + 1
+    
+    return {
+        'start_date': next_date,
+        'season': season,
+        'week_number': week_number
+    }
+
+def send_menu(menu_details, config):
+    """Send the menu via email"""
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = f"{config['email']['sender_name']} <{config['email']['sender_email']}>"
+        msg['To'] = config['recipients']['primary']['email']
+        msg['Subject'] = f"Menu for week starting {menu_details['start_date'].strftime('%B %d, %Y')}"
+        
+        # Email body
+        body = f"""Hello,
+
+Please find attached the menu for the week starting {menu_details['start_date'].strftime('%B %d, %Y')}.
+This is a {menu_details['season']} menu (Week {menu_details['week_number']}).
+
+Best regards,
+Menu System"""
+        
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # TODO: Attach menu file once we implement menu generation
+        
+        # Send email
+        with smtplib.SMTP(config['email']['smtp_server'], config['email']['smtp_port']) as server:
+            server.starttls()
+            server.login(config['email']['sender_email'], config['email']['password'])
+            server.send_message(msg)
+            
+        print(f"Menu email sent successfully for {menu_details['start_date'].strftime('%Y-%m-%d')}", file=sys.stderr)
+        
+    except Exception as e:
+        print(f"Error sending menu email: {str(e)}", file=sys.stderr)
+        raise
+
+def check_and_send_menu():
+    """Check if a menu needs to be sent today and send if needed"""
     try:
         config = load_config()
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"Test job running at {current_time}", file=sys.stderr)
-        print(f"Using email: {config['email']['sender_email']}", file=sys.stderr)
+        current_date = datetime.now()
+        menu_details = determine_menu_details(current_date)
+        
+        # Calculate days until menu start
+        days_until_start = (menu_details['start_date'] - current_date).days
+        
+        if days_until_start == config['schedule']['send_days_before']:
+            print(f"Sending menu for {menu_details['season']} Week {menu_details['week_number']}", file=sys.stderr)
+            send_menu(menu_details, config)
+        else:
+            print(f"No menu due today. Next menu starts in {days_until_start} days", file=sys.stderr)
+            
     except Exception as e:
-        print(f"Error in test job: {str(e)}", file=sys.stderr)
+        print(f"Error in check_and_send_menu: {str(e)}", file=sys.stderr)
 
 try:
     # Load initial config
@@ -45,9 +117,9 @@ try:
     config = load_config()
     print("Config loaded successfully", file=sys.stderr)
     
-    # Setup basic job
-    print("Setting up test schedule...", file=sys.stderr)
-    schedule.every(1).minutes.do(test_job)
+    # Run check_and_send_menu every minute for testing
+    # Later we'll change this to run at 9 AM
+    schedule.every(1).minutes.do(check_and_send_menu)
     print("Schedule set up successfully", file=sys.stderr)
     
     print("Starting scheduler loop...", file=sys.stderr)
@@ -56,5 +128,5 @@ try:
         time.sleep(60)
 
 except Exception as e:
-    print(f"Error in scheduler: {str(e)}", file=sys.stderr)
+    print(f"Error in main loop: {str(e)}", file=sys.stderr)
     raise
