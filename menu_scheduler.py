@@ -93,8 +93,9 @@ def add_dates_to_pdf(original_pdf_path, menu_details):
         date_layer = os.path.join(temp_dir, "date.pdf")
         output_path = os.path.join(temp_dir, "menu_with_date.pdf")
         
-        # Create the date layer
-        c = canvas.Canvas(date_layer, pagesize=letter)
+        # Create the date layer with rotated orientation
+        c = canvas.Canvas(date_layer)
+        c.setPageSize((letter[1], letter[0]))  # Swap width and height for rotation
         c.setFont("Helvetica", 12)
         
         # Calculate all dates for the week
@@ -102,16 +103,21 @@ def add_dates_to_pdf(original_pdf_path, menu_details):
         for day in range(7):
             current_date = start_date + timedelta(days=day)
             date_text = current_date.strftime('%a %d %b')  # e.g., "Mon 3 Feb"
-            marker = f"{{{{DATE-{day+1}}}}}"
             
-            # Find position of this marker and place date there
-            # (We'll add marker detection code)
+            # Rotate text 90 degrees and position vertically
+            c.saveState()
+            # Start positions - adjust these based on your PDF layout
+            base_x = 100  # Distance from left edge
+            base_y = 700  # Start from top
+            spacing = 80  # Space between dates
             
-            # TODO: Need to implement marker detection to get x,y coordinates
-            # For now, place dates in fixed positions
-            x = 100  # Left margin
-            y = 750 - (day * 20)  # Start from top, move down for each date
-            c.drawString(x, y, date_text)
+            x = base_x + (day * spacing)  # Move right for each date
+            y = base_y                    # Keep same vertical position
+            
+            c.translate(x, y)
+            c.rotate(90)
+            c.drawString(0, 0, date_text)
+            c.restoreState()
         
         c.save()
         
@@ -134,9 +140,6 @@ def add_dates_to_pdf(original_pdf_path, menu_details):
     except Exception as e:
         print(f"Error adding date to PDF: {str(e)}", file=sys.stderr)
         raise
-    finally:
-        # Cleanup will happen in the calling function
-        pass
 
 def send_menu(menu_details, config):
     """Send the menu via email"""
@@ -265,13 +268,17 @@ def check_and_send_menu():
             return
             
         menu_details = determine_menu_details(current_date)
+        
+        # Calculate days until menu start
         days_until_start = (menu_details['start_date'] - current_date).days
         
         if days_until_start == config['schedule']['send_days_before']:
             print(f"Sending menu for {menu_details['season']} Week {menu_details['week_number']}", file=sys.stderr)
             send_menu(menu_details, config)
         else:
-            print(f"No menu due today. Next menu starts in {days_until_start} days", file=sys.stderr)
+            next_send_date = menu_details['start_date'] - timedelta(days=config['schedule']['send_days_before'])
+            days_until_send = (next_send_date - current_date).days
+            print(f"No menu due today. Next menu will be sent in {days_until_send} days (for menu starting {menu_details['start_date'].strftime('%B %d, %Y')})", file=sys.stderr)
             
     except Exception as e:
         print(f"Error in check_and_send_menu: {str(e)}", file=sys.stderr)
