@@ -73,20 +73,29 @@ def home():
                          })
 
 @app.route('/toggle', methods=['POST'])
-@login_required
 def toggle_service():
-    state = get_service_state()
-    new_state = not state['active']
-    save_service_state(new_state)
+    state_file = os.getenv('STATE_FILE', '/opt/render/service_state.txt')
     
-    # Add status message
-    status = "RESUMED" if new_state else "PAUSED"
-    print(f"Service {status} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", file=sys.stderr)
+    # Create directory if it doesn't exist
+    os.makedirs(os.path.dirname(state_file), exist_ok=True)
     
-    return jsonify({
-        "active": new_state,
-        "message": f"Service has been {status}"
-    })
+    try:
+        # Check current state
+        current_state = 'False'
+        if os.path.exists(state_file):
+            with open(state_file, 'r') as f:
+                current_state = f.read().strip()
+        
+        # Toggle state
+        new_state = 'True' if current_state.lower() == 'false' else 'False'
+        
+        # Write new state
+        with open(state_file, 'w') as f:
+            f.write(new_state)
+            
+        return jsonify({'status': 'success', 'state': new_state})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
 
 if __name__ == '__main__':
     app.run(debug=True) 
