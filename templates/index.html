@@ -122,7 +122,13 @@
                                     {% endif %}
                                     {{ activity.action }}
                                 </h6>
-                                <small>{{ activity.created_at.strftime('%d %B %Y %H:%M') }}</small>
+                                <small>
+                                    {% if activity.created_at is string %}
+                                        {{ activity.created_at.split('T')[0] }}
+                                    {% else %}
+                                        {{ activity.created_at.strftime('%d %B %Y %H:%M') }}
+                                    {% endif %}
+                                </small>
                             </div>
                             <p class="mb-1">{{ activity.details }}</p>
                         </div>

@@ -108,14 +108,22 @@ def index():
             .select('*')\
             .execute()
             
-        # Calculate next menu (using same logic as worker)
+        # Calculate next menu
         next_menu = None
         if settings.data:
             current_settings = settings.data[0]
-            next_menu = calculate_next_menu()  # From worker.py
+            next_menu = calculate_next_menu()
             
-        # Get real activity logs
+        # Get recent activity
         recent_activity = logger.get_recent_activity(limit=5)
+        
+        # Format dates if needed
+        if recent_activity:
+            for activity in recent_activity:
+                if isinstance(activity['created_at'], str):
+                    activity['created_at'] = datetime.fromisoformat(
+                        activity['created_at'].replace('Z', '+00:00')
+                    )
         
         # Get unread notifications
         unread_notifications = notifications.get_unread_notifications()
