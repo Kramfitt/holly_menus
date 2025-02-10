@@ -130,29 +130,29 @@ def read_state_file():
 
 @app.route('/toggle', methods=['POST'])
 def toggle_service():
-    print("\n🔄 Toggle request received")
+    state_file = '/opt/render/service_state.txt'
+    print(f"\n🔄 TOGGLE REQUEST at {datetime.now()}")
+    
     try:
         # Read current state
-        print("1. Reading current state...")
         current_state = read_state_file()
-        print(f"   Current state: {current_state}")
-        
-        # Toggle state
         new_state = not current_state
-        print(f"2. New state will be: {new_state}")
         
         # Write new state
-        print("3. Attempting to write new state...")
-        if write_state_file(new_state):
-            print("✅ Toggle successful!")
+        success = write_state_file(new_state)
+        
+        # Log the result
+        status = "✅ SUCCESS" if success else "❌ FAILED"
+        print(f"💡 Toggle: {current_state} → {new_state} [{status}]")
+        
+        if success:
             return jsonify({'status': 'success', 'state': str(new_state).lower()})
         else:
-            print("❌ Failed to write state")
             return jsonify({'status': 'error', 'message': 'Failed to write state'})
             
     except Exception as e:
         print(f"❌ Toggle error: {str(e)}")
-        return jsonify({'status': 'error', 'message': f"Toggle failed: {str(e)}"})
+        return jsonify({'status': 'error', 'message': str(e)})
 
 if __name__ == '__main__':
     app.run(debug=True) 
