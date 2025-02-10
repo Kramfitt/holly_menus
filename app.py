@@ -218,15 +218,7 @@ def api_preview_menu():
         img_response = requests.get(menu['file_url'])
         img = Image.open(io.BytesIO(img_response.content))
         
-        # Detect and correct orientation
-        rotation_angle = detect_orientation(img)
-        if rotation_angle in [90, 180, 270]:
-            img = img.rotate(360 - rotation_angle, expand=True)
-        
-        # Find top-left reference point
-        top_left_x, top_left_y = find_top_left(img)
-        
-        # Create drawing context
+        # Add dates to image
         draw = ImageDraw.Draw(img)
         
         # Load font
@@ -235,33 +227,30 @@ def api_preview_menu():
         except:
             font = ImageFont.load_default()
         
-        # Calculate date positions
+        # Fixed positions for Holly Lea menus
+        x_start = 180
+        y_start = 150
         x_spacing = 280
-        date_offsets = [
-            (180 + top_left_x + (x_spacing * i), top_left_y + 80)
-            for i in range(7)
-        ]
         
         # Add dates
-        for i, offset in enumerate(date_offsets):
+        for i in range(7):
+            x = x_start + (x_spacing * i)
+            y = y_start
             current_date = date_obj + timedelta(days=i)
             date_text = current_date.strftime('%a %d\n%b')
             
-            # Get text size for background
-            bbox = draw.textbbox(offset, date_text, font=font)
-            padding = 10
-            
             # Draw white background
-            background_bbox = (
+            bbox = draw.textbbox((x, y), date_text, font=font)
+            padding = 10
+            draw.rectangle([
                 bbox[0] - padding,
                 bbox[1] - padding,
                 bbox[2] + padding,
                 bbox[3] + padding
-            )
-            draw.rectangle(background_bbox, fill='white')
+            ], fill='white')
             
             # Draw text
-            draw.text(offset, date_text, fill='black', font=font)
+            draw.text((x, y), date_text, fill='black', font=font)
         
         # Convert to bytes
         img_byte_arr = io.BytesIO()
@@ -284,41 +273,6 @@ def api_preview_menu():
     except Exception as e:
         print(f"❌ Preview error: {str(e)}")
         return f"Failed to generate preview: {str(e)}", 500
-
-def detect_orientation(image):
-    """Detect the orientation of an image using pytesseract OSD."""
-    try:
-        osd_data = pytesseract.image_to_osd(image)
-        rotation_angle = int(osd_data.split("Rotate:")[1].split("\n")[0].strip())
-        print(f"Detected rotation: {rotation_angle}°", file=sys.stderr)
-        return rotation_angle
-    except Exception as e:
-        print(f"Error detecting orientation: {e}", file=sys.stderr)
-        return 0
-
-def find_top_left(image):
-    """Find the top-left corner using OCR bounding boxes"""
-    try:
-        data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
-        
-        min_x = float('inf')
-        min_y = float('inf')
-        
-        for i in range(len(data['text'])):
-            if data['conf'][i] > 0:
-                x = data['left'][i]
-                y = data['top'][i]
-                
-                if x < min_x or (x == min_x and y < min_y):
-                    min_x = x
-                    min_y = y
-        
-        print(f"Found top-left corner at: ({min_x}, {min_y})", file=sys.stderr)
-        return min_x, min_y
-        
-    except Exception as e:
-        print(f"Error finding top-left: {str(e)}", file=sys.stderr)
-        raise
 
 @app.route('/api/template', methods=['POST'])
 def upload_template():
