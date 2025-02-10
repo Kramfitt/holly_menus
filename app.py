@@ -65,33 +65,37 @@ def logout():
 @app.route('/')
 @login_required
 def home():
-    state = get_service_state()
-    return render_template('dashboard.html', 
-                         state=state,
-                         config={
-                             'admin_email': app.config['ADMIN_EMAIL'],
-                             'recipients': app.config['RECIPIENT_EMAILS']
-                         })
+    # Force read current state
+    current_state = read_state_file()
+    state = {
+        "active": current_state,
+        "last_updated": datetime.now() if os.path.exists('/opt/render/service_state.txt') else None
+    }
+    return render_template('dashboard.html', state=state)
 
 def write_state_file(state):
     """Write state file with verification"""
     state_file = '/opt/render/service_state.txt'
-    print(f"📝 Writing state file: {state_file}")
     
     try:
-        # Write new state
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(state_file), exist_ok=True)
+        
+        # Write state with explicit permissions
         with open(state_file, 'w') as f:
             state_str = str(state).lower()
-            print(f"✍️ Writing state: {state_str}")
             f.write(state_str)
             f.flush()
             os.fsync(f.fileno())
         
-        print("✅ Write completed")
+        # Set permissions to allow both services to read/write
+        os.chmod(state_file, 0o666)
+        
+        print(f"✅ State file written: {state_str}")
         return True
             
     except Exception as e:
-        print(f"❌ Write error: {str(e)}")
+        print(f"❌ Error: {str(e)}")
         return False
 
 def read_state_file():

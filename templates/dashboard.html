@@ -27,6 +27,14 @@
             font-size: 16px;
             cursor: pointer;
         }
+        .active-btn {
+            background-color: #f8d7da;  /* peach */
+            color: #721c24;
+        }
+        .pause-btn {
+            background-color: #d4edda;  /* green */
+            color: #155724;
+        }
     </style>
 </head>
 <body>
@@ -39,44 +47,35 @@
         {% endif %}
     </div>
 
-    <button onclick="toggleService()" id="toggleBtn">
+    <button onclick="toggleService()" id="toggleBtn" class="{{ 'active-btn' if state.active else 'pause-btn' }}">
         {{ "Pause Service" if state.active else "Resume Service" }}
     </button>
 
     <script>
         function toggleService() {
-            // Show loading state
-            const statusElement = document.getElementById('status');
-            const toggleButton = document.querySelector('button');
-            const originalText = statusElement.textContent;
-            statusElement.textContent = 'Updating...';
+            const toggleButton = document.getElementById('toggleBtn');
+            const statusDiv = document.querySelector('.status');
             
             fetch('/toggle', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
+                headers: {'Content-Type': 'application/json'}
             })
             .then(response => response.json())
             .then(data => {
-                console.log("Toggle response:", data);
                 if (data.status === 'success') {
-                    // Update status text
-                    statusElement.textContent = data.state === 'true' ? 'Active' : 'Paused';
+                    const isActive = data.state === 'true';
                     
                     // Update button
-                    toggleButton.textContent = data.state === 'true' ? 'Pause Service' : 'Resume Service';
-                    toggleButton.className = data.state === 'true' ? 'btn btn-danger' : 'btn btn-success';
-                } else {
-                    statusElement.textContent = originalText;
-                    console.error("Toggle failed:", data.message);
-                    alert("Failed to toggle service: " + data.message);
+                    toggleButton.textContent = isActive ? 'Pause Service' : 'Resume Service';
+                    toggleButton.className = isActive ? 'active-btn' : 'pause-btn';
+                    
+                    // Update status div
+                    statusDiv.className = `status ${isActive ? 'active' : 'inactive'}`;
+                    statusDiv.innerHTML = `Service is currently: <strong>${isActive ? 'ACTIVE' : 'PAUSED'}</strong>`;
+                    
+                    // Force page refresh to sync with server
+                    location.reload();
                 }
-            })
-            .catch(error => {
-                statusElement.textContent = originalText;
-                console.error("Toggle error:", error);
-                alert("Error toggling service");
             });
         }
     </script>
