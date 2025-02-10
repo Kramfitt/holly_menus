@@ -104,19 +104,55 @@ def write_state_file(state):
     
     return False
 
+def read_state_file():
+    """Read state file with retries"""
+    state_file = '/opt/render/service_state.txt'
+    max_retries = 3
+    
+    for attempt in range(max_retries):
+        try:
+            if not os.path.exists(state_file):
+                print(f"❌ State file missing (attempt {attempt + 1})")
+                time.sleep(1)
+                continue
+                
+            with open(state_file, 'r') as f:
+                content = f.read().strip().lower()
+                print(f"📄 Read state: '{content}' (attempt {attempt + 1})")
+                return content == 'true'
+                
+        except Exception as e:
+            print(f"❌ Error reading state: {str(e)} (attempt {attempt + 1})")
+            time.sleep(1)
+    
+    print("❌ Failed to read state file after retries")
+    return False  # Default to paused if can't read
+
 @app.route('/toggle', methods=['POST'])
 def toggle_service():
+    print("\n🔄 Toggle request received")
     try:
+        # Read current state
+        print("1. Reading current state...")
         current_state = read_state_file()
-        new_state = not current_state
+        print(f"   Current state: {current_state}")
         
+        # Toggle state
+        new_state = not current_state
+        print(f"2. New state will be: {new_state}")
+        
+        # Write new state
+        print("3. Attempting to write new state...")
         if write_state_file(new_state):
+            print("✅ Toggle successful!")
             return jsonify({'status': 'success', 'state': str(new_state).lower()})
         else:
+            print("❌ Failed to write state")
             return jsonify({'status': 'error', 'message': 'Failed to write state'})
             
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
+        print(f"❌ Toggle error: {str(e)}")
+        return jsonify({'status': 'error', 'message': f"Toggle failed: {str(e)}"})
 
 if __name__ == '__main__':
     app.run(debug=True) 
