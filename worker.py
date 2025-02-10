@@ -36,6 +36,14 @@ def read_state_file():
 
 def should_send_emails():
     """Check if email service is active"""
+    state_file = '/opt/render/service_state.txt'
+    print(f"\n📂 Worker checking:")
+    print(f"- State file path: {state_file}")
+    print(f"- File exists? {os.path.exists(state_file)}")
+    print(f"- Current directory: {os.getcwd()}")
+    print(f"- Directory contents: {os.listdir('/')}")
+    print(f"- /opt contents: {os.listdir('/opt')}")
+    print(f"- /opt/render contents: {os.listdir('/opt/render')}")
     is_active = read_state_file()
     print(f"\n🔍 Service state check at {datetime.now()}:")
     print(f"- Should send emails? {'YES' if is_active else 'NO'}")

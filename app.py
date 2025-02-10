@@ -66,6 +66,13 @@ def logout():
 @login_required
 def home():
     state_file = '/opt/render/service_state.txt'
+    print(f"\n📂 Dashboard checking:")
+    print(f"- State file path: {state_file}")
+    print(f"- File exists? {os.path.exists(state_file)}")
+    print(f"- Current directory: {os.getcwd()}")
+    print(f"- Directory contents: {os.listdir('/')}")
+    print(f"- /opt contents: {os.listdir('/opt')}")
+    print(f"- /opt/render contents: {os.listdir('/opt/render')}")
     
     # Create state file if it doesn't exist
     if not os.path.exists(state_file):
