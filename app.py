@@ -76,33 +76,23 @@ def home():
 def write_state_file(state):
     """Write state file with verification"""
     state_file = '/opt/render/service_state.txt'
-    max_retries = 3
+    print(f"📝 Writing state file: {state_file}")
     
-    for attempt in range(max_retries):
-        try:
-            # Ensure directory exists
-            os.makedirs(os.path.dirname(state_file), exist_ok=True)
+    try:
+        # Write new state
+        with open(state_file, 'w') as f:
+            state_str = str(state).lower()
+            print(f"✍️ Writing state: {state_str}")
+            f.write(state_str)
+            f.flush()
+            os.fsync(f.fileno())
+        
+        print("✅ Write completed")
+        return True
             
-            # Write new state
-            with open(state_file, 'w') as f:
-                f.write(str(state).lower())
-                f.flush()
-                os.fsync(f.fileno())
-            
-            # Verify write
-            with open(state_file, 'r') as f:
-                content = f.read().strip().lower()
-                if content == str(state).lower():
-                    print(f"✅ State written and verified: {content}")
-                    return True
-                    
-            print(f"❌ Write verification failed (attempt {attempt + 1})")
-            
-        except Exception as e:
-            print(f"❌ Error writing state: {str(e)} (attempt {attempt + 1})")
-            time.sleep(1)
-    
-    return False
+    except Exception as e:
+        print(f"❌ Write error: {str(e)}")
+        return False
 
 def read_state_file():
     """Read state file with retries"""

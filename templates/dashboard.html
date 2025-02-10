@@ -47,6 +47,7 @@
         function toggleService() {
             // Show loading state
             const statusElement = document.getElementById('status');
+            const toggleButton = document.querySelector('button');
             const originalText = statusElement.textContent;
             statusElement.textContent = 'Updating...';
             
@@ -62,9 +63,10 @@
                 if (data.status === 'success') {
                     // Update status text
                     statusElement.textContent = data.state === 'true' ? 'Active' : 'Paused';
-                    // Update button text
-                    const toggleButton = document.querySelector('button');
+                    
+                    // Update button
                     toggleButton.textContent = data.state === 'true' ? 'Pause Service' : 'Resume Service';
+                    toggleButton.className = data.state === 'true' ? 'btn btn-danger' : 'btn btn-success';
                 } else {
                     statusElement.textContent = originalText;
                     console.error("Toggle failed:", data.message);
