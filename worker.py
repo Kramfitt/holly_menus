@@ -6,9 +6,14 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import smtplib
 import time
+import redis
 
 # Force load from .env file
 load_dotenv(override=True)
+
+# Near the top with other configs
+redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+redis_client = redis.from_url(redis_url)
 
 def read_state_file():
     """Read state file with retries"""
@@ -36,18 +41,14 @@ def read_state_file():
 
 def should_send_emails():
     """Check if email service is active"""
-    state_file = '/opt/render/project/src/service_state.txt'  # Inside the project directory
-    print(f"\n📂 Worker checking:")
-    print(f"- State file path: {state_file}")
-    print(f"- File exists? {os.path.exists(state_file)}")
-    print(f"- Current directory: {os.getcwd()}")
-    print(f"- Directory contents: {os.listdir('/')}")
-    print(f"- /opt contents: {os.listdir('/opt')}")
-    print(f"- /opt/render contents: {os.listdir('/opt/render')}")
-    is_active = read_state_file()
-    print(f"\n🔍 Service state check at {datetime.now()}:")
-    print(f"- Should send emails? {'YES' if is_active else 'NO'}")
-    return is_active
+    try:
+        state = redis_client.get('service_state')
+        is_active = state == b'true' if state else False
+        print(f"⚡ Service state: {'ACTIVE' if is_active else 'PAUSED'}")
+        return is_active
+    except Exception as e:
+        print(f"❌ Redis error: {str(e)}")
+        return False  # Default to paused on error
 
 def send_email():
     """Send email using settings from .env"""

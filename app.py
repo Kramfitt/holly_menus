@@ -5,6 +5,7 @@ import sys
 from datetime import datetime
 from dotenv import load_dotenv
 import time
+import redis
 
 # Load environment variables
 load_dotenv()
@@ -23,6 +24,10 @@ app.config.update(
     RECIPIENT_EMAILS=os.getenv('RECIPIENT_EMAILS', '').split(','),
     DASHBOARD_PASSWORD=os.getenv('DASHBOARD_PASSWORD', 'change-this-password')
 )
+
+# Near the top with other configs
+redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+redis_client = redis.from_url(redis_url)
 
 def get_service_state():
     if not os.path.exists(app.config['STATE_FILE']):
@@ -144,25 +149,17 @@ def read_state_file():
 
 @app.route('/toggle', methods=['POST'])
 def toggle_service():
-    state_file = '/opt/render/project/src/service_state.txt'
-    print(f"\n🔄 TOGGLE REQUEST at {datetime.now()}")
-    
     try:
-        # Read current state
-        current_state = read_state_file()
+        # Get current state
+        current_state = redis_client.get('service_state')
+        current_state = current_state == b'true' if current_state else False
+        
+        # Toggle state
         new_state = not current_state
+        redis_client.set('service_state', str(new_state).lower())
         
-        # Write new state
-        success = write_state_file(new_state)
-        
-        # Log the result
-        status = "✅ SUCCESS" if success else "❌ FAILED"
-        print(f"💡 Toggle: {current_state} → {new_state} [{status}]")
-        
-        if success:
-            return jsonify({'status': 'success', 'state': str(new_state).lower()})
-        else:
-            return jsonify({'status': 'error', 'message': 'Failed to write state'})
+        print(f"💡 Toggle: {current_state} → {new_state}")
+        return jsonify({'status': 'success', 'state': str(new_state).lower()})
             
     except Exception as e:
         print(f"❌ Toggle error: {str(e)}")
