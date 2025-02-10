@@ -214,47 +214,50 @@ def api_preview_menu():
         if menu['file_type'] == 'pdf':
             return f'<embed src="{menu["file_url"]}" type="application/pdf" width="100%" height="600px">'
             
-        # Generate preview path
-        preview_path = f"previews/preview_{menu_id}_{preview_date}.{menu['file_type']}"
-        
-        try:
-            # Try to delete existing preview
-            supabase.storage.from_('menus').remove([preview_path])
-        except:
-            pass  # Ignore if file doesn't exist
-            
         # Download and process image
         img_response = requests.get(menu['file_url'])
         img = Image.open(io.BytesIO(img_response.content))
-        
-        # Add dates to image
         draw = ImageDraw.Draw(img)
         
+        # Create font
         try:
-            font = ImageFont.truetype("Roboto-Regular.ttf", 36)
+            font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 25)
         except:
-            font = ImageFont.load_default()
+            try:
+                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 25)
+            except:
+                try:
+                    font = ImageFont.truetype("/Library/Fonts/Arial Bold.ttf", 25)
+                except:
+                    font = ImageFont.load_default()
         
-        # Fixed positions for Holly Lea menus
-        x_start = 180
-        y_start = 150
+        # Position settings from successful test
+        x_start = 320
+        y_start = 200
         x_spacing = 280
         
         # Add dates
-        for i in range(7):
-            x = x_start + (x_spacing * i)
+        for day in range(7):
+            x = x_start + (x_spacing * day)
             y = y_start
-            current_date = date_obj + timedelta(days=i)
+            current_date = date_obj + timedelta(days=day)
             date_text = current_date.strftime('%a %d\n%b')
             
-            # Draw white background
+            # Get text size for background
             bbox = draw.textbbox((x, y), date_text, font=font)
-            padding = 10
+            padding_x = 20
+            padding_y = 15
+            
+            # Calculate box dimensions
+            box_width = bbox[2] - bbox[0] + (padding_x * 2)
+            box_height = (bbox[3] - bbox[1] + (padding_y * 2)) * 0.8
+            
+            # Draw background
             draw.rectangle([
-                bbox[0] - padding,
-                bbox[1] - padding,
-                bbox[2] + padding,
-                bbox[3] + padding
+                bbox[0] - padding_x,
+                bbox[1] - padding_y,
+                bbox[0] + box_width - padding_x,
+                bbox[1] + box_height - padding_y
             ], fill='white')
             
             # Draw text
@@ -264,6 +267,15 @@ def api_preview_menu():
         img_byte_arr = io.BytesIO()
         img.save(img_byte_arr, format=img.format)
         img_byte_arr = img_byte_arr.getvalue()
+        
+        # Generate preview path
+        preview_path = f"previews/preview_{menu_id}_{preview_date}.{menu['file_type']}"
+        
+        try:
+            # Try to delete existing preview
+            supabase.storage.from_('menus').remove([preview_path])
+        except:
+            pass  # Ignore if file doesn't exist
         
         # Upload new preview
         supabase.storage.from_('menus').upload(
