@@ -13,20 +13,21 @@ load_dotenv(override=True)
 def should_send_emails():
     """Check if email service is active"""
     try:
-        state_file = os.getenv('STATE_FILE', 'service_state.txt')
-        print(f"\n📁 Worker PID {os.getpid()} checking state file: {state_file}")
+        state_file = os.getenv('STATE_FILE', '/opt/render/service_state.txt')
+        print(f"\n🔍 DEBUG:")
+        print(f"- State file path: {state_file}")
+        print(f"- Current time: {datetime.now()}")
         
         with open(state_file, 'r') as f:
             content = f.read().strip()
-            is_active = content == 'True'
-            print(f"📄 State file content: '{content}'")
-            print(f"🔍 Service active? {is_active}")
+            print(f"- File content: '{content}'")
+            is_active = content.lower() == 'true'
+            print(f"- Interpreted as: {is_active}")
             return is_active
-    except FileNotFoundError:
-        print(f"❌ State file not found: {state_file}")
-        return True
+            
     except Exception as e:
         print(f"❌ Error reading state file: {str(e)}")
+        print(f"- Full error: {repr(e)}")
         return True
 
 def send_email():
@@ -63,7 +64,10 @@ def send_email():
 
 def main():
     """Main service loop"""
-    print(f"\n🚀 Worker service starting... PID: {os.getpid()}")
+    print("\n🚀 Worker service starting...")
+    print(f"📁 Environment check:")
+    print(f"- STATE_FILE: {os.getenv('STATE_FILE')}")
+    print(f"- Working dir: {os.getcwd()}")
     print(f"📧 Using email: {os.getenv('SMTP_USERNAME')}")
     print(f"👥 Sending to: {os.getenv('RECIPIENT_EMAILS')}")
     print(f"📁 State file path: {os.getenv('STATE_FILE', 'service_state.txt')}")
