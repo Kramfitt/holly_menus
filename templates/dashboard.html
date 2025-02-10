@@ -28,33 +28,48 @@
             cursor: pointer;
         }
         .active-btn {
-            background-color: #f8d7da;  /* peach */
-            color: #721c24;
+            background-color: #f8d7da !important;  /* peach */
+            color: #721c24 !important;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
         }
         .pause-btn {
-            background-color: #d4edda;  /* green */
-            color: #155724;
+            background-color: #d4edda !important;  /* green */
+            color: #155724 !important;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
     <h1>Menu Service Dashboard</h1>
     
-    <div class="status {{ 'active' if state.active else 'inactive' }}">
-        Service is currently: <strong>{{ "ACTIVE" if state.active else "PAUSED" }}</strong>
-        {% if state.last_updated %}
-        <br>Last updated: {{ state.last_updated.strftime('%Y-%m-%d %H:%M:%S') }}
-        {% endif %}
+    <div class="status-container">
+        <div class="status {{ 'active' if state.active else 'inactive' }}">
+            Service is currently: <strong>{{ "ACTIVE" if state.active else "PAUSED" }}</strong>
+            {% if state.last_updated %}
+            <br>Last updated: {{ state.last_updated.strftime('%Y-%m-%d %H:%M:%S') }}
+            {% endif %}
+        </div>
+        <button onclick="toggleService()" id="toggleBtn" 
+                class="{{ 'active-btn' if state.active else 'pause-btn' }}">
+            {{ "Pause Service" if state.active else "Resume Service" }}
+        </button>
     </div>
-
-    <button onclick="toggleService()" id="toggleBtn" class="{{ 'active-btn' if state.active else 'pause-btn' }}">
-        {{ "Pause Service" if state.active else "Resume Service" }}
-    </button>
 
     <script>
         function toggleService() {
+            console.log("Toggle clicked");  // Debug
             const toggleButton = document.getElementById('toggleBtn');
             const statusDiv = document.querySelector('.status');
+            
+            // Show loading state
+            toggleButton.textContent = "Updating...";
+            toggleButton.disabled = true;
             
             fetch('/toggle', {
                 method: 'POST',
@@ -62,20 +77,28 @@
             })
             .then(response => response.json())
             .then(data => {
+                console.log("Response:", data);  // Debug
                 if (data.status === 'success') {
                     const isActive = data.state === 'true';
+                    console.log("New state:", isActive);  // Debug
                     
                     // Update button
                     toggleButton.textContent = isActive ? 'Pause Service' : 'Resume Service';
                     toggleButton.className = isActive ? 'active-btn' : 'pause-btn';
                     
-                    // Update status div
-                    statusDiv.className = `status ${isActive ? 'active' : 'inactive'}`;
+                    // Update status
                     statusDiv.innerHTML = `Service is currently: <strong>${isActive ? 'ACTIVE' : 'PAUSED'}</strong>`;
                     
-                    // Force page refresh to sync with server
-                    location.reload();
+                    // Force reload after short delay
+                    setTimeout(() => location.reload(), 500);
                 }
+            })
+            .catch(error => {
+                console.error("Error:", error);  // Debug
+                alert("Error toggling service");
+            })
+            .finally(() => {
+                toggleButton.disabled = false;
             });
         }
     </script>
