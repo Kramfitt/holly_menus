@@ -9,6 +9,9 @@ import redis
 import psycopg2
 from supabase import create_client, Client
 from werkzeug.utils import secure_filename
+from PIL import Image, ImageDraw, ImageFont
+import io
+import requests
 
 # Load environment variables
 load_dotenv()
@@ -190,7 +193,8 @@ def preview_menu():
 def api_preview_menu():
     try:
         menu_id = request.args.get('menu_id')
-        print(f"Loading preview for menu {menu_id}")
+        preview_date = request.args.get('date')
+        date_obj = datetime.strptime(preview_date, '%Y-%m-%d')
         
         # Get menu data
         response = supabase.table('menus')\
@@ -199,17 +203,73 @@ def api_preview_menu():
             .single()\
             .execute()
             
-        print(f"Menu data: {response.data}")
-        
-        if response.data:
-            menu = response.data
-            if menu['file_type'] == 'pdf':
-                return f'<embed src="{menu["file_url"]}" type="application/pdf" width="100%" height="600px">'
-            else:
-                return f'<img src="{menu["file_url"]}" class="img-fluid" alt="Menu Preview">'
-        else:
-            print("Menu not found")
+        if not response.data:
             return "Menu not found", 404
+            
+        menu = response.data
+        
+        # For PDFs, just return the viewer
+        if menu['file_type'] == 'pdf':
+            return f'<embed src="{menu["file_url"]}" type="application/pdf" width="100%" height="600px">'
+            
+        # For images, add date overlay
+        # Download image from Supabase
+        img_response = requests.get(menu['file_url'])
+        img = Image.open(io.BytesIO(img_response.content))
+        
+        # Create drawing context
+        draw = ImageDraw.Draw(img)
+        
+        # Load a font (using default for now)
+        try:
+            font = ImageFont.truetype("arial.ttf", 60)
+        except:
+            font = ImageFont.load_default()
+        
+        # Format date
+        date_text = date_obj.strftime('%A, %B %d, %Y')
+        
+        # Get image dimensions
+        img_w, img_h = img.size
+        
+        # Calculate text size
+        text_bbox = draw.textbbox((0, 0), date_text, font=font)
+        text_w = text_bbox[2] - text_bbox[0]
+        text_h = text_bbox[3] - text_bbox[1]
+        
+        # Position text (top center)
+        x = (img_w - text_w) / 2
+        y = 50  # 50 pixels from top
+        
+        # Draw white background for text
+        padding = 10
+        draw.rectangle([
+            x - padding,
+            y - padding,
+            x + text_w + padding,
+            y + text_h + padding
+        ], fill='white')
+        
+        # Draw text
+        draw.text((x, y), date_text, font=font, fill='black')
+        
+        # Convert back to bytes
+        img_byte_arr = io.BytesIO()
+        img.save(img_byte_arr, format=img.format)
+        img_byte_arr = img_byte_arr.getvalue()
+        
+        # Upload modified image to Supabase storage with preview_ prefix
+        preview_path = f"previews/preview_{menu_id}_{preview_date}.{menu['file_type']}"
+        supabase.storage.from_('menus').upload(
+            preview_path,
+            img_byte_arr,
+            {'content-type': f"image/{menu['file_type']}"}
+        )
+        
+        # Get preview URL
+        preview_url = supabase.storage.from_('menus').get_public_url(preview_path)
+        
+        return f'<img src="{preview_url}?t={datetime.now().timestamp()}" class="img-fluid" alt="Menu Preview">'
             
     except Exception as e:
         print(f"❌ Preview error: {str(e)}")

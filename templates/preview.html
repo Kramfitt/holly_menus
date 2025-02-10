@@ -14,8 +14,9 @@
                             <button class="btn btn-link text-start p-0" onclick="selectTemplate('{{ menu.id }}')">
                                 {{ menu.name }}
                             </button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteTemplate('{{ menu.id }}')">
-                                <i class="fas fa-trash"></i>
+                            <button class="btn btn-danger" onclick="deleteTemplate('{{ menu.id }}')" 
+                                    title="Delete Menu">
+                                <i class="fas fa-trash"></i> Delete
                             </button>
                         </div>
                         {% endfor %}
