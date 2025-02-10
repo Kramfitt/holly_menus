@@ -29,145 +29,161 @@
     </div>
 </nav>
 
-<div class="container mt-4">
-    <!-- Control Panel Table -->
+<div class="container">
+    <h2>Menu Preview & Send</h2>
+    
+    <!-- Settings Form -->
     <div class="card mb-4">
-        <div class="card-body p-0">
-            <table class="table table-bordered m-0">
-                <tr>
-                    <!-- Left Cell: Templates -->
-                    <td class="w-25 p-3">
-                        <h4 class="mb-3">Menu Templates</h4>
-                        <!-- Template List -->
-                        <div class="list-group list-group-flush" id="templateList">
-                            {% for menu in menus %}
-                            <div class="list-group-item d-flex justify-content-between align-items-center">
-                                <button class="btn btn-link text-start p-0" onclick="selectTemplate('{{ menu.id }}')">
-                                    {{ menu.name }}
-                                </button>
-                                <button class="btn btn-danger" onclick="deleteTemplate('{{ menu.id }}')" 
-                                        title="Delete Menu">
-                                    <i class="fas fa-trash"></i> Delete
-                                </button>
-                            </div>
-                            {% endfor %}
-                        </div>
-                        
-                        <!-- File Upload -->
-                        <div class="mt-3">
-                            <input type="file" 
-                                   id="templateFile" 
-                                   accept=".pdf,.jpg,.jpeg,.png" 
-                                   class="form-control"
-                                   onchange="uploadTemplate()">
-                        </div>
-                    </td>
+        <div class="card-body">
+            <h5 class="card-title">Menu Settings</h5>
+            <!-- Control Panel Table -->
+            <div class="card mb-4">
+                <div class="card-body p-0">
+                    <table class="table table-bordered m-0">
+                        <tr>
+                            <!-- Left Cell: Templates -->
+                            <td class="w-25 p-3">
+                                <h4 class="mb-3">Menu Templates</h4>
+                                <!-- Template List -->
+                                <div class="list-group list-group-flush" id="templateList">
+                                    {% for menu in menus %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <button class="btn btn-link text-start p-0" onclick="selectTemplate('{{ menu.id }}')">
+                                            {{ menu.name }}
+                                        </button>
+                                        <button class="btn btn-danger" onclick="deleteTemplate('{{ menu.id }}')" 
+                                                title="Delete Menu">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </button>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                
+                                <!-- File Upload -->
+                                <div class="mt-3">
+                                    <input type="file" 
+                                           id="templateFile" 
+                                           accept=".pdf,.jpg,.jpeg,.png" 
+                                           class="form-control"
+                                           onchange="uploadTemplate()">
+                                </div>
+                            </td>
 
-                    <!-- Second Cell: Menu Rotation -->
-                    <td class="w-25 p-3">
-                        <h4 class="mb-3">Menu Rotation</h4>
-                        <div class="form-group mb-3">
-                            <label class="form-label"><strong>Start Date:</strong></label>
-                            <input type="date" id="startDate" 
-                                   class="form-control"
-                                   value="{{ settings.start_date if settings else '' }}"
-                                   onchange="updateMenuRotation()">
-                        </div>
-                        <div class="form-group mb-3">
-                            <label class="form-label"><strong>Season:</strong></label>
-                            <select id="season" class="form-control" onchange="updateMenuRotation()">
-                                <option value="summer" {% if settings and settings.season == 'summer' %}selected{% endif %}>Summer</option>
-                                <option value="winter" {% if settings and settings.season == 'winter' %}selected{% endif %}>Winter</option>
-                            </select>
-                        </div>
-                        <div class="form-group mb-3">
-                            <label class="form-label"><strong>Season Change Date:</strong></label>
-                            <input type="date" id="seasonChangeDate" 
-                                   class="form-control"
-                                   value="{{ settings.season_change_date if settings else '' }}"
-                                   onchange="updateMenuRotation()">
-                        </div>
-                        <div class="alert alert-info mt-3">
-                            <strong>Next Menu to Send:</strong><br>
-                            <span id="currentRotation">Select dates to see next menu</span>
-                        </div>
-                    </td>
+                            <!-- Second Cell: Menu Rotation -->
+                            <td class="w-25 p-3">
+                                <h4 class="mb-3">Menu Rotation</h4>
+                                <div class="form-group mb-3">
+                                    <label class="form-label"><strong>Start Date:</strong></label>
+                                    <input type="date" id="startDate" 
+                                           class="form-control"
+                                           value="{{ settings.start_date if settings else '' }}"
+                                           onchange="updateMenuRotation()">
+                                </div>
+                                <div class="form-group mb-3">
+                                    <label class="form-label"><strong>Season:</strong></label>
+                                    <select id="season" class="form-control" onchange="updateMenuRotation()">
+                                        <option value="summer" {% if settings and settings.season == 'summer' %}selected{% endif %}>Summer</option>
+                                        <option value="winter" {% if settings and settings.season == 'winter' %}selected{% endif %}>Winter</option>
+                                    </select>
+                                </div>
+                                <div class="form-group mb-3">
+                                    <label class="form-label"><strong>Season Change Date:</strong></label>
+                                    <input type="date" id="seasonChangeDate" 
+                                           class="form-control"
+                                           value="{{ settings.season_change_date if settings else '' }}"
+                                           onchange="updateMenuRotation()">
+                                </div>
+                                <div class="alert alert-info mt-3">
+                                    <strong>Next Menu to Send:</strong><br>
+                                    <span id="currentRotation">Select dates to see next menu</span>
+                                </div>
+                            </td>
 
-                    <!-- Third Cell: Send Settings -->
-                    <td class="w-25 p-3">
-                        <h4 class="mb-3">Send Settings</h4>
-                        <div class="form-group mb-3">
-                            <label class="form-label"><strong>Days in Advance to Send:</strong></label>
-                            <input type="number" 
-                                   id="daysInAdvance" 
-                                   class="form-control" 
-                                   value="{{ settings.days_in_advance if settings else '3' }}"
-                                   min="1" 
-                                   max="14"
-                                   onchange="updateMenuRotation()">
-                        </div>
-                        <div class="form-group mb-3">
-                            <label for="previewDate" class="form-label"><strong>Select Date:</strong></label>
-                            <input type="date" id="previewDate" 
-                                   class="form-control"
-                                   value="{{ preview_date }}"
-                                   onchange="updatePreview()">
-                        </div>
-                        <div class="form-group mb-3">
-                            <label for="emailRecipients" class="d-block"><strong>Email Recipients</strong></label>
-                            <input type="text" class="form-control" id="emailRecipients" 
-                                   value="{{ ','.join(settings.recipient_emails) if settings and settings.recipient_emails else '' }}"
-                                   placeholder="email1@example.com, email2@example.com">
-                        </div>
-                        <button class="btn btn-primary w-100" onclick="sendMenu()">
-                            Send Menu Email
-                        </button>
-                        <div id="emailSpinner" class="d-none text-center mt-2">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Sending...</span>
-                            </div>
-                            <div>Sending email...</div>
-                        </div>
-                        <div class="mt-3">
-                            <button class="btn btn-warning w-100" onclick="saveSettings()">
-                                <i class="fas fa-save"></i> Save Settings
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            </table>
+                            <!-- Third Cell: Send Settings -->
+                            <td class="w-25 p-3">
+                                <h4 class="mb-3">Send Settings</h4>
+                                <div class="form-group mb-3">
+                                    <label class="form-label"><strong>Days in Advance to Send:</strong></label>
+                                    <input type="number" 
+                                           id="daysInAdvance" 
+                                           class="form-control" 
+                                           value="{{ settings.days_in_advance if settings else '3' }}"
+                                           min="1" 
+                                           max="14"
+                                           onchange="updateMenuRotation()">
+                                </div>
+                                <div class="form-group mb-3">
+                                    <label for="previewDate" class="form-label"><strong>Select Date:</strong></label>
+                                    <input type="date" id="previewDate" 
+                                           class="form-control"
+                                           value="{{ preview_date }}"
+                                           onchange="updatePreview()">
+                                </div>
+                                <div class="form-group mb-3">
+                                    <label for="emailRecipients" class="d-block"><strong>Email Recipients</strong></label>
+                                    <input type="text" class="form-control" id="emailRecipients" 
+                                           value="{{ ','.join(settings.recipient_emails) if settings and settings.recipient_emails else '' }}"
+                                           placeholder="email1@example.com, email2@example.com">
+                                </div>
+                                <button class="btn btn-primary w-100" onclick="sendMenu()">
+                                    Send Menu Email
+                                </button>
+                                <div id="emailSpinner" class="d-none text-center mt-2">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Sending...</span>
+                                    </div>
+                                    <div>Sending email...</div>
+                                </div>
+                                <div class="mt-3">
+                                    <button class="btn btn-warning w-100" onclick="saveSettings()">
+                                        <i class="fas fa-save"></i> Save Settings
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Add auto-send button in a nice spot -->
+            <div class="text-end mb-3">
+                <button class="btn btn-success" id="autoSendButton" onclick="toggleAutoSend()">
+                    Start Auto-Send
+                </button>
+            </div>
         </div>
     </div>
 
-    <!-- Add auto-send button in a nice spot -->
-    <div class="text-end mb-3">
-        <button class="btn btn-success" id="autoSendButton" onclick="toggleAutoSend()">
-            Start Auto-Send
-        </button>
-    </div>
-
-    <!-- Preview with smaller size -->
-    <div id="menuPreview" class="preview-area p-4 border rounded bg-white mx-auto" style="width: 25%; max-width: 400px;">
-        {% if menu and menu.file_url %}
-            {% if menu.file_type == 'pdf' %}
-                <embed src="{{ menu.file_url }}" 
-                       type="application/pdf" 
-                       width="100%" 
-                       height="300px"
-                       style="object-fit: contain;">
-            {% else %}
-                <img src="{{ menu.file_url }}" 
-                     class="img-fluid w-100" 
-                     style="max-height: 300px; object-fit: contain;"
-                     alt="Menu Preview">
-            {% endif %}
-        {% else %}
-            <div class="text-center text-muted">
-                Select a menu to preview
+    <!-- Menu Preview with increased size -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Current Menu Rotation</h5>
+            <div id="currentRotation" class="mb-3">
+                Loading...
             </div>
-        {% endif %}
+            <div class="preview-container" style="width: 100%; height: 800px; overflow: hidden;">
+                <img id="menuPreview" 
+                     style="width: 100%; height: auto; object-fit: contain;" 
+                     alt="Menu Preview">
+            </div>
+        </div>
     </div>
 </div>
+
+<style>
+.preview-container {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 20px;
+}
+
+#menuPreview {
+    max-width: 100%;
+    display: block;
+    margin: 0 auto;
+}
+</style>
 
 <script>
 let currentTemplateId = null;
