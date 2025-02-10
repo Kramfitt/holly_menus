@@ -18,6 +18,9 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
+from utils.logger import ActivityLogger
+from utils.notifications import NotificationManager
+from utils.backup import BackupManager
 
 # Load environment variables
 load_dotenv()
@@ -46,6 +49,10 @@ supabase: Client = create_client(
     os.getenv('SUPABASE_URL'),
     os.getenv('SUPABASE_KEY')
 )
+
+logger = ActivityLogger()
+notifications = NotificationManager()
+backup_manager = BackupManager()
 
 def get_service_state():
     if not os.path.exists(app.config['STATE_FILE']):
@@ -86,113 +93,71 @@ def logout():
     return redirect(url_for('login'))
 
 @app.route('/')
-@login_required
-def home():
+def index():
     try:
-        # Read current state from Redis
-        current_state = redis_client.get('service_state')
-        is_active = current_state == b'true' if current_state else False
-        
-        state = {
-            "active": is_active,
-            "last_updated": datetime.now()
-        }
-        print(f"📊 Dashboard state: {'ACTIVE' if is_active else 'PAUSED'}")
-        return render_template('dashboard.html', state=state)
-    except Exception as e:
-        print(f"❌ Redis error: {str(e)}")
-        return render_template('dashboard.html', state={"active": False})
-
-def write_state_file(state):
-    """Write state file with verification"""
-    state_file = '/opt/render/project/src/service_state.txt'
-    
-    try:
-        # Create directory if it doesn't exist
-        os.makedirs(os.path.dirname(state_file), exist_ok=True)
-        
-        # Write state with explicit permissions
-        with open(state_file, 'w') as f:
-            state_str = str(state).lower()
-            f.write(state_str)
-            f.flush()
-            os.fsync(f.fileno())
-        
-        # Set permissions to allow both services to read/write
-        os.chmod(state_file, 0o666)
-        
-        print(f"✅ State file written: {state_str}")
-        return True
-            
-    except Exception as e:
-        print(f"❌ Error: {str(e)}")
-        return False
-
-def read_state_file():
-    """Read state file with retries"""
-    state_file = '/opt/render/project/src/service_state.txt'
-    max_retries = 3
-    
-    for attempt in range(max_retries):
-        try:
-            if not os.path.exists(state_file):
-                print(f"❌ State file missing (attempt {attempt + 1})")
-                time.sleep(1)
-                continue
-                
-            with open(state_file, 'r') as f:
-                content = f.read().strip().lower()
-                print(f"📄 Read state: '{content}' (attempt {attempt + 1})")
-                return content == 'true'
-                
-        except Exception as e:
-            print(f"❌ Error reading state: {str(e)} (attempt {attempt + 1})")
-            time.sleep(1)
-    
-    print("❌ Failed to read state file after retries")
-    return False  # Default to paused if can't read
-
-@app.route('/toggle', methods=['POST'])
-def toggle_service():
-    try:
-        # Get current state
-        current_state = redis_client.get('service_state')
-        current_state = current_state == b'true' if current_state else False
-        
-        # Toggle state
-        new_state = not current_state
-        redis_client.set('service_state', str(new_state).lower())
-        
-        print(f"💡 Toggle: {current_state} → {new_state}")
-        return jsonify({'status': 'success', 'state': str(new_state).lower()})
-            
-    except Exception as e:
-        print(f"❌ Toggle error: {str(e)}")
-        return jsonify({'status': 'error', 'message': str(e)})
-
-@app.route('/preview', methods=['GET'])
-@login_required
-def preview_menu():
-    try:
-        # Get all menus
-        response = supabase.table('menus')\
+        # Get current settings
+        settings = supabase.table('menu_settings')\
             .select('*')\
             .order('created_at', desc=True)\
+            .limit(1)\
             .execute()
+            
+        # Get menu count
+        menus = supabase.table('menus')\
+            .select('*')\
+            .execute()
+            
+        # Calculate next menu (using same logic as worker)
+        next_menu = None
+        if settings.data:
+            current_settings = settings.data[0]
+            next_menu = calculate_next_menu()  # From worker.py
+            
+        # Get real activity logs
+        recent_activity = logger.get_recent_activity(limit=5)
         
-        menus = response.data
-        preview_date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+        # Get unread notifications
+        unread_notifications = notifications.get_unread_notifications()
         
-        return render_template('preview.html', 
-                             menus=menus,
-                             preview_date=preview_date)
+        return render_template('index.html',
+                             settings=settings.data[0] if settings.data else None,
+                             next_menu=next_menu,
+                             menu_count=len(menus.data) if menus.data else 0,
+                             recent_activity=recent_activity,
+                             unread_notifications=unread_notifications)
                              
     except Exception as e:
-        print(f"❌ Load error: {str(e)}")
+        logger.log_activity(
+            action="Dashboard Error",
+            details=str(e),
+            status="error"
+        )
+        return f"Error loading dashboard: {str(e)}", 500
+
+@app.route('/preview')
+def preview():
+    try:
+        # Get menus
+        response = supabase.table('menus').select('*').execute()
+        menus = response.data
+        
+        # Get latest settings
+        settings_response = supabase.table('menu_settings')\
+            .select('*')\
+            .order('created_at', desc=True)\
+            .limit(1)\
+            .execute()
+        settings = settings_response.data[0] if settings_response.data else None
+        
+        preview_date = datetime.now().strftime('%Y-%m-%d')
+        
         return render_template('preview.html', 
-                             menus=[],
-                             preview_date=datetime.now().strftime('%Y-%m-%d'),
-                             error="Failed to load menus")
+                             menus=menus, 
+                             preview_date=preview_date,
+                             settings=settings)
+    except Exception as e:
+        print(f"❌ Preview error: {str(e)}")
+        return f"Error loading preview: {str(e)}", 500
 
 # Add API endpoint for preview rendering
 @app.route('/api/preview', methods=['GET'])
@@ -374,37 +339,49 @@ def delete_template(id):
 @app.route('/system-check')
 def system_check():
     try:
-        # Check multiple possible locations
-        tesseract_paths = [
-            '/usr/bin/tesseract',
-            '/usr/local/bin/tesseract',
-            'tesseract'
-        ]
+        # Get current settings
+        settings = supabase.table('menu_settings')\
+            .select('*')\
+            .order('created_at', desc=True)\
+            .limit(1)\
+            .execute()
         
-        for path in tesseract_paths:
-            try:
-                version = subprocess.check_output([path, '--version'])
-                return render_template('system_check.html',
-                    tesseract_path=path,
-                    tesseract_version=version.decode(),
-                    path=os.environ.get('PATH'),
-                    status='ok'
-                )
-            except:
-                continue
-                
-        return render_template('system_check.html',
-            error='Tesseract not found in any standard location',
-            checked_paths=tesseract_paths,
-            path=os.environ.get('PATH'),
-            status='error'
+        # Calculate next menu details using worker logic
+        next_menu = None
+        if settings.data:
+            current_settings = settings.data[0]
+            start_date = datetime.strptime(current_settings['start_date'], '%Y-%m-%d').date()
+            today = datetime.now().date()
+            
+            # Use worker's calculate_next_menu logic
+            weeks_since_start = (today - start_date).days // 7
+            periods_elapsed = weeks_since_start // 2
+            next_period_start = start_date + timedelta(days=periods_elapsed * 14)
+            send_date = next_period_start - timedelta(days=current_settings['days_in_advance'])
+            
+            if today > send_date:
+                next_period_start += timedelta(days=14)
+                send_date += timedelta(days=14)
+            
+            is_odd_period = (periods_elapsed % 2) == 0
+            menu_pair = "1 & 2" if is_odd_period else "3 & 4"
+            
+            next_menu = {
+                'send_date': send_date,
+                'period_start': next_period_start,
+                'menu_pair': menu_pair,
+                'season': current_settings['season']
+            }
+        
+        return render_template(
+            'system-check.html',
+            settings=settings.data[0] if settings.data else None,
+            next_menu=next_menu
         )
+        
     except Exception as e:
-        return render_template('system_check.html',
-            error=str(e),
-            path=os.environ.get('PATH'),
-            status='error'
-        )
+        print(f"❌ System check error: {str(e)}")
+        return f"Error loading system status: {str(e)}", 500
 
 def send_menu_email(menu_id, start_date, recipient_list):
     try:
@@ -431,8 +408,8 @@ def send_menu_email(menu_id, start_date, recipient_list):
         img_response = requests.get(preview_url)
         
         # Email setup
-        sender_email = os.getenv('GMAIL_ADDRESS')
-        sender_password = os.getenv('GMAIL_APP_PASSWORD')
+        sender_email = os.getenv('SMTP_USERNAME')
+        sender_password = os.getenv('SMTP_PASSWORD')
         
         # Create message
         msg = MIMEMultipart('alternative')
@@ -469,6 +446,106 @@ def send_menu_email(menu_id, start_date, recipient_list):
     except Exception as e:
         print(f"❌ Email error: {str(e)}")
         return f"Failed to send email: {str(e)}", 500
+
+@app.route('/api/send-menu', methods=['POST'])
+def api_send_menu():
+    try:
+        data = request.json
+        menu_id = data.get('menu_id')
+        date = datetime.strptime(data.get('date'), '%Y-%m-%d')
+        recipients = data.get('recipients', [])
+        
+        if not menu_id or not date or not recipients:
+            return "Missing required data", 400
+            
+        result = send_menu_email(menu_id, date, recipients)
+        return result
+        
+    except Exception as e:
+        print(f"❌ Send menu error: {str(e)}")
+        return f"Failed to send menu: {str(e)}", 500
+
+@app.route('/api/settings', methods=['POST'])
+def save_settings():
+    try:
+        data = request.json
+        
+        # Validate required fields
+        required_fields = ['start_date', 'season', 'season_change_date', 'days_in_advance', 'recipient_emails']
+        for field in required_fields:
+            if field not in data:
+                return f"Missing required field: {field}", 400
+        
+        # Save to Supabase
+        response = supabase.table('menu_settings').insert({
+            'start_date': data['start_date'],
+            'season': data['season'].lower(),
+            'season_change_date': data['season_change_date'],
+            'days_in_advance': data['days_in_advance'],
+            'recipient_emails': data['recipient_emails']
+        }).execute()
+        
+        if response.data:
+            return "Settings saved successfully"
+        else:
+            return "Failed to save settings", 500
+            
+    except Exception as e:
+        print(f"❌ Save settings error: {str(e)}")
+        return f"Error saving settings: {str(e)}", 500
+
+@app.route('/api/notifications/<notification_id>/read', methods=['POST'])
+def mark_notification_read(notification_id):
+    try:
+        notifications.mark_as_read(notification_id)
+        return "OK"
+    except Exception as e:
+        return str(e), 500
+
+@app.route('/api/notifications/read-all', methods=['POST'])
+def mark_all_notifications_read():
+    try:
+        response = supabase.table('notifications')\
+            .update({'read': True})\
+            .eq('read', False)\
+            .execute()
+        return "OK"
+    except Exception as e:
+        return str(e), 500
+
+@app.route('/backup')
+def backup_page():
+    backups = backup_manager.get_backups()
+    return render_template('backup.html', backups=backups)
+
+@app.route('/api/backup', methods=['POST'])
+def create_backup():
+    try:
+        description = request.json.get('description')
+        backup = backup_manager.create_backup(description)
+        if backup:
+            return jsonify({"status": "success", "backup": backup})
+        return jsonify({"status": "error", "message": "Backup failed"}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/backup/<backup_id>/restore', methods=['POST'])
+def restore_backup(backup_id):
+    try:
+        success = backup_manager.restore_from_backup(backup_id)
+        if success:
+            return jsonify({"status": "success"})
+        return jsonify({"status": "error", "message": "Restore failed"}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Render"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat()
+    })
 
 if __name__ == '__main__':
     app.run(debug=True) 

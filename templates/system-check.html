@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Navigation -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="d-flex gap-3">
+                <a href="/" class="btn btn-outline-primary">
+                    <i class="fas fa-home"></i> Dashboard
+                </a>
+                <a href="/preview" class="btn btn-outline-primary">
+                    <i class="fas fa-eye"></i> Menu Preview & Send
+                </a>
+                <a href="/system-check" class="btn btn-outline-primary active">
+                    <i class="fas fa-cog"></i> System Status
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Status -->
+    <div class="row">
+        <div class="col-md-6">
+            <!-- Current Settings -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Current Settings</h4>
+                </div>
+                <div class="card-body">
+                    {% if settings %}
+                        <dl class="row">
+                            <dt class="col-sm-4">Start Date:</dt>
+                            <dd class="col-sm-8">{{ settings.start_date }}</dd>
+                            
+                            <dt class="col-sm-4">Season:</dt>
+                            <dd class="col-sm-8">{{ settings.season|title }}</dd>
+                            
+                            <dt class="col-sm-4">Season Change:</dt>
+                            <dd class="col-sm-8">{{ settings.season_change_date }}</dd>
+                            
+                            <dt class="col-sm-4">Send Days:</dt>
+                            <dd class="col-sm-8">{{ settings.days_in_advance }} days before period</dd>
+                            
+                            <dt class="col-sm-4">Recipients:</dt>
+                            <dd class="col-sm-8">
+                                {% for email in settings.recipient_emails %}
+                                    {{ email }}<br>
+                                {% endfor %}
+                            </dd>
+                        </dl>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            No settings found. Please configure settings in the Preview & Send page.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <!-- Next Menu Status -->
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0">Next Menu Schedule</h4>
+                </div>
+                <div class="card-body">
+                    {% if next_menu %}
+                        <dl class="row">
+                            <dt class="col-sm-4">Send Date:</dt>
+                            <dd class="col-sm-8">{{ next_menu.send_date.strftime('%d %B %Y') }}</dd>
+                            
+                            <dt class="col-sm-4">Period Start:</dt>
+                            <dd class="col-sm-8">{{ next_menu.period_start.strftime('%d %B %Y') }}</dd>
+                            
+                            <dt class="col-sm-4">Menu Type:</dt>
+                            <dd class="col-sm-8">{{ next_menu.season|title }} Menus {{ next_menu.menu_pair }}</dd>
+                        </dl>
+                        
+                        {% if next_menu.send_date == today %}
+                            <div class="alert alert-info mt-3">
+                                <i class="fas fa-clock"></i> Menu will be sent today!
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="alert alert-warning">
+                            Cannot calculate next menu. Please check settings.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- System Health -->
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0">System Health</h4>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Database Connection
+                            <span class="badge bg-success rounded-pill">Connected</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Email Service
+                            <span class="badge bg-success rounded-pill">Ready</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Worker Service
+                            <span class="badge bg-success rounded-pill">Running</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
