@@ -14,6 +14,10 @@ import io
 import requests
 import pytesseract
 import subprocess
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
 
 # Load environment variables
 load_dotenv()
@@ -401,6 +405,70 @@ def system_check():
             path=os.environ.get('PATH'),
             status='error'
         )
+
+def send_menu_email(menu_id, start_date, recipient_list):
+    try:
+        # Get menu data
+        response = supabase.table('menus')\
+            .select('*')\
+            .eq('id', menu_id)\
+            .single()\
+            .execute()
+            
+        if not response.data:
+            return "Menu not found", 404
+            
+        menu = response.data
+        
+        # Generate preview image
+        preview_date = start_date.strftime('%Y-%m-%d')
+        preview_path = f"previews/preview_{menu_id}_{preview_date}.{menu['file_type']}"
+        
+        # Get the preview URL
+        preview_url = supabase.storage.from_('menus').get_public_url(preview_path)
+        
+        # Download the preview image
+        img_response = requests.get(preview_url)
+        
+        # Email setup
+        sender_email = os.getenv('GMAIL_ADDRESS')
+        sender_password = os.getenv('GMAIL_APP_PASSWORD')
+        
+        # Create message
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = f"Holly Lea Menu - Week Starting {start_date.strftime('%d %B %Y')}"
+        msg['From'] = sender_email
+        msg['To'] = ', '.join(recipient_list)
+        
+        # HTML Email content
+        html_content = f"""
+        <html>
+            <body>
+                <h2>Holly Lea Menu</h2>
+                <p>Please find attached the menu for the week starting {start_date.strftime('%d %B %Y')}.</p>
+                <p>Kind regards,<br>Holly Lea</p>
+            </body>
+        </html>
+        """
+        
+        msg.attach(MIMEText(html_content, 'html'))
+        
+        # Attach the preview image
+        attachment = MIMEImage(img_response.content)
+        attachment.add_header('Content-Disposition', 'attachment', 
+                            filename=f"menu_{start_date.strftime('%Y%m%d')}.{menu['file_type']}")
+        msg.attach(attachment)
+        
+        # Send email
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+            smtp.login(sender_email, sender_password)
+            smtp.send_message(msg)
+            
+        return "Email sent successfully"
+        
+    except Exception as e:
+        print(f"❌ Email error: {str(e)}")
+        return f"Failed to send email: {str(e)}", 500
 
 if __name__ == '__main__':
     app.run(debug=True) 
