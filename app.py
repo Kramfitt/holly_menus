@@ -214,6 +214,15 @@ def api_preview_menu():
         if menu['file_type'] == 'pdf':
             return f'<embed src="{menu["file_url"]}" type="application/pdf" width="100%" height="600px">'
             
+        # Generate preview path
+        preview_path = f"previews/preview_{menu_id}_{preview_date}.{menu['file_type']}"
+        
+        try:
+            # Try to delete existing preview
+            supabase.storage.from_('menus').remove([preview_path])
+        except:
+            pass  # Ignore if file doesn't exist
+            
         # Download and process image
         img_response = requests.get(menu['file_url'])
         img = Image.open(io.BytesIO(img_response.content))
@@ -221,7 +230,6 @@ def api_preview_menu():
         # Add dates to image
         draw = ImageDraw.Draw(img)
         
-        # Load font
         try:
             font = ImageFont.truetype("Roboto-Regular.ttf", 36)
         except:
@@ -257,8 +265,7 @@ def api_preview_menu():
         img.save(img_byte_arr, format=img.format)
         img_byte_arr = img_byte_arr.getvalue()
         
-        # Upload preview
-        preview_path = f"previews/preview_{menu_id}_{preview_date}.{menu['file_type']}"
+        # Upload new preview
         supabase.storage.from_('menus').upload(
             preview_path,
             img_byte_arr,
