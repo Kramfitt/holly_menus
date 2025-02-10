@@ -479,29 +479,29 @@ def save_settings():
     try:
         data = request.json
         
-        # Validate required fields
-        required_fields = ['start_date', 'season', 'season_change_date', 'days_in_advance', 'recipient_emails']
-        for field in required_fields:
-            if field not in data:
-                return f"Missing required field: {field}", 400
-        
-        # Save to Supabase
-        response = supabase.table('menu_settings').insert({
-            'start_date': data['start_date'],
-            'season': data['season'].lower(),
-            'season_change_date': data['season_change_date'],
-            'days_in_advance': data['days_in_advance'],
-            'recipient_emails': data['recipient_emails']
-        }).execute()
-        
-        if response.data:
-            return "Settings saved successfully"
-        else:
-            return "Failed to save settings", 500
+        # Ensure dates are in correct format
+        if 'summer_start' in data:
+            data['summer_start'] = datetime.strptime(data['summer_start'], '%Y-%m-%d').isoformat()
+        if 'winter_start' in data:
+            data['winter_start'] = datetime.strptime(data['winter_start'], '%Y-%m-%d').isoformat()
             
+        response = supabase.table('menu_settings').insert(data).execute()
+        
+        logger.log_activity(
+            action="Settings Updated",
+            details="Menu settings updated successfully",
+            status="success"
+        )
+        
+        return jsonify(response.data[0])
+        
     except Exception as e:
-        print(f"❌ Save settings error: {str(e)}")
-        return f"Error saving settings: {str(e)}", 500
+        logger.log_activity(
+            action="Settings Update Failed",
+            details=str(e),
+            status="error"
+        )
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/notifications/<notification_id>/read', methods=['POST'])
 def mark_notification_read(notification_id):
@@ -646,6 +646,17 @@ def delete_menu(menu_id):
             details=str(e),
             status="error"
         )
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/menus', methods=['GET'])
+def get_menus():
+    try:
+        response = supabase.table('menus')\
+            .select('*')\
+            .order('name', desc=False)\  # Add sorting
+            .execute()
+        return jsonify(response.data)
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
