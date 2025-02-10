@@ -14,21 +14,28 @@ def should_send_emails():
     """Check if email service is active"""
     try:
         state_file = os.getenv('STATE_FILE', '/opt/render/service_state.txt')
-        print(f"\n🔍 DEBUG:")
+        print(f"\n🔍 SUPER DEBUG at {datetime.now()}:")
+        print(f"- Process ID: {os.getpid()}")
         print(f"- State file path: {state_file}")
-        print(f"- Current time: {datetime.now()}")
+        print(f"- File exists: {os.path.exists(state_file)}")
         
+        if not os.path.exists(state_file):
+            print("❌ State file doesn't exist!")
+            return False  # Default to PAUSED if no file
+            
         with open(state_file, 'r') as f:
             content = f.read().strip()
-            print(f"- File content: '{content}'")
+            print(f"- Raw file content: '{content}'")
+            print(f"- Content length: {len(content)}")
+            print(f"- Content bytes: {[ord(c) for c in content]}")
             is_active = content.lower() == 'true'
-            print(f"- Interpreted as: {is_active}")
+            print(f"- Service should be: {'ACTIVE' if is_active else 'PAUSED'}")
             return is_active
             
     except Exception as e:
         print(f"❌ Error reading state file: {str(e)}")
         print(f"- Full error: {repr(e)}")
-        return True
+        return False  # Default to PAUSED on error
 
 def send_email():
     """Send email using settings from .env"""
