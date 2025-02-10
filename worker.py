@@ -15,29 +15,10 @@ load_dotenv(override=True)
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
 redis_client = redis.from_url(redis_url)
 
-def read_state_file():
-    """Read state file with retries"""
-    state_file = '/opt/render/service_state.txt'
-    max_retries = 3
-    
-    for attempt in range(max_retries):
-        try:
-            if not os.path.exists(state_file):
-                print(f"❌ State file missing (attempt {attempt + 1})")
-                time.sleep(1)
-                continue
-                
-            with open(state_file, 'r') as f:
-                content = f.read().strip().lower()
-                print(f"📄 Read state: '{content}' (attempt {attempt + 1})")
-                return content == 'true'
-                
-        except Exception as e:
-            print(f"❌ Error reading state: {str(e)} (attempt {attempt + 1})")
-            time.sleep(1)
-    
-    print("❌ Failed to read state file after retries")
-    return False  # Default to paused if can't read
+# Set initial state if none exists
+if redis_client.get('service_state') is None:
+    print("📝 Setting initial Redis state to: false")
+    redis_client.set('service_state', 'false')  # Start paused
 
 def should_send_emails():
     """Check if email service is active"""

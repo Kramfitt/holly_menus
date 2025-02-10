@@ -70,33 +70,20 @@ def logout():
 @app.route('/')
 @login_required
 def home():
-    state_file = '/opt/render/project/src/service_state.txt'  # Inside the project directory
-    print(f"\n📂 Dashboard checking:")
-    print(f"- State file path: {state_file}")
-    print(f"- File exists? {os.path.exists(state_file)}")
-    print(f"- Current directory: {os.getcwd()}")
-    print(f"- Directory contents: {os.listdir('/')}")
-    print(f"- /opt contents: {os.listdir('/opt')}")
-    print(f"- /opt/render/project/src contents: {os.listdir('/opt/render/project/src')}")
-    
-    # Create state file if it doesn't exist
-    if not os.path.exists(state_file):
-        print(f"Creating initial state file at: {state_file}")
-        try:
-            with open(state_file, 'w') as f:
-                f.write('false')  # Start paused
-            os.chmod(state_file, 0o666)  # Allow read/write
-            print("✅ Initial state file created")
-        except Exception as e:
-            print(f"❌ Failed to create state file: {str(e)}")
-    
-    # Read current state
-    current_state = read_state_file()
-    state = {
-        "active": current_state,
-        "last_updated": datetime.now() if os.path.exists(state_file) else None
-    }
-    return render_template('dashboard.html', state=state)
+    try:
+        # Read current state from Redis
+        current_state = redis_client.get('service_state')
+        is_active = current_state == b'true' if current_state else False
+        
+        state = {
+            "active": is_active,
+            "last_updated": datetime.now()
+        }
+        print(f"📊 Dashboard state: {'ACTIVE' if is_active else 'PAUSED'}")
+        return render_template('dashboard.html', state=state)
+    except Exception as e:
+        print(f"❌ Redis error: {str(e)}")
+        return render_template('dashboard.html', state={"active": False})
 
 def write_state_file(state):
     """Write state file with verification"""
