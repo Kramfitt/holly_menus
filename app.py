@@ -187,43 +187,33 @@ def preview_menu():
 
 # Add API endpoint for preview rendering
 @app.route('/api/preview', methods=['GET'])
-@login_required
 def api_preview_menu():
     try:
         menu_id = request.args.get('menu_id')
-        preview_date = request.args.get('date')
-        date_obj = datetime.strptime(preview_date, '%Y-%m-%d')
+        print(f"Loading preview for menu {menu_id}")
         
-        # Get specific menu
+        # Get menu data
         response = supabase.table('menus')\
-            .select('template')\
+            .select('*')\
             .eq('id', menu_id)\
             .single()\
             .execute()
             
+        print(f"Menu data: {response.data}")
+        
         if response.data:
-            template = response.data['template']
-            
-            # Process template with date
-            context = {
-                'date': date_obj.strftime('%A, %B %d, %Y'),
-                'day': date_obj.strftime('%A'),
-                'month': date_obj.strftime('%B'),
-                'year': date_obj.year
-            }
-            
-            # Replace template variables
-            rendered_html = template
-            for key, value in context.items():
-                rendered_html = rendered_html.replace('{{' + key + '}}', str(value))
-                
-            return rendered_html
+            menu = response.data
+            if menu['file_type'] == 'pdf':
+                return f'<embed src="{menu["file_url"]}" type="application/pdf" width="100%" height="600px">'
+            else:
+                return f'<img src="{menu["file_url"]}" class="img-fluid" alt="Menu Preview">'
         else:
+            print("Menu not found")
             return "Menu not found", 404
             
     except Exception as e:
         print(f"❌ Preview error: {str(e)}")
-        return "Failed to generate preview", 500
+        return f"Failed to generate preview: {str(e)}", 500
 
 @app.route('/api/template', methods=['POST'])
 def upload_template():

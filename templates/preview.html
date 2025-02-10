@@ -117,38 +117,42 @@ function deleteTemplate(id) {
 }
 
 function selectTemplate(id) {
+    console.log(`Selecting template: ${id}`);
     currentTemplateId = id;
+    
     document.querySelectorAll('#templateList .list-group-item').forEach(item => {
         item.classList.remove('active', 'bg-light');
     });
     event.target.closest('.list-group-item').classList.add('active', 'bg-light');
+    
     updatePreview();
 }
 
 function updatePreview() {
-    if (!currentTemplateId) return;
+    if (!currentTemplateId) {
+        console.log("No template selected");
+        return;
+    }
     
     const date = document.getElementById('previewDate').value;
     const previewArea = document.getElementById('menuPreview');
     
-    // Show loading state
-    previewArea.innerHTML = `
-        <div class="text-center">
-            <div class="spinner-border text-primary" role="status"></div>
-            <div class="mt-2">Loading preview...</div>
-        </div>
-    `;
+    console.log(`Loading preview for template ${currentTemplateId} on date ${date}`);
     
-    // Fetch and show preview
     fetch(`/api/preview?date=${date}&menu_id=${currentTemplateId}`)
-        .then(response => response.text())
+        .then(response => {
+            console.log("Preview response:", response);
+            return response.text();
+        })
         .then(html => {
+            console.log("Preview content:", html);
             previewArea.innerHTML = html;
         })
         .catch(error => {
+            console.error("Preview error:", error);
             previewArea.innerHTML = `
                 <div class="alert alert-danger">
-                    Failed to load preview. Please try again.
+                    Failed to load preview: ${error.message}
                 </div>
             `;
         });
