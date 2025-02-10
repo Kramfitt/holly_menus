@@ -653,7 +653,7 @@ def get_menus():
     try:
         response = supabase.table('menus')\
             .select('*')\
-            .order('name', desc=False)\  # Add sorting
+            .order('name', desc=False)\
             .execute()
         return jsonify(response.data)
     except Exception as e:
