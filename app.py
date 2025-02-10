@@ -8,6 +8,7 @@ import time
 import redis
 import psycopg2
 from supabase import create_client, Client
+from werkzeug.utils import secure_filename
 
 # Load environment variables
 load_dotenv()
@@ -164,16 +165,13 @@ def toggle_service():
 @login_required
 def preview_menu():
     try:
-        # Get all active menus
+        # Get all menus
         response = supabase.table('menus')\
-            .select('id, name, template')\
-            .eq('active', True)\
+            .select('*')\
             .order('created_at', desc=True)\
             .execute()
         
         menus = response.data
-        
-        # Get preview date from query param or use today
         preview_date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
         
         return render_template('preview.html', 
@@ -181,7 +179,7 @@ def preview_menu():
                              preview_date=preview_date)
                              
     except Exception as e:
-        print(f"❌ Supabase error: {str(e)}")
+        print(f"❌ Load error: {str(e)}")
         return render_template('preview.html', 
                              menus=[],
                              preview_date=datetime.now().strftime('%Y-%m-%d'),
@@ -194,6 +192,7 @@ def api_preview_menu():
     try:
         menu_id = request.args.get('menu_id')
         preview_date = request.args.get('date')
+        date_obj = datetime.strptime(preview_date, '%Y-%m-%d')
         
         # Get specific menu
         response = supabase.table('menus')\
@@ -204,8 +203,20 @@ def api_preview_menu():
             
         if response.data:
             template = response.data['template']
-            # TODO: Process template with preview_date
-            rendered_html = template  # For now, just return template
+            
+            # Process template with date
+            context = {
+                'date': date_obj.strftime('%A, %B %d, %Y'),
+                'day': date_obj.strftime('%A'),
+                'month': date_obj.strftime('%B'),
+                'year': date_obj.year
+            }
+            
+            # Replace template variables
+            rendered_html = template
+            for key, value in context.items():
+                rendered_html = rendered_html.replace('{{' + key + '}}', str(value))
+                
             return rendered_html
         else:
             return "Menu not found", 404
@@ -213,6 +224,80 @@ def api_preview_menu():
     except Exception as e:
         print(f"❌ Preview error: {str(e)}")
         return "Failed to generate preview", 500
+
+@app.route('/api/template', methods=['POST'])
+def upload_template():
+    try:
+        if 'template' not in request.files:
+            return jsonify({'status': 'error', 'message': 'No file uploaded'})
+            
+        file = request.files['template']
+        if not file.filename:
+            return jsonify({'status': 'error', 'message': 'No file selected'})
+            
+        # Secure the filename
+        filename = secure_filename(file.filename)
+        file_type = filename.rsplit('.', 1)[1].lower()
+        
+        # Validate file type
+        if file_type not in ['pdf', 'jpg', 'jpeg', 'png']:
+            return jsonify({'status': 'error', 'message': 'Invalid file type'})
+            
+        # Upload to Supabase Storage
+        file_path = f"menus/{filename}"
+        supabase.storage.from_('menus').upload(
+            file_path,
+            file.read(),
+            {'content-type': file.content_type}
+        )
+        
+        # Get public URL
+        file_url = supabase.storage.from_('menus').get_public_url(file_path)
+        
+        # Store in database
+        response = supabase.table('menus').insert({
+            'name': filename,
+            'file_url': file_url,
+            'file_type': file_type
+        }).execute()
+        
+        print(f"✅ Uploaded: {filename}")
+        return jsonify({'status': 'success', 'data': response.data})
+        
+    except Exception as e:
+        print(f"❌ Upload error: {str(e)}")
+        return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/api/template/<id>', methods=['DELETE'])
+def delete_template(id):
+    try:
+        # Get file info from database
+        response = supabase.table('menus')\
+            .select('name')\
+            .eq('id', id)\
+            .single()\
+            .execute()
+            
+        if response.data:
+            filename = response.data['name']
+            
+            # Delete from storage
+            supabase.storage.from_('menus').remove([f"menus/{filename}"])
+            
+            # Delete from database
+            supabase.table('menus')\
+                .delete()\
+                .eq('id', id)\
+                .execute()
+            
+            print(f"✅ Deleted: {filename}")
+            return jsonify({'status': 'success'})
+        else:
+            return jsonify({'status': 'error', 'message': 'Template not found'})
+            
+    except Exception as e:
+        print(f"❌ Delete error: {str(e)}")
+        return jsonify({'status': 'error', 'message': str(e)})
 
 if __name__ == '__main__':
     app.run(debug=True) 

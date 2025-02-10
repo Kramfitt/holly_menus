@@ -1,31 +1,81 @@
 <div class="container mt-4">
-    <div class="card">
-        <div class="card-header bg-primary text-white">
-            <h3>Menu Preview</h3>
+    <div class="row">
+        <!-- Left Column: Templates -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Menu Templates</h4>
+                </div>
+                <div class="card-body p-0">
+                    <!-- Template List -->
+                    <div class="list-group list-group-flush" id="templateList">
+                        {% for menu in menus %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <button class="btn btn-link text-start p-0" onclick="selectTemplate('{{ menu.id }}')">
+                                {{ menu.name }}
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteTemplate('{{ menu.id }}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <!-- Upload Controls -->
+                <div class="card-footer">
+                    <form id="uploadForm" class="d-flex justify-content-between">
+                        <input type="file" id="templateFile" 
+                               accept=".pdf,.jpg,.jpeg,.png" 
+                               class="d-none" 
+                               onchange="uploadTemplate()">
+                        <button type="button" class="btn btn-success" 
+                                onclick="document.getElementById('templateFile').click()">
+                            <i class="fas fa-upload"></i> Upload Menu
+                        </button>
+                    </form>
+                </div>
+            </div>
         </div>
-        <div class="card-body">
+
+        <!-- Right Column: Date & Preview -->
+        <div class="col-md-8">
             <!-- Date Selector -->
-            <div class="mb-4">
-                <label>Preview Date:</label>
-                <input type="date" id="previewDate" 
-                       value="{{ preview_date }}"
-                       onchange="updatePreview()">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="form-group">
+                        <label class="form-label"><strong>Select Date:</strong></label>
+                        <input type="date" id="previewDate" 
+                               class="form-control"
+                               value="{{ preview_date }}"
+                               onchange="updatePreview()">
+                    </div>
+                </div>
             </div>
-            
-            <!-- Menu Selector -->
-            <div class="mb-4">
-                <label>Select Menu:</label>
-                <select id="menuSelect" onchange="updatePreview()">
-                    {% for menu in menus %}
-                        <option value="{{ menu.id }}">{{ menu.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            
+
             <!-- Preview Area -->
-            <div class="preview-area p-4 border rounded">
-                <div id="menuPreview">
-                    <!-- Preview will load here -->
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h4 class="mb-0">Preview</h4>
+                </div>
+                <div class="card-body">
+                    <div id="menuPreview" class="preview-area p-4 border rounded bg-white">
+                        {% if menu and menu.file_url %}
+                            {% if menu.file_type == 'pdf' %}
+                                <embed src="{{ menu.file_url }}" 
+                                       type="application/pdf" 
+                                       width="100%" 
+                                       height="600px">
+                            {% else %}
+                                <img src="{{ menu.file_url }}" 
+                                     class="img-fluid" 
+                                     alt="Menu Preview">
+                            {% endif %}
+                        {% else %}
+                            <div class="text-center text-muted">
+                                Select a menu to preview
+                            </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -33,17 +83,97 @@
 </div>
 
 <script>
-function updatePreview() {
-    const date = document.getElementById('previewDate').value;
-    const menuId = document.getElementById('menuSelect').value;
+let currentTemplateId = null;
+
+function uploadTemplate() {
+    const fileInput = document.getElementById('templateFile');
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('template', file);
+
+    fetch('/api/template', {
+        method: 'POST',
+        body: formData  // Send as FormData, not JSON
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            location.reload();
+        } else {
+            alert('Upload failed: ' + data.message);
+        }
+    });
+}
+
+function deleteTemplate(id) {
+    if (confirm('Delete this template?')) {
+        fetch(`/api/template/${id}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                location.reload();
+            }
+        });
+    }
+}
+
+function selectTemplate(id) {
+    // Update selected state
+    currentTemplateId = id;
     
-    fetch(`/api/preview?date=${date}&menu_id=${menuId}`)
+    // Update visual selection
+    document.querySelectorAll('#templateList .list-group-item').forEach(item => {
+        item.classList.remove('active', 'bg-light');
+    });
+    event.target.closest('.list-group-item').classList.add('active', 'bg-light');
+    
+    // Update preview immediately
+    updatePreview();
+}
+
+function updatePreview() {
+    if (!currentTemplateId) {
+        document.getElementById('menuPreview').innerHTML = 
+            '<div class="text-center text-muted">Select a template to preview</div>';
+        return;
+    }
+    
+    const date = document.getElementById('previewDate').value;
+    const previewArea = document.getElementById('menuPreview');
+    
+    // Show loading state
+    previewArea.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status"></div>
+            <div class="mt-2">Updating preview...</div>
+        </div>
+    `;
+    
+    // Fetch and show preview
+    fetch(`/api/preview?date=${date}&menu_id=${currentTemplateId}`)
         .then(response => response.text())
         .then(html => {
-            document.getElementById('menuPreview').innerHTML = html;
+            previewArea.innerHTML = html;
+        })
+        .catch(error => {
+            previewArea.innerHTML = `
+                <div class="alert alert-danger">
+                    Failed to load preview. Please try again.
+                </div>
+            `;
         });
 }
 
-// Initial preview
-updatePreview();
+// Initialize preview if template is pre-selected
+document.addEventListener('DOMContentLoaded', () => {
+    const firstTemplate = document.querySelector('#templateList .list-group-item');
+    if (firstTemplate) {
+        const templateId = firstTemplate.querySelector('button').getAttribute('onclick').match(/\d+/)[0];
+        selectTemplate(templateId);
+    }
+});
 </script> 
