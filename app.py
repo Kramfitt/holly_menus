@@ -146,7 +146,7 @@ def index():
 @app.route('/preview')
 def preview():
     try:
-        # Get latest settings
+        # Get latest settings - match the dashboard approach
         settings_response = supabase.table('menu_settings')\
             .select('*')\
             .order('created_at', desc=True)\
@@ -164,10 +164,14 @@ def preview():
         # Calculate preview date (2 weeks from now)
         preview_date = datetime.now() + timedelta(days=14)
         
+        # Calculate next menu details using worker function
+        next_menu = calculate_next_menu() if settings else None
+        
         return render_template('preview.html', 
                              menus=menus_response.data,
                              preview_date=preview_date,
-                             settings=settings)
+                             settings=settings,
+                             next_menu=next_menu)  # Add next_menu to template
                              
     except Exception as e:
         logger.log_activity(
@@ -175,6 +179,7 @@ def preview():
             details=str(e),
             status="error"
         )
+        print("Preview Error:", str(e))
         return f"Error loading preview: {str(e)}", 500
 
 # Add API endpoint for preview rendering
