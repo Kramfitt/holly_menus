@@ -70,9 +70,10 @@ def send_email():
 
 def get_supabase_client():
     """Initialize Supabase client"""
-    url: str = os.getenv("SUPABASE_URL")
-    key: str = os.getenv("SUPABASE_KEY")
-    return create_client(supabase_url=url, supabase_key=key)
+    return create_client(
+        os.getenv("SUPABASE_URL", ''),
+        os.getenv("SUPABASE_KEY", '')
+    )
 
 def get_menu_settings():
     """Get latest settings from Supabase"""

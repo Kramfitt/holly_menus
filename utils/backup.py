@@ -6,8 +6,8 @@ from supabase import create_client
 class BackupManager:
     def __init__(self):
         self.supabase = create_client(
-            supabase_url=os.getenv("SUPABASE_URL"),
-            supabase_key=os.getenv("SUPABASE_KEY")
+            os.getenv("SUPABASE_URL", ''),
+            os.getenv("SUPABASE_KEY", '')
         )
         
     def create_backup(self, description=None):

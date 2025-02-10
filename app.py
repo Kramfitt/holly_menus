@@ -46,8 +46,8 @@ redis_client = redis.from_url(redis_url)
 
 # Initialize Supabase client
 supabase = create_client(
-    supabase_url=os.getenv("SUPABASE_URL"),
-    supabase_key=os.getenv("SUPABASE_KEY")
+    os.getenv("SUPABASE_URL", ''),
+    os.getenv("SUPABASE_KEY", '')
 )
 
 logger = ActivityLogger()
