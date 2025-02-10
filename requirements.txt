@@ -1,3 +1,4 @@
+supabase-py
 python-dotenv
 schedule
 pyyaml # if you're using SMTP for email

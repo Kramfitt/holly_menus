@@ -6,6 +6,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 import time
 import redis
+import psycopg2
+from supabase import create_client, Client
 
 # Load environment variables
 load_dotenv()
@@ -28,6 +30,12 @@ app.config.update(
 # Near the top with other configs
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
 redis_client = redis.from_url(redis_url)
+
+# Initialize Supabase client
+supabase: Client = create_client(
+    os.getenv('SUPABASE_URL'),
+    os.getenv('SUPABASE_KEY')
+)
 
 def get_service_state():
     if not os.path.exists(app.config['STATE_FILE']):
@@ -151,6 +159,60 @@ def toggle_service():
     except Exception as e:
         print(f"❌ Toggle error: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/preview', methods=['GET'])
+@login_required
+def preview_menu():
+    try:
+        # Get all active menus
+        response = supabase.table('menus')\
+            .select('id, name, template')\
+            .eq('active', True)\
+            .order('created_at', desc=True)\
+            .execute()
+        
+        menus = response.data
+        
+        # Get preview date from query param or use today
+        preview_date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+        
+        return render_template('preview.html', 
+                             menus=menus,
+                             preview_date=preview_date)
+                             
+    except Exception as e:
+        print(f"❌ Supabase error: {str(e)}")
+        return render_template('preview.html', 
+                             menus=[],
+                             preview_date=datetime.now().strftime('%Y-%m-%d'),
+                             error="Failed to load menus")
+
+# Add API endpoint for preview rendering
+@app.route('/api/preview', methods=['GET'])
+@login_required
+def api_preview_menu():
+    try:
+        menu_id = request.args.get('menu_id')
+        preview_date = request.args.get('date')
+        
+        # Get specific menu
+        response = supabase.table('menus')\
+            .select('template')\
+            .eq('id', menu_id)\
+            .single()\
+            .execute()
+            
+        if response.data:
+            template = response.data['template']
+            # TODO: Process template with preview_date
+            rendered_html = template  # For now, just return template
+            return rendered_html
+        else:
+            return "Menu not found", 404
+            
+    except Exception as e:
+        print(f"❌ Preview error: {str(e)}")
+        return "Failed to generate preview", 500
 
 if __name__ == '__main__':
     app.run(debug=True) 

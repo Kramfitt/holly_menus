@@ -1,0 +1,49 @@
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h3>Menu Preview</h3>
+        </div>
+        <div class="card-body">
+            <!-- Date Selector -->
+            <div class="mb-4">
+                <label>Preview Date:</label>
+                <input type="date" id="previewDate" 
+                       value="{{ preview_date }}"
+                       onchange="updatePreview()">
+            </div>
+            
+            <!-- Menu Selector -->
+            <div class="mb-4">
+                <label>Select Menu:</label>
+                <select id="menuSelect" onchange="updatePreview()">
+                    {% for menu in menus %}
+                        <option value="{{ menu.id }}">{{ menu.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Preview Area -->
+            <div class="preview-area p-4 border rounded">
+                <div id="menuPreview">
+                    <!-- Preview will load here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function updatePreview() {
+    const date = document.getElementById('previewDate').value;
+    const menuId = document.getElementById('menuSelect').value;
+    
+    fetch(`/api/preview?date=${date}&menu_id=${menuId}`)
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('menuPreview').innerHTML = html;
+        });
+}
+
+// Initial preview
+updatePreview();
+</script> 
