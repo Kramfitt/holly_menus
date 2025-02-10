@@ -146,26 +146,35 @@ def index():
 @app.route('/preview')
 def preview():
     try:
-        # Get menus
-        response = supabase.table('menus').select('*').execute()
-        menus = response.data
-        
         # Get latest settings
         settings_response = supabase.table('menu_settings')\
             .select('*')\
             .order('created_at', desc=True)\
             .limit(1)\
             .execute()
+            
         settings = settings_response.data[0] if settings_response.data else None
         
-        preview_date = datetime.now().strftime('%Y-%m-%d')
+        # Get all menus
+        menus_response = supabase.table('menus')\
+            .select('*')\
+            .order('name', desc=False)\
+            .execute()
+            
+        # Calculate preview date (2 weeks from now)
+        preview_date = datetime.now() + timedelta(days=14)
         
         return render_template('preview.html', 
-                             menus=menus, 
+                             menus=menus_response.data,
                              preview_date=preview_date,
                              settings=settings)
+                             
     except Exception as e:
-        print(f"❌ Preview error: {str(e)}")
+        logger.log_activity(
+            action="Preview Load Failed",
+            details=str(e),
+            status="error"
+        )
         return f"Error loading preview: {str(e)}", 500
 
 # Add API endpoint for preview rendering
@@ -480,31 +489,35 @@ def save_settings():
         data = request.json
         print("Incoming settings data:", data)  # Debug log
         
-        # Validate and clean dates
-        if 'summer_start' in data and data['summer_start']:
-            try:
-                # Handle potential date formats
-                if isinstance(data['summer_start'], str):
-                    if 'T' in data['summer_start']:
-                        # Already ISO format
-                        data['summer_start'] = data['summer_start'].split('T')[0]
-                    date_obj = datetime.strptime(data['summer_start'], '%Y-%m-%d')
-                    data['summer_start'] = date_obj.isoformat()
-            except Exception as e:
-                print(f"Error parsing summer_start: {e}")  # Debug log
-                
-        if 'winter_start' in data and data['winter_start']:
-            try:
-                # Handle potential date formats
-                if isinstance(data['winter_start'], str):
-                    if 'T' in data['winter_start']:
-                        # Already ISO format
-                        data['winter_start'] = data['winter_start'].split('T')[0]
-                    date_obj = datetime.strptime(data['winter_start'], '%Y-%m-%d')
-                    data['winter_start'] = date_obj.isoformat()
-            except Exception as e:
-                print(f"Error parsing winter_start: {e}")  # Debug log
-        
+        # Handle empty dates
+        if 'summer_start' in data:
+            if not data['summer_start']:
+                data['summer_start'] = None
+            else:
+                try:
+                    if isinstance(data['summer_start'], str):
+                        if 'T' in data['summer_start']:
+                            data['summer_start'] = data['summer_start'].split('T')[0]
+                        date_obj = datetime.strptime(data['summer_start'], '%Y-%m-%d')
+                        data['summer_start'] = date_obj.isoformat()
+                except Exception as e:
+                    print(f"Error parsing summer_start: {e}")
+                    data['summer_start'] = None
+                    
+        if 'winter_start' in data:
+            if not data['winter_start']:
+                data['winter_start'] = None
+            else:
+                try:
+                    if isinstance(data['winter_start'], str):
+                        if 'T' in data['winter_start']:
+                            data['winter_start'] = data['winter_start'].split('T')[0]
+                        date_obj = datetime.strptime(data['winter_start'], '%Y-%m-%d')
+                        data['winter_start'] = date_obj.isoformat()
+                except Exception as e:
+                    print(f"Error parsing winter_start: {e}")
+                    data['winter_start'] = None
+            
         print("Processed settings data:", data)  # Debug log
             
         response = supabase.table('menu_settings').insert(data).execute()

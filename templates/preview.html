@@ -1,3 +1,6 @@
+{% extends "base.html" %}
+
+{% block content %}
 <!-- Add this at the top of the body, before the container -->
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
     <div class="container">
@@ -399,4 +402,9 @@ async function saveSettings() {
         alert(`Error saving settings: ${error}`);
     }
 }
-</script> 
+</script>
+{% endblock %}
+
+{% block scripts %}
+<!-- Your existing preview page scripts here -->
+{% endblock %} 
