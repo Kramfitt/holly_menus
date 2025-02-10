@@ -397,27 +397,37 @@ def delete_template(id):
 @app.route('/system-check')
 def system_check():
     try:
-        # Check Tesseract installation
-        tesseract_version = subprocess.check_output(['tesseract', '--version'])
+        # Check multiple possible locations
+        tesseract_paths = [
+            '/usr/bin/tesseract',
+            '/usr/local/bin/tesseract',
+            'tesseract'
+        ]
         
-        # Check PATH
-        env_path = os.environ.get('PATH')
-        
-        # Check if tesseract is in common locations
-        tesseract_locations = subprocess.check_output(['which', 'tesseract'])
-        
-        return {
-            'tesseract_version': tesseract_version.decode(),
-            'path': env_path,
-            'tesseract_location': tesseract_locations.decode(),
-            'status': 'ok'
-        }
+        for path in tesseract_paths:
+            try:
+                version = subprocess.check_output([path, '--version'])
+                return render_template('system_check.html',
+                    tesseract_path=path,
+                    tesseract_version=version.decode(),
+                    path=os.environ.get('PATH'),
+                    status='ok'
+                )
+            except:
+                continue
+                
+        return render_template('system_check.html',
+            error='Tesseract not found in any standard location',
+            checked_paths=tesseract_paths,
+            path=os.environ.get('PATH'),
+            status='error'
+        )
     except Exception as e:
-        return {
-            'error': str(e),
-            'path': os.environ.get('PATH'),
-            'status': 'error'
-        }
+        return render_template('system_check.html',
+            error=str(e),
+            path=os.environ.get('PATH'),
+            status='error'
+        )
 
 if __name__ == '__main__':
     app.run(debug=True) 

@@ -1,25 +1,31 @@
 #!/usr/bin/env bash
 
-# Debug: Print current directory and contents
-pwd
-ls -la
+echo "Starting build process..."
 
 # Update package list
-apt-get update -y
+sudo apt-get update -y
 
 # Install Tesseract and its dependencies
-apt-get install -y tesseract-ocr
-apt-get install -y libtesseract-dev
+sudo apt-get install -y tesseract-ocr
+sudo apt-get install -y libtesseract-dev
 
-# Verify Tesseract installation
-tesseract --version
-which tesseract
+# Debug: Show Tesseract location and version
+echo "Tesseract location:"
+sudo which tesseract
+echo "Tesseract version:"
+sudo tesseract --version
 
-# Add Tesseract to PATH if needed
-export PATH=$PATH:/usr/bin/tesseract
+# Create symbolic link if needed
+sudo ln -s /usr/bin/tesseract /usr/local/bin/tesseract
+
+# Verify link
+ls -la /usr/local/bin/tesseract
 
 # Install Python dependencies
 pip install -r requirements.txt
 
-# Debug: Final PATH
-echo "Final PATH: $PATH" 
+# Final check
+echo "Final Tesseract check:"
+tesseract --version
+
+echo "Build process completed" 

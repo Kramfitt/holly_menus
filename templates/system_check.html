@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block content %}
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <div class="container">
+        <a class="navbar-brand" href="/">Holly Lea Menus</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a class="nav-link" href="/">Dashboard</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/system-check">System Status</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">System Status</h4>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <tbody>
+                        <tr>
+                            <th>Status</th>
+                            <td>
+                                {% if status == 'ok' %}
+                                    <span class="badge bg-success">OK</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Error</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if tesseract_version %}
+                        <tr>
+                            <th>Tesseract Version</th>
+                            <td><pre class="mb-0">{{ tesseract_version }}</pre></td>
+                        </tr>
+                        {% endif %}
+                        {% if tesseract_path %}
+                        <tr>
+                            <th>Tesseract Path</th>
+                            <td><code>{{ tesseract_path }}</code></td>
+                        </tr>
+                        {% endif %}
+                        {% if error %}
+                        <tr>
+                            <th>Error</th>
+                            <td class="text-danger">{{ error }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th>System PATH</th>
+                            <td><pre class="mb-0" style="white-space: pre-wrap;">{{ path }}</pre></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
