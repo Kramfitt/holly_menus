@@ -13,6 +13,7 @@ from PIL import Image, ImageDraw, ImageFont
 import io
 import requests
 import pytesseract
+import subprocess
 
 # Load environment variables
 load_dotenv()
@@ -392,6 +393,31 @@ def delete_template(id):
     except Exception as e:
         print(f"❌ Delete error: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/system-check')
+def system_check():
+    try:
+        # Check Tesseract installation
+        tesseract_version = subprocess.check_output(['tesseract', '--version'])
+        
+        # Check PATH
+        env_path = os.environ.get('PATH')
+        
+        # Check if tesseract is in common locations
+        tesseract_locations = subprocess.check_output(['which', 'tesseract'])
+        
+        return {
+            'tesseract_version': tesseract_version.decode(),
+            'path': env_path,
+            'tesseract_location': tesseract_locations.decode(),
+            'status': 'ok'
+        }
+    except Exception as e:
+        return {
+            'error': str(e),
+            'path': os.environ.get('PATH'),
+            'status': 'error'
+        }
 
 if __name__ == '__main__':
     app.run(debug=True) 
