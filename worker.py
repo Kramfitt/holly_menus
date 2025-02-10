@@ -36,7 +36,7 @@ def read_state_file():
 
 def should_send_emails():
     """Check if email service is active"""
-    state_file = '/opt/render/service_state.txt'
+    state_file = '/opt/render/project/src/service_state.txt'  # Inside the project directory
     print(f"\n📂 Worker checking:")
     print(f"- State file path: {state_file}")
     print(f"- File exists? {os.path.exists(state_file)}")

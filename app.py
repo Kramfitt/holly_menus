@@ -65,14 +65,14 @@ def logout():
 @app.route('/')
 @login_required
 def home():
-    state_file = '/opt/render/service_state.txt'
+    state_file = '/opt/render/project/src/service_state.txt'  # Inside the project directory
     print(f"\n📂 Dashboard checking:")
     print(f"- State file path: {state_file}")
     print(f"- File exists? {os.path.exists(state_file)}")
     print(f"- Current directory: {os.getcwd()}")
     print(f"- Directory contents: {os.listdir('/')}")
     print(f"- /opt contents: {os.listdir('/opt')}")
-    print(f"- /opt/render contents: {os.listdir('/opt/render')}")
+    print(f"- /opt/render/project/src contents: {os.listdir('/opt/render/project/src')}")
     
     # Create state file if it doesn't exist
     if not os.path.exists(state_file):
@@ -95,7 +95,7 @@ def home():
 
 def write_state_file(state):
     """Write state file with verification"""
-    state_file = '/opt/render/service_state.txt'
+    state_file = '/opt/render/project/src/service_state.txt'
     
     try:
         # Create directory if it doesn't exist
@@ -120,7 +120,7 @@ def write_state_file(state):
 
 def read_state_file():
     """Read state file with retries"""
-    state_file = '/opt/render/service_state.txt'
+    state_file = '/opt/render/project/src/service_state.txt'
     max_retries = 3
     
     for attempt in range(max_retries):
@@ -144,7 +144,7 @@ def read_state_file():
 
 @app.route('/toggle', methods=['POST'])
 def toggle_service():
-    state_file = '/opt/render/service_state.txt'
+    state_file = '/opt/render/project/src/service_state.txt'
     print(f"\n🔄 TOGGLE REQUEST at {datetime.now()}")
     
     try:
