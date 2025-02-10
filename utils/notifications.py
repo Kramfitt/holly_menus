@@ -8,8 +8,8 @@ from supabase import create_client
 class NotificationManager:
     def __init__(self):
         self.supabase = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_KEY")
+            supabase_url=os.getenv("SUPABASE_URL"),
+            supabase_key=os.getenv("SUPABASE_KEY")
         )
         self.admin_email = os.getenv("ADMIN_EMAIL")
         
