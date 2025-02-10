@@ -2,7 +2,7 @@ from flask import Flask, render_template, jsonify, request, session, redirect, u
 from functools import wraps
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import time
 import redis
@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 from PIL import Image, ImageDraw, ImageFont
 import io
 import requests
+import pytesseract
 
 # Load environment variables
 load_dotenv()
@@ -212,53 +213,61 @@ def api_preview_menu():
         if menu['file_type'] == 'pdf':
             return f'<embed src="{menu["file_url"]}" type="application/pdf" width="100%" height="600px">'
             
-        # For images, add date overlay
-        # Download image from Supabase
+        # Download and process image
         img_response = requests.get(menu['file_url'])
         img = Image.open(io.BytesIO(img_response.content))
+        
+        # Detect and correct orientation
+        rotation_angle = detect_orientation(img)
+        if rotation_angle in [90, 180, 270]:
+            img = img.rotate(360 - rotation_angle, expand=True)
+        
+        # Find top-left reference point
+        top_left_x, top_left_y = find_top_left(img)
         
         # Create drawing context
         draw = ImageDraw.Draw(img)
         
-        # Load a font (using default for now)
+        # Load font
         try:
-            font = ImageFont.truetype("arial.ttf", 60)
+            font = ImageFont.truetype("Roboto-Regular.ttf", 36)
         except:
             font = ImageFont.load_default()
         
-        # Format date
-        date_text = date_obj.strftime('%A, %B %d, %Y')
+        # Calculate date positions
+        x_spacing = 280
+        date_offsets = [
+            (180 + top_left_x + (x_spacing * i), top_left_y + 80)
+            for i in range(7)
+        ]
         
-        # Get image dimensions
-        img_w, img_h = img.size
+        # Add dates
+        for i, offset in enumerate(date_offsets):
+            current_date = date_obj + timedelta(days=i)
+            date_text = current_date.strftime('%a %d\n%b')
+            
+            # Get text size for background
+            bbox = draw.textbbox(offset, date_text, font=font)
+            padding = 10
+            
+            # Draw white background
+            background_bbox = (
+                bbox[0] - padding,
+                bbox[1] - padding,
+                bbox[2] + padding,
+                bbox[3] + padding
+            )
+            draw.rectangle(background_bbox, fill='white')
+            
+            # Draw text
+            draw.text(offset, date_text, fill='black', font=font)
         
-        # Calculate text size
-        text_bbox = draw.textbbox((0, 0), date_text, font=font)
-        text_w = text_bbox[2] - text_bbox[0]
-        text_h = text_bbox[3] - text_bbox[1]
-        
-        # Position text (top center)
-        x = (img_w - text_w) / 2
-        y = 50  # 50 pixels from top
-        
-        # Draw white background for text
-        padding = 10
-        draw.rectangle([
-            x - padding,
-            y - padding,
-            x + text_w + padding,
-            y + text_h + padding
-        ], fill='white')
-        
-        # Draw text
-        draw.text((x, y), date_text, font=font, fill='black')
-        
-        # Convert back to bytes
+        # Convert to bytes
         img_byte_arr = io.BytesIO()
         img.save(img_byte_arr, format=img.format)
         img_byte_arr = img_byte_arr.getvalue()
         
-        # Upload modified image to Supabase storage with preview_ prefix
+        # Upload preview
         preview_path = f"previews/preview_{menu_id}_{preview_date}.{menu['file_type']}"
         supabase.storage.from_('menus').upload(
             preview_path,
@@ -274,6 +283,41 @@ def api_preview_menu():
     except Exception as e:
         print(f"❌ Preview error: {str(e)}")
         return f"Failed to generate preview: {str(e)}", 500
+
+def detect_orientation(image):
+    """Detect the orientation of an image using pytesseract OSD."""
+    try:
+        osd_data = pytesseract.image_to_osd(image)
+        rotation_angle = int(osd_data.split("Rotate:")[1].split("\n")[0].strip())
+        print(f"Detected rotation: {rotation_angle}°", file=sys.stderr)
+        return rotation_angle
+    except Exception as e:
+        print(f"Error detecting orientation: {e}", file=sys.stderr)
+        return 0
+
+def find_top_left(image):
+    """Find the top-left corner using OCR bounding boxes"""
+    try:
+        data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
+        
+        min_x = float('inf')
+        min_y = float('inf')
+        
+        for i in range(len(data['text'])):
+            if data['conf'][i] > 0:
+                x = data['left'][i]
+                y = data['top'][i]
+                
+                if x < min_x or (x == min_x and y < min_y):
+                    min_x = x
+                    min_y = y
+        
+        print(f"Found top-left corner at: ({min_x}, {min_y})", file=sys.stderr)
+        return min_x, min_y
+        
+    except Exception as e:
+        print(f"Error finding top-left: {str(e)}", file=sys.stderr)
+        raise
 
 @app.route('/api/template', methods=['POST'])
 def upload_template():
