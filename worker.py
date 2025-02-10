@@ -19,9 +19,13 @@ def should_send_emails():
         print(f"- State file path: {state_file}")
         print(f"- File exists: {os.path.exists(state_file)}")
         
+        # Create directory and file if they don't exist
         if not os.path.exists(state_file):
-            print("❌ State file doesn't exist!")
-            return False  # Default to PAUSED if no file
+            print("📝 Creating state file...")
+            os.makedirs(os.path.dirname(state_file), exist_ok=True)
+            with open(state_file, 'w') as f:
+                f.write('True')  # Default to active
+            print("✅ State file created")
             
         with open(state_file, 'r') as f:
             content = f.read().strip()
