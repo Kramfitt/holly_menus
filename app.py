@@ -65,11 +65,24 @@ def logout():
 @app.route('/')
 @login_required
 def home():
-    # Force read current state
+    state_file = '/opt/render/service_state.txt'
+    
+    # Create state file if it doesn't exist
+    if not os.path.exists(state_file):
+        print(f"Creating initial state file at: {state_file}")
+        try:
+            with open(state_file, 'w') as f:
+                f.write('false')  # Start paused
+            os.chmod(state_file, 0o666)  # Allow read/write
+            print("✅ Initial state file created")
+        except Exception as e:
+            print(f"❌ Failed to create state file: {str(e)}")
+    
+    # Read current state
     current_state = read_state_file()
     state = {
         "active": current_state,
-        "last_updated": datetime.now() if os.path.exists('/opt/render/service_state.txt') else None
+        "last_updated": datetime.now() if os.path.exists(state_file) else None
     }
     return render_template('dashboard.html', state=state)
 
