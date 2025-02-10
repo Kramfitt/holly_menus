@@ -21,6 +21,7 @@ from email.mime.image import MIMEImage
 from utils.logger import ActivityLogger
 from utils.notifications import NotificationManager
 from utils.backup import BackupManager
+from worker import calculate_next_menu  # Import the function
 
 # Load environment variables
 load_dotenv()
