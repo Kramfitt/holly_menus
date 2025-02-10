@@ -478,12 +478,34 @@ def api_send_menu():
 def save_settings():
     try:
         data = request.json
+        print("Incoming settings data:", data)  # Debug log
         
-        # Ensure dates are in correct format
-        if 'summer_start' in data:
-            data['summer_start'] = datetime.strptime(data['summer_start'], '%Y-%m-%d').isoformat()
-        if 'winter_start' in data:
-            data['winter_start'] = datetime.strptime(data['winter_start'], '%Y-%m-%d').isoformat()
+        # Validate and clean dates
+        if 'summer_start' in data and data['summer_start']:
+            try:
+                # Handle potential date formats
+                if isinstance(data['summer_start'], str):
+                    if 'T' in data['summer_start']:
+                        # Already ISO format
+                        data['summer_start'] = data['summer_start'].split('T')[0]
+                    date_obj = datetime.strptime(data['summer_start'], '%Y-%m-%d')
+                    data['summer_start'] = date_obj.isoformat()
+            except Exception as e:
+                print(f"Error parsing summer_start: {e}")  # Debug log
+                
+        if 'winter_start' in data and data['winter_start']:
+            try:
+                # Handle potential date formats
+                if isinstance(data['winter_start'], str):
+                    if 'T' in data['winter_start']:
+                        # Already ISO format
+                        data['winter_start'] = data['winter_start'].split('T')[0]
+                    date_obj = datetime.strptime(data['winter_start'], '%Y-%m-%d')
+                    data['winter_start'] = date_obj.isoformat()
+            except Exception as e:
+                print(f"Error parsing winter_start: {e}")  # Debug log
+        
+        print("Processed settings data:", data)  # Debug log
             
         response = supabase.table('menu_settings').insert(data).execute()
         
@@ -653,7 +675,7 @@ def get_menus():
     try:
         response = supabase.table('menus')\
             .select('*')\
-            .order('name', desc=False)\  # Add sorting
+            .order('name', desc=False)\
             .execute()
         return jsonify(response.data)
     except Exception as e:
