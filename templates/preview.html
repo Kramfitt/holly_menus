@@ -21,18 +21,13 @@
                         {% endfor %}
                     </div>
                 </div>
-                <!-- Upload Controls -->
+                <!-- Simple File Upload -->
                 <div class="card-footer">
-                    <form id="uploadForm" class="d-flex justify-content-between">
-                        <input type="file" id="templateFile" 
-                               accept=".pdf,.jpg,.jpeg,.png" 
-                               class="d-none" 
-                               onchange="uploadTemplate()">
-                        <button type="button" class="btn btn-success" 
-                                onclick="document.getElementById('templateFile').click()">
-                            <i class="fas fa-upload"></i> Upload Menu
-                        </button>
-                    </form>
+                    <input type="file" 
+                           id="templateFile" 
+                           accept=".pdf,.jpg,.jpeg,.png" 
+                           class="form-control"
+                           onchange="uploadTemplate()">
                 </div>
             </div>
         </div>
@@ -95,7 +90,7 @@ function uploadTemplate() {
 
     fetch('/api/template', {
         method: 'POST',
-        body: formData  // Send as FormData, not JSON
+        body: formData
     })
     .then(response => response.json())
     .then(data => {
@@ -122,25 +117,16 @@ function deleteTemplate(id) {
 }
 
 function selectTemplate(id) {
-    // Update selected state
     currentTemplateId = id;
-    
-    // Update visual selection
     document.querySelectorAll('#templateList .list-group-item').forEach(item => {
         item.classList.remove('active', 'bg-light');
     });
     event.target.closest('.list-group-item').classList.add('active', 'bg-light');
-    
-    // Update preview immediately
     updatePreview();
 }
 
 function updatePreview() {
-    if (!currentTemplateId) {
-        document.getElementById('menuPreview').innerHTML = 
-            '<div class="text-center text-muted">Select a template to preview</div>';
-        return;
-    }
+    if (!currentTemplateId) return;
     
     const date = document.getElementById('previewDate').value;
     const previewArea = document.getElementById('menuPreview');
@@ -149,7 +135,7 @@ function updatePreview() {
     previewArea.innerHTML = `
         <div class="text-center">
             <div class="spinner-border text-primary" role="status"></div>
-            <div class="mt-2">Updating preview...</div>
+            <div class="mt-2">Loading preview...</div>
         </div>
     `;
     
