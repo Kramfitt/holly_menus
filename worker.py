@@ -10,36 +10,36 @@ import time
 # Force load from .env file
 load_dotenv(override=True)
 
+def read_state_file():
+    """Read state file with retries"""
+    state_file = '/opt/render/service_state.txt'
+    max_retries = 3
+    
+    for attempt in range(max_retries):
+        try:
+            if not os.path.exists(state_file):
+                print(f"❌ State file missing (attempt {attempt + 1})")
+                time.sleep(1)
+                continue
+                
+            with open(state_file, 'r') as f:
+                content = f.read().strip().lower()
+                print(f"📄 Read state: '{content}' (attempt {attempt + 1})")
+                return content == 'true'
+                
+        except Exception as e:
+            print(f"❌ Error reading state: {str(e)} (attempt {attempt + 1})")
+            time.sleep(1)
+    
+    print("❌ Failed to read state file after retries")
+    return False  # Default to paused if can't read
+
 def should_send_emails():
     """Check if email service is active"""
-    try:
-        state_file = os.getenv('STATE_FILE', '/opt/render/service_state.txt')
-        print(f"\n🔍 SUPER DEBUG at {datetime.now()}:")
-        print(f"- Process ID: {os.getpid()}")
-        print(f"- State file path: {state_file}")
-        print(f"- File exists: {os.path.exists(state_file)}")
-        
-        # Create directory and file if they don't exist
-        if not os.path.exists(state_file):
-            print("📝 Creating state file...")
-            os.makedirs(os.path.dirname(state_file), exist_ok=True)
-            with open(state_file, 'w') as f:
-                f.write('True')  # Default to active
-            print("✅ State file created")
-            
-        with open(state_file, 'r') as f:
-            content = f.read().strip()
-            print(f"- Raw file content: '{content}'")
-            print(f"- Content length: {len(content)}")
-            print(f"- Content bytes: {[ord(c) for c in content]}")
-            is_active = content.lower() == 'true'
-            print(f"- Service should be: {'ACTIVE' if is_active else 'PAUSED'}")
-            return is_active
-            
-    except Exception as e:
-        print(f"❌ Error reading state file: {str(e)}")
-        print(f"- Full error: {repr(e)}")
-        return False  # Default to PAUSED on error
+    is_active = read_state_file()
+    print(f"\n🔍 Service state check at {datetime.now()}:")
+    print(f"- Should send emails? {'YES' if is_active else 'NO'}")
+    return is_active
 
 def send_email():
     """Send email using settings from .env"""

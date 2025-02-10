@@ -4,6 +4,7 @@ import os
 import sys
 from datetime import datetime
 from dotenv import load_dotenv
+import time
 
 # Load environment variables
 load_dotenv()
@@ -72,40 +73,49 @@ def home():
                              'recipients': app.config['RECIPIENT_EMAILS']
                          })
 
+def write_state_file(state):
+    """Write state file with verification"""
+    state_file = '/opt/render/service_state.txt'
+    max_retries = 3
+    
+    for attempt in range(max_retries):
+        try:
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(state_file), exist_ok=True)
+            
+            # Write new state
+            with open(state_file, 'w') as f:
+                f.write(str(state).lower())
+                f.flush()
+                os.fsync(f.fileno())
+            
+            # Verify write
+            with open(state_file, 'r') as f:
+                content = f.read().strip().lower()
+                if content == str(state).lower():
+                    print(f"✅ State written and verified: {content}")
+                    return True
+                    
+            print(f"❌ Write verification failed (attempt {attempt + 1})")
+            
+        except Exception as e:
+            print(f"❌ Error writing state: {str(e)} (attempt {attempt + 1})")
+            time.sleep(1)
+    
+    return False
+
 @app.route('/toggle', methods=['POST'])
 def toggle_service():
-    state_file = os.getenv('STATE_FILE', '/opt/render/service_state.txt')
-    print(f"Toggling service state. File: {state_file}")
-    
     try:
-        # Create directory if needed
-        os.makedirs(os.path.dirname(state_file), exist_ok=True)
+        current_state = read_state_file()
+        new_state = not current_state
         
-        # Check current state
-        current_state = 'False'
-        if os.path.exists(state_file):
-            with open(state_file, 'r') as f:
-                current_state = f.read().strip()
-                print(f"Current state read from file: {current_state}")
-        
-        # Toggle state
-        new_state = 'True' if current_state.lower() == 'false' else 'False'
-        print(f"Setting new state to: {new_state}")
-        
-        # Write new state
-        with open(state_file, 'w') as f:
-            f.write(new_state)
-            f.flush()  # Force write to disk
-            os.fsync(f.fileno())  # Ensure it's written
+        if write_state_file(new_state):
+            return jsonify({'status': 'success', 'state': str(new_state).lower()})
+        else:
+            return jsonify({'status': 'error', 'message': 'Failed to write state'})
             
-        print(f"State file updated. Verifying content...")
-        with open(state_file, 'r') as f:
-            verify_state = f.read().strip()
-            print(f"Verified state in file: {verify_state}")
-            
-        return jsonify({'status': 'success', 'state': new_state})
     except Exception as e:
-        print(f"Error toggling state: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)})
 
 if __name__ == '__main__':
