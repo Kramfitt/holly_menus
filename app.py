@@ -850,28 +850,16 @@ def get_next_menu():
         return jsonify({'error': str(e)}), 500
 
 @app.template_filter('strftime')
-def _jinja2_filter_strftime(date, fmt=None):
-    if not date:
-        return ''
+def strftime_filter(date, format='%Y-%m-%d'):
     if isinstance(date, str):
         date = datetime.strptime(date, '%Y-%m-%d')
-    native = date.replace(tzinfo=None)
-    format='%d %B %Y'
-    return native.strftime(format)
+    return date.strftime(format)
 
-@app.route('/api/email-status')
+@app.route('/api/email-status', methods=['GET'])
 def get_email_status():
     try:
-        settings_response = supabase.table('menu_settings')\
-            .select('email_active')\
-            .order('created_at', desc=True)\
-            .limit(1)\
-            .execute()
-            
-        settings = settings_response.data[0] if settings_response.data else None
-        active = settings.get('email_active', False) if settings else False
-        
-        return jsonify({'active': active})
+        state = redis_client.get('service_state')
+        return jsonify({'active': state == b'true'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -880,12 +868,15 @@ def toggle_email():
     try:
         # Get current state from Redis
         current_state = redis_client.get('service_state')
-        current_state = current_state.decode() if current_state else 'false'
+        if current_state is None:
+            # Initialize if not set
+            current_state = b'false'
+            redis_client.set('service_state', 'false')
         
         # Toggle state
-        new_state = 'false' if current_state == 'true' else 'true'
+        new_state = 'false' if current_state == b'true' else 'true'
         
-        # Update Redis with string value
+        # Set new state
         redis_client.set('service_state', new_state)
         
         # Log the change
@@ -895,8 +886,11 @@ def toggle_email():
             status="success"
         )
         
+        print(f"Service state toggled to: {new_state}")  # Debug log
+        
         return jsonify({'active': new_state == 'true'})
     except Exception as e:
+        print(f"Toggle error: {str(e)}")  # Debug log
         logger.log_activity(
             action="Email Service Toggle Failed",
             details=str(e),
@@ -963,6 +957,15 @@ def force_send():
             return jsonify({'success': False, 'message': 'Debug mode not active'}), 400
             
         next_menu = calculate_next_menu()
+        
+        # Get recipient emails from menu settings
+        settings = get_menu_settings()
+        if not settings.get('recipient_emails'):
+            return jsonify({
+                'success': False, 
+                'message': 'No recipient emails configured in settings'
+            }), 400
+            
         success = send_menu_email(next_menu)
         
         message = "Test menu sent successfully!" if success else "Failed to send test menu"

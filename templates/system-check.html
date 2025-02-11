@@ -139,14 +139,17 @@ async function toggleEmailService() {
                 'Content-Type': 'application/json'
             }
         });
-        const data = await response.json();
         
-        if (response.ok) {
-            // Immediately update the UI
-            updateEmailStatus();
-        } else {
-            throw new Error(data.error || 'Failed to toggle service');
+        if (!response.ok) {
+            throw new Error('Failed to toggle service');
         }
+        
+        const data = await response.json();
+        console.log('Toggle response:', data);  // Debug log
+        
+        // Force immediate status update
+        await updateEmailStatus();
+        
     } catch (error) {
         console.error('Toggle error:', error);
         document.getElementById('emailStatus').innerHTML = `
@@ -160,6 +163,8 @@ async function updateEmailStatus() {
     try {
         const response = await fetch('/api/email-status');
         const data = await response.json();
+        
+        console.log('Status response:', data);  // Debug log
         
         const statusDiv = document.getElementById('emailStatus');
         const toggleBtn = document.getElementById('toggleEmailBtn');

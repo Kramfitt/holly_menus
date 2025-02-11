@@ -8,10 +8,10 @@
                 <a href="/" class="btn btn-outline-primary">
                     <i class="fas fa-home"></i> Dashboard
                 </a>
-                <a href="/menus" class="btn btn-outline-primary">
+                <a href="/menus" class="btn btn-outline-primary active">
                     <i class="fas fa-eye"></i> Settings
                 </a>
-                <a href="/preview" class="btn btn-outline-primary active">
+                <a href="/preview" class="btn btn-outline-primary">
                     <i class="fas fa-eye"></i> Preview
                 </a>
                 <a href="/system-check" class="btn btn-outline-primary">
@@ -32,8 +32,12 @@
                         <div class="mb-3">
                             <label for="startDate" class="form-label">Rotation Start Date</label>
                             <input type="date" class="form-control" id="startDate" 
-                                   value="{{ settings.start_date if settings else '' }}" required>
-                            <small class="text-muted">When your menu rotation begins</small>
+                                   value="{{ settings.start_date if settings else '' }}">
+                            <small class="text-muted" id="startDatePreview">
+                                {% if settings and settings.start_date %}
+                                    {{ settings.start_date|strftime('%A, %d %B %Y') }}
+                                {% endif %}
+                            </small>
                         </div>
                         <div class="mb-3">
                             <label for="season" class="form-label">Current Season</label>
@@ -51,7 +55,11 @@
                             <label for="seasonChangeDate" class="form-label">Season Change Date</label>
                             <input type="date" class="form-control" id="seasonChangeDate" 
                                    value="{{ settings.season_change_date if settings else '' }}">
-                            <small class="text-muted">When to switch seasons (optional)</small>
+                            <small class="text-muted" id="seasonChangeDatePreview">
+                                {% if settings and settings.season_change_date %}
+                                    {{ settings.season_change_date|strftime('%A, %d %B %Y') }}
+                                {% endif %}
+                            </small>
                         </div>
                         <div class="mb-3">
                             <label for="daysInAdvance" class="form-label">Days in Advance</label>
@@ -104,7 +112,7 @@
                                 <td>
                                     <div class="btn-group">
                                         <button class="btn btn-primary btn-sm" onclick="openFileUpload('{{ season }}Week{{ week }}')">
-                                            <i class="fas fa-upload"></i> Update
+                                            <i class="fas fa-upload"></i> Upload
                                         </button>
                                         {% if menus and menu_name in menus %}
                                             <button class="btn btn-danger btn-sm" onclick="deleteMenu('{{ season }}Week{{ week }}')">
@@ -228,6 +236,32 @@ document.getElementById('menuFileInput').addEventListener('change', async functi
     } catch (error) {
         alert(`Error uploading menu: ${error}`);
     }
+});
+
+// Add this to your existing JavaScript
+function updateDatePreview(inputId, previewId) {
+    const input = document.getElementById(inputId);
+    const preview = document.getElementById(previewId);
+    
+    input.addEventListener('change', function() {
+        if (this.value) {
+            const date = new Date(this.value);
+            preview.textContent = date.toLocaleDateString('en-NZ', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+        } else {
+            preview.textContent = '';
+        }
+    });
+}
+
+// Initialize date previews
+document.addEventListener('DOMContentLoaded', function() {
+    updateDatePreview('startDate', 'startDatePreview');
+    updateDatePreview('seasonChangeDate', 'seasonChangeDatePreview');
 });
 </script>
 {% endblock %} 
