@@ -47,9 +47,14 @@ redis_client = redis.from_url(redis_url)
 
 # Initialize Supabase client
 supabase = create_client(
-    os.getenv("SUPABASE_URL", ''),
-    os.getenv("SUPABASE_KEY", '')
+    supabase_url=os.getenv('SUPABASE_URL'),
+    supabase_key=os.getenv('SUPABASE_KEY')
 )
+
+# Remove any proxy settings if they exist
+if hasattr(supabase, '_http_client'):
+    if hasattr(supabase._http_client, 'proxies'):
+        delattr(supabase._http_client, 'proxies')
 
 logger = ActivityLogger()
 notifications = NotificationManager()
@@ -731,7 +736,6 @@ def get_menu(menu_id):
 @app.route('/menus')
 def menu_management():
     try:
-        # Get all menus
         menus_response = supabase.table('menus')\
             .select('*')\
             .order('name')\
@@ -741,12 +745,7 @@ def menu_management():
                              menus=menus_response.data)
                              
     except Exception as e:
-        logger.log_activity(
-            action="Menu Management Load Failed",
-            details=str(e),
-            status="error"
-        )
-        return f"Error loading menu management: {str(e)}", 500
+        return f"Error loading menus: {str(e)}", 500
 
 @app.route('/api/next-menu')
 def get_next_menu():
