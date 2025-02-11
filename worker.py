@@ -135,7 +135,7 @@ def get_menu_settings():
     supabase = get_supabase_client()
     settings_response = supabase.table('menu_settings')\
         .select('*')\
-        .order('created_at', desc=True)\
+        .order('created_at', desc=False)\
         .limit(1)\
         .execute()
         
