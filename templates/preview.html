@@ -158,12 +158,21 @@
     <div class="card mb-4">
         <div class="card-body">
             <h5 class="card-title">Current Menu Rotation</h5>
+            <div class="mb-3">
+                <label for="menuSelect" class="form-label">Select Menu to Preview</label>
+                <select class="form-control" id="menuSelect">
+                    <option value="">Select a menu...</option>
+                    {% for menu in menus %}
+                    <option value="{{ menu.id }}">{{ menu.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <div id="currentRotation" class="mb-3">
                 Loading...
             </div>
             <div class="preview-container" style="width: 100%; height: 800px; overflow: hidden;">
                 <img id="menuPreview" 
-                     style="width: 100%; height: auto; object-fit: contain;" 
+                     style="width: 100%; height: auto; object-fit: contain; display: none;" 
                      alt="Menu Preview">
             </div>
         </div>
@@ -424,5 +433,49 @@ async function saveSettings() {
 {% endblock %}
 
 {% block scripts %}
-<!-- Your existing preview page scripts here -->
+<script>
+// Function to update menu preview
+async function updateMenuPreview() {
+    const selectedMenu = document.getElementById('menuSelect')?.value;
+    if (!selectedMenu) return;
+    
+    console.log('Updating preview for menu:', selectedMenu);  // Debug log
+    
+    try {
+        const img = document.getElementById('menuPreview');
+        if (!img) {
+            console.error('Preview image element not found');  // Debug log
+            return;
+        }
+        
+        // Get menu URL from Supabase
+        const response = await fetch(`/api/menus/${selectedMenu}`);
+        const menuData = await response.json();
+        
+        console.log('Menu data:', menuData);  // Debug log
+        
+        if (menuData.url) {
+            img.src = menuData.url;
+            img.style.display = 'block';
+        } else {
+            console.error('No URL in menu data');  // Debug log
+        }
+    } catch (error) {
+        console.error('Preview error:', error);  // Debug log
+    }
+}
+
+// Add event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    const menuSelect = document.getElementById('menuSelect');
+    if (menuSelect) {
+        menuSelect.addEventListener('change', updateMenuPreview);
+    }
+    
+    // Initial preview if menu is already selected
+    if (menuSelect?.value) {
+        updateMenuPreview();
+    }
+});
+</script>
 {% endblock %} 

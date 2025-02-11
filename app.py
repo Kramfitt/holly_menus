@@ -146,7 +146,7 @@ def index():
 @app.route('/preview')
 def preview():
     try:
-        # Get latest settings - match the dashboard approach
+        # Get latest settings
         settings_response = supabase.table('menu_settings')\
             .select('*')\
             .order('created_at', desc=True)\
@@ -164,14 +164,34 @@ def preview():
         # Calculate preview date (2 weeks from now)
         preview_date = datetime.now() + timedelta(days=14)
         
-        # Calculate next menu details using worker function
-        next_menu = calculate_next_menu() if settings else None
+        # Only calculate next menu if we have valid settings
+        next_menu = None
+        if settings:
+            try:
+                # Use today's date if start_date is empty
+                if not settings.get('start_date'):
+                    settings['start_date'] = datetime.now().strftime('%Y-%m-%d')
+                
+                # Ensure season dates are valid
+                if not settings.get('summer_start'):
+                    settings['summer_start'] = '2023-12-01'  # Default summer start
+                if not settings.get('winter_start'):
+                    settings['winter_start'] = '2024-06-01'  # Default winter start
+                
+                next_menu = calculate_next_menu()
+            except Exception as e:
+                logger.log_activity(
+                    action="Preview Calculation Failed",
+                    details=str(e),
+                    status="warning"
+                )
+                print(f"Preview calculation error: {str(e)}")
         
         return render_template('preview.html', 
                              menus=menus_response.data,
                              preview_date=preview_date,
                              settings=settings,
-                             next_menu=next_menu)  # Add next_menu to template
+                             next_menu=next_menu)
                              
     except Exception as e:
         logger.log_activity(
@@ -179,7 +199,7 @@ def preview():
             details=str(e),
             status="error"
         )
-        print("Preview Error:", str(e))
+        print(f"Preview Error: {str(e)}")
         return f"Error loading preview: {str(e)}", 500
 
 # Add API endpoint for preview rendering
