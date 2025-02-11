@@ -122,12 +122,17 @@ def index():
         next_menu = None
         if settings.data:
             next_menu = calculate_next_menu()
-            # Add week number if not present
-            if next_menu and 'week' not in next_menu:
-                weeks_since_start = (next_menu['period_start'] - datetime.strptime(settings.data[0]['start_date'], '%Y-%m-%d').date()).days // 7
+            if next_menu:
+                # Ensure next_menu has all required attributes
+                if 'period_start' in next_menu and isinstance(next_menu['period_start'], str):
+                    next_menu['period_start'] = datetime.strptime(next_menu['period_start'], '%Y-%m-%d').date()
+                
+                # Calculate week number
+                start_date = datetime.strptime(settings.data[0]['start_date'], '%Y-%m-%d').date()
+                weeks_since_start = (next_menu['period_start'] - start_date).days // 7
                 next_menu['week'] = (weeks_since_start % 4) + 1
         
-        # Get recent activity with proper sorting
+        # Get recent activity
         activity_response = supabase.table('activity_log')\
             .select('*')\
             .order('created_at', desc=True)\
@@ -151,6 +156,7 @@ def index():
             details=str(e),
             status="error"
         )
+        print(f"❌ Dashboard error: {str(e)}")  # Add debug print
         return f"Error loading dashboard: {str(e)}", 500
 
 @app.route('/preview')
