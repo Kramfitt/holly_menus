@@ -36,8 +36,23 @@
     <div class="card">
         <div class="card-body">
             <h5 class="card-title">Menu Previews</h5>
-            <div id="menuPreviews" class="row">
-                <!-- Menus will be inserted here -->
+            <div class="row">
+                {% for menu in menus %}
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">{{ menu.name|title }}</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if menu.file_url %}
+                                <img src="{{ menu.file_url }}" class="img-fluid" alt="Menu preview">
+                            {% else %}
+                                <p class="text-muted">No preview available</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
             </div>
         </div>
     </div>

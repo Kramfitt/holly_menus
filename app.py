@@ -129,8 +129,14 @@ def index():
             current_settings = settings.data[0]
             next_menu = calculate_next_menu()
             
-        # Get recent activity
-        recent_activity = logger.get_recent_activity(limit=5)
+        # Get recent activity with proper sorting
+        activity_response = supabase.table('activity_log')\
+            .select('*')\
+            .order('created_at', desc=True)\
+            .limit(10)\
+            .execute()
+            
+        recent_activity = activity_response.data if activity_response.data else []
         
         # Format dates if needed
         if recent_activity:
@@ -160,87 +166,30 @@ def index():
 
 @app.route('/preview')
 def preview():
-    try:
-        print("Starting preview route...")  # Debug log
+    # Get current settings with proper season
+    settings = get_menu_settings()  # Use the same function we use elsewhere
+    
+    # Get next menu details
+    next_menu = calculate_next_menu()  # This will have the correct season
+    
+    # Get all menus with proper file URLs
+    menus_response = supabase.table('menus')\
+        .select('*')\
+        .execute()
         
-        # Get latest settings
-        settings_response = supabase.table('menu_settings')\
-            .select('*')\
-            .order('created_at', desc=True)\
-            .limit(1)\
-            .execute()
-            
-        settings = settings_response.data[0] if settings_response.data else None
-        print("Settings loaded:", settings)  # Debug log
-        
-        # Get all menus
-        menus_response = supabase.table('menus')\
-            .select('*')\
-            .order('name', desc=False)\
-            .execute()
-            
-        # Calculate preview date (2 weeks from now)
-        preview_date = datetime.now() + timedelta(days=14)
-        
-        # Only calculate next menu if we have valid settings
-        next_menu = None
-        if settings:
-            try:
-                print("Processing dates...")  # Debug log
-                # Use today's date if start_date is empty or invalid
-                if not settings.get('start_date'):
-                    print("No start date, using today")  # Debug log
-                    settings['start_date'] = datetime.now().strftime('%Y-%m-%d')
-                
-                print("Start date:", settings.get('start_date'))  # Debug log
-                print("Summer start:", settings.get('summer_start'))  # Debug log
-                print("Winter start:", settings.get('winter_start'))  # Debug log
-                
-                # Ensure we have valid dates
-                today = datetime.now()
-                current_year = today.year
-                
-                # Set default dates if missing
-                if not settings.get('summer_start'):
-                    settings['summer_start'] = f"{current_year}-12-01"
-                if not settings.get('winter_start'):
-                    settings['winter_start'] = f"{current_year}-06-01"
-                
-                try:
-                    # Validate date formats
-                    datetime.strptime(settings['start_date'], '%Y-%m-%d')
-                    datetime.strptime(settings['summer_start'], '%Y-%m-%d')
-                    datetime.strptime(settings['winter_start'], '%Y-%m-%d')
-                    
-                    next_menu = calculate_next_menu()
-                except ValueError as date_error:
-                    print(f"Date parsing error: {date_error}")  # Debug log
-                    raise
-                    
-            except Exception as e:
-                logger.log_activity(
-                    action="Preview Calculation Failed",
-                    details=str(e),
-                    status="warning"
-                )
-                print(f"Preview calculation error: {str(e)}")  # Debug log
-        else:
-            print("No settings found")  # Debug log
-        
-        return render_template('preview.html', 
-                             menus=menus_response.data,
-                             preview_date=preview_date,
-                             settings=settings,
-                             next_menu=next_menu)
-                             
-    except Exception as e:
-        logger.log_activity(
-            action="Preview Load Failed",
-            details=str(e),
-            status="error"
-        )
-        print(f"Preview Error: {str(e)}")  # Debug log
-        return f"Error loading preview: {str(e)}", 500
+    all_menus = menus_response.data if menus_response.data else []
+    
+    # Make sure file_url is set for each menu
+    for menu in all_menus:
+        if 'file_path' in menu:
+            menu['file_url'] = supabase.storage.from_('menus').get_public_url(menu['file_path'])
+    
+    return render_template(
+        'preview.html',
+        settings=settings,
+        next_menu=next_menu,
+        menus=all_menus
+    )
 
 # Add API endpoint for preview rendering
 @app.route('/api/preview', methods=['GET'])
@@ -642,54 +591,37 @@ def upload_menu():
         if not file or not menu_name:
             return "Missing required fields", 400
             
-        # Check file type
-        if not file.content_type in ['image/jpeg', 'image/png']:
-            return "Invalid file type. Please upload JPG or PNG images only", 400
+        # Delete existing menu if it exists
+        existing_menu = supabase.table('menus')\
+            .select('*')\
+            .eq('name', menu_name)\
+            .execute()
             
-        # Create a temporary file
-        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-            file.save(temp_file.name)
+        if existing_menu.data:
+            # Delete old file from storage
+            old_file_path = existing_menu.data[0]['file_path']
+            supabase.storage.from_('menus').remove([old_file_path])
             
-            # Upload to Supabase storage
-            file_ext = 'jpg' if file.content_type == 'image/jpeg' else 'png'
-            file_name = secure_filename(f"{menu_name}_{datetime.now().strftime('%Y%m%d')}.{file_ext}")
-            file_path = f"menus/{file_name}"
-            
-            with open(temp_file.name, 'rb') as f:
-                supabase.storage.from_('menus').upload(
-                    path=file_path,
-                    file=f,
-                    file_options={"content-type": file.content_type}
-                )
-            
-            # Get the public URL
-            file_url = supabase.storage.from_('menus').get_public_url(file_path)
-            
-            # Save to database
-            supabase.table('menus').upsert({
-                'name': menu_name,
-                'file_path': file_path,
-                'url': file_url,
-                'uploaded_at': datetime.now().isoformat()
-            }).execute()
-            
-        # Clean up temp file
-        os.unlink(temp_file.name)
+            # Delete database record
+            supabase.table('menus')\
+                .delete()\
+                .eq('name', menu_name)\
+                .execute()
         
-        logger.log_activity(
-            action="Menu Uploaded",
-            details=f"Uploaded menu: {menu_name}",
-            status="success"
-        )
+        # Now upload the new file
+        file_path = f"menus/{menu_name}_{int(time.time())}.{file.filename.split('.')[-1]}"
+        supabase.storage.from_('menus').upload(file_path, file)
         
-        return jsonify({'success': True, 'url': file_url})
+        # Create new database record
+        supabase.table('menus').insert({
+            'name': menu_name,
+            'file_path': file_path,
+            'uploaded_at': datetime.now().isoformat()
+        }).execute()
+        
+        return jsonify({'success': True})
         
     except Exception as e:
-        logger.log_activity(
-            action="Menu Upload Failed",
-            details=str(e),
-            status="error"
-        )
         return str(e), 500
 
 @app.route('/api/menus/<menu_name>', methods=['DELETE'])

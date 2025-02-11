@@ -28,12 +28,6 @@ if redis_client.get('service_state') is None:
     print("📝 Setting initial Redis state to: false")
     redis_client.set('service_state', 'false')  # Start paused
 
-# Instead, get SMTP settings directly from env:
-SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
-SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
-SMTP_USERNAME = os.getenv('SMTP_USERNAME', '')
-SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
-
 # Initialize logger and notifications
 logger = ActivityLogger()
 notifications = NotificationManager()
@@ -240,20 +234,18 @@ def draw_dates_on_menu(image_data, start_date):
 def send_menu_email(start_date, recipient_list, season):
     """Send menu email to recipients"""
     try:
-        # Calculate menu pair based on start date
+        # Get menu template for current week
         weeks_since_start = (start_date - datetime.strptime(get_menu_settings()['start_date'], '%Y-%m-%d').date()).days // 7
-        periods_elapsed = weeks_since_start // 2
-        is_odd_period = (periods_elapsed % 2) == 0
-        menu_pair = "1_2" if is_odd_period else "3_4"
+        current_week = (weeks_since_start % 4) + 1
         
-        # Get menu templates
+        # Get menu template
         menu_response = supabase.table('menus')\
             .select('*')\
-            .eq('name', f"{season}_{menu_pair}")\
+            .eq('name', f"{season}_week{current_week}")\
             .execute()
         
         if not menu_response.data:
-            raise Exception(f"No menu template found for {season} {menu_pair}")
+            raise Exception(f"No menu template found for {season} week {current_week}")
             
         # Format email content
         msg = MIMEMultipart()

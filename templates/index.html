@@ -188,6 +188,9 @@
                         <dt class="col-sm-4">Current Season:</dt>
                         <dd class="col-sm-8">{{ settings.season|title }}</dd>
                         
+                        <dt class="col-sm-4">Rotation Start:</dt>
+                        <dd class="col-sm-8">{{ settings.start_date }}</dd>
+                        
                         <dt class="col-sm-4">Season Changes:</dt>
                         <dd class="col-sm-8">
                             {% if settings.season_change_date %}
@@ -218,86 +221,6 @@
                         </a>
                         <a href="/system-check" class="btn btn-outline-info">
                             <i class="fas fa-check-circle"></i> Check System Status
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- After your existing Quick Stats row -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">Current Settings</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <dl class="row">
-                                <dt class="col-sm-4">Rotation Start:</dt>
-                                <dd class="col-sm-8">
-                                    {% if settings and settings.start_date %}
-                                        {{ settings.start_date|strftime }}
-                                    {% else %}
-                                        Not set
-                                    {% endif %}
-                                </dd>
-                                
-                                <dt class="col-sm-4">Season:</dt>
-                                <dd class="col-sm-8">
-                                    {% if settings and settings.season %}
-                                        {% if settings.season == 'auto' %}
-                                            Automatic (Currently {{ calculated_season }})
-                                        {% else %}
-                                            {{ settings.season|title }}
-                                        {% endif %}
-                                    {% else %}
-                                        Automatic
-                                    {% endif %}
-                                </dd>
-                                
-                                <dt class="col-sm-4">Season Change:</dt>
-                                <dd class="col-sm-8">
-                                    {% if settings and settings.season_change_date %}
-                                        {{ settings.season_change_date|strftime }}
-                                    {% else %}
-                                        Not scheduled
-                                    {% endif %}
-                                </dd>
-                            </dl>
-                        </div>
-                        <div class="col-md-6">
-                            <dl class="row">
-                                <dt class="col-sm-4">Send Days:</dt>
-                                <dd class="col-sm-8">
-                                    {% if settings and settings.days_in_advance %}
-                                        {{ settings.days_in_advance }} days before menu start
-                                    {% else %}
-                                        Not set
-                                    {% endif %}
-                                </dd>
-                                
-                                <dt class="col-sm-4">Recipients:</dt>
-                                <dd class="col-sm-8">
-                                    {% if settings and settings.recipient_emails %}
-                                        {{ settings.recipient_emails|length }} configured
-                                    {% else %}
-                                        None configured
-                                    {% endif %}
-                                </dd>
-                                
-                                <dt class="col-sm-4">Email Service:</dt>
-                                <dd class="col-sm-8" id="emailStatusText">
-                                    Loading...
-                                </dd>
-                            </dl>
-                        </div>
-                    </div>
-                    <div class="text-end mt-3">
-                        <a href="/menus" class="btn btn-primary">
-                            <i class="fas fa-cog"></i> Manage Settings
                         </a>
                     </div>
                 </div>
