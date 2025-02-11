@@ -736,13 +736,22 @@ def get_menu(menu_id):
 @app.route('/menus')
 def menu_management():
     try:
+        # Get menus
         menus_response = supabase.table('menus')\
             .select('*')\
             .order('name')\
             .execute()
             
+        # Get settings
+        settings_response = supabase.table('menu_settings')\
+            .select('*')\
+            .order('created_at', desc=True)\
+            .limit(1)\
+            .execute()
+            
         return render_template('menu_management.html', 
-                             menus=menus_response.data)
+                             menus=menus_response.data,
+                             settings=settings_response.data[0] if settings_response.data else None)
                              
     except Exception as e:
         return f"Error loading menus: {str(e)}", 500

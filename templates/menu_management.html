@@ -2,45 +2,97 @@
 
 {% block content %}
 <div class="container">
-    <h2>Menu Management</h2>
+    <h2>Settings & File Management</h2>
     
-    <!-- Upload Form -->
+    <!-- Menu Settings -->
     <div class="card mb-4">
         <div class="card-body">
-            <h5 class="card-title">Upload New Menu</h5>
-            <form id="uploadForm">
-                <div class="mb-3">
-                    <label for="menuFile" class="form-label">Menu Image</label>
-                    <input type="file" class="form-control" id="menuFile" accept="image/*" required>
+            <h5 class="card-title">Menu Settings</h5>
+            <form id="settingsForm">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="startDate" class="form-label">Rotation Start Date</label>
+                            <input type="date" class="form-control" id="startDate" 
+                                   value="{{ settings.start_date if settings else '' }}" required>
+                            <small class="text-muted">When your menu rotation begins</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="season" class="form-label">Current Season</label>
+                            <select class="form-control" id="season" required>
+                                <option value="summer" {% if settings and settings.season == 'summer' %}selected{% endif %}>Summer</option>
+                                <option value="winter" {% if settings and settings.season == 'winter' %}selected{% endif %}>Winter</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="seasonChangeDate" class="form-label">Season Change Date</label>
+                            <input type="date" class="form-control" id="seasonChangeDate" 
+                                   value="{{ settings.season_change_date if settings else '' }}">
+                            <small class="text-muted">When to switch seasons (optional)</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="daysInAdvance" class="form-label">Days in Advance</label>
+                            <input type="number" class="form-control" id="daysInAdvance" 
+                                   value="{{ settings.days_in_advance if settings else 14 }}" min="1" max="30">
+                            <small class="text-muted">How many days before period start to send menu</small>
+                        </div>
+                    </div>
                 </div>
+                
                 <div class="mb-3">
-                    <label for="menuName" class="form-label">Menu Name</label>
-                    <select class="form-control" id="menuName" required>
-                        <option value="">Select menu name...</option>
-                        <optgroup label="Summer Menus">
-                            <option value="SummerWeek1">Summer Week 1</option>
-                            <option value="SummerWeek2">Summer Week 2</option>
-                            <option value="SummerWeek3">Summer Week 3</option>
-                            <option value="SummerWeek4">Summer Week 4</option>
-                        </optgroup>
-                        <optgroup label="Winter Menus">
-                            <option value="WinterWeek1">Winter Week 1</option>
-                            <option value="WinterWeek2">Winter Week 2</option>
-                            <option value="WinterWeek3">Winter Week 3</option>
-                            <option value="WinterWeek4">Winter Week 4</option>
-                        </optgroup>
-                    </select>
-                    <small class="text-muted">Select the menu week this image represents</small>
+                    <label for="recipients" class="form-label">Email Recipients</label>
+                    <textarea class="form-control" id="recipients" rows="2" 
+                              placeholder="Enter email addresses, separated by commas">{{ settings.recipient_emails|join(', ') if settings and settings.recipient_emails else '' }}</textarea>
+                    <small class="text-muted">Who should receive the menu emails</small>
                 </div>
-                <button type="submit" class="btn btn-primary">Upload Menu</button>
+                
+                <button type="submit" class="btn btn-primary">Save Settings</button>
             </form>
         </div>
     </div>
 
-    <!-- Menu List -->
+    <!-- Menu File Management -->
     <div class="card">
         <div class="card-body">
-            <h5 class="card-title">Current Menus</h5>
+            <h5 class="card-title">Menu Files</h5>
+            
+            <!-- Upload Form -->
+            <form id="uploadForm" class="mb-4">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="menuName" class="form-label">Menu Name</label>
+                            <select class="form-control" id="menuName" required>
+                                <option value="">Select menu name...</option>
+                                <optgroup label="Summer Menus">
+                                    <option value="SummerWeek1">Summer Week 1</option>
+                                    <option value="SummerWeek2">Summer Week 2</option>
+                                    <option value="SummerWeek3">Summer Week 3</option>
+                                    <option value="SummerWeek4">Summer Week 4</option>
+                                </optgroup>
+                                <optgroup label="Winter Menus">
+                                    <option value="WinterWeek1">Winter Week 1</option>
+                                    <option value="WinterWeek2">Winter Week 2</option>
+                                    <option value="WinterWeek3">Winter Week 3</option>
+                                    <option value="WinterWeek4">Winter Week 4</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="menuFile" class="form-label">Menu File</label>
+                            <input type="file" class="form-control" id="menuFile" accept="image/*" required>
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-success">Upload Menu</button>
+            </form>
+
+            <!-- Menu List -->
+            <h6>Current Menus</h6>
             <div class="table-responsive">
                 <table class="table">
                     <thead>
@@ -94,6 +146,38 @@
 
 {% block scripts %}
 <script>
-// Your existing JavaScript for upload/delete/preview
+// Settings form submission
+document.getElementById('settingsForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const settings = {
+        start_date: document.getElementById('startDate').value,
+        season: document.getElementById('season').value,
+        season_change_date: document.getElementById('seasonChangeDate').value,
+        days_in_advance: parseInt(document.getElementById('daysInAdvance').value),
+        recipient_emails: document.getElementById('recipients').value.split(',').map(email => email.trim())
+    };
+    
+    try {
+        const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(settings)
+        });
+        
+        if (response.ok) {
+            alert('Settings saved successfully!');
+        } else {
+            const error = await response.text();
+            alert(`Failed to save settings: ${error}`);
+        }
+    } catch (error) {
+        alert(`Error saving settings: ${error}`);
+    }
+});
+
+// Your existing upload/delete/preview JavaScript
 </script>
 {% endblock %} 
