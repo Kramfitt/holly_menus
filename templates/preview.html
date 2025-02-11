@@ -408,7 +408,7 @@ async function updateMenuPreview() {
         const menuData = await response.json();
         console.log('Menu data:', menuData);  // Debug log
         
-        if (menuData.url) {
+        if (menuData.file_url) {
             const img = document.getElementById('menuPreview');
             img.onerror = () => {
                 showStatus('Failed to load menu image. Please try again.', 'danger');
@@ -418,7 +418,7 @@ async function updateMenuPreview() {
                 showStatus('Menu loaded successfully!', 'success');
                 showLoading(false);
             };
-            img.src = menuData.url;
+            img.src = menuData.file_url;
         } else {
             throw new Error('No menu URL found');
         }

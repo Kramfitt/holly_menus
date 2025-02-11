@@ -644,94 +644,56 @@ def health_check():
 @app.route('/api/menus', methods=['POST'])
 def upload_menu():
     try:
+        if 'file' not in request.files:
+            return 'No file uploaded', 400
+            
         file = request.files['file']
-        name = request.form['name']
+        name = request.form.get('name')
         
-        # Get file extension and create storage path
-        file_ext = os.path.splitext(file.filename)[1]
-        storage_path = f"{name}{file_ext}"  # Simplified path
-        
-        # Check if menu already exists in database
-        existing = supabase.table('menus').select('*').eq('name', name).execute()
-        if existing.data:
-            return jsonify({'error': 'Menu with this name already exists'}), 400
+        if not file or not name:
+            return 'Missing file or name', 400
             
-        # Try to delete from storage first (in case file exists but no DB record)
-        try:
-            supabase.storage.from_('menus').remove([storage_path])
-        except:
-            pass  # Ignore errors if file doesn't exist
-            
-        # Upload to storage
-        file_data = file.read()
-        supabase.storage.from_('menus').upload(
-            path=storage_path,
-            file=file_data,
-            file_options={"content-type": file.content_type}
-        )
+        # Upload to Supabase Storage
+        file_path = f"menus/{name}"
+        supabase.storage.from_('menus').upload(file_path, file)
         
         # Get public URL
-        file_url = supabase.storage.from_('menus').get_public_url(storage_path)
+        file_url = supabase.storage.from_('menus').get_public_url(file_path)
         
         # Save to database
         menu_data = {
             'name': name,
-            'file_path': storage_path,
-            'file_type': file_ext[1:],  # Remove the dot
-            'url': file_url
+            'file_url': file_url,
+            'file_type': file.filename.split('.')[-1]
         }
         
-        result = supabase.table('menus').insert(menu_data).execute()
+        response = supabase.table('menus').insert(menu_data).execute()
         
-        logger.log_activity(
-            action="Menu Uploaded",
-            details=f"Menu {name} uploaded successfully",
-            status="success"
-        )
-        
-        return jsonify(result.data[0])
+        return jsonify(response.data[0])
         
     except Exception as e:
-        logger.log_activity(
-            action="Menu Upload Failed",
-            details=str(e),
-            status="error"
-        )
-        return jsonify({'error': str(e)}), 500
+        return str(e), 500
 
 @app.route('/api/menus/<menu_id>', methods=['DELETE'])
 def delete_menu(menu_id):
     try:
         # Get menu details first
         menu = supabase.table('menus').select('*').eq('id', menu_id).execute()
+        
         if not menu.data:
-            return jsonify({'error': 'Menu not found'}), 404
+            return 'Menu not found', 404
             
-        menu_data = menu.data[0]
+        # Delete from storage
+        file_path = menu.data[0]['name']
+        supabase.storage.from_('menus').remove([f"menus/{file_path}"])
         
-        # Delete from storage first
-        storage_path = f"menus/{menu_data['name']}"
-        supabase.storage.from_('menus').remove([storage_path])
-        
-        # Then delete from database
+        # Delete from database
         supabase.table('menus').delete().eq('id', menu_id).execute()
         
-        # Log the deletion
-        logger.log_activity(
-            action="Menu Deleted",
-            details=f"Menu {menu_data['name']} deleted successfully",
-            status="success"
-        )
-        
-        return jsonify({'status': 'success'})
+        return 'Menu deleted successfully'
         
     except Exception as e:
-        logger.log_activity(
-            action="Menu Delete Failed",
-            details=str(e),
-            status="error"
-        )
-        return jsonify({'error': str(e)}), 500
+        return str(e), 500
 
 @app.route('/api/menus', methods=['GET'])
 def get_menus():
