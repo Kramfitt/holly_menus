@@ -52,9 +52,61 @@ def send_email():
     msg['To'] = ', '.join(recipients)
     msg['Subject'] = "Menu Service Test"
     
-    body = "This is a test email from the menu service."
+    # Create message body versions
+    body = f"This is a test email from the menu service."
     msg.attach(MIMEText(body, 'plain'))
-
+    
+    # HTML Email Template
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background-color: #004d99; color: white; padding: 20px; text-align: center; }}
+            .content {{ padding: 20px; background-color: #f9f9f9; }}
+            .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+            .menu-details {{ background-color: #fff; padding: 15px; border-left: 4px solid #004d99; margin: 15px 0; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>Holly Lea Menu</h1>
+            </div>
+            <div class="content">
+                <p>Hello,</p>
+                <p>Please find attached the menu for the upcoming period.</p>
+                
+                <div class="menu-details">
+                    <strong>Period:</strong><br>
+                    {datetime.now().strftime('%d %B %Y')} - 
+                    {(datetime.now() + timedelta(days=13)).strftime('%d %B %Y')}<br><br>
+                    
+                    <strong>Menu Type:</strong><br>
+                    {datetime.now().strftime('%B')} Menus
+                </div>
+                
+                <p>Best regards,<br>Holly Lea Menu System</p>
+            </div>
+            <div class="footer">
+                This is an automated message from the Holly Lea Menu System
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    msg.attach(MIMEText(html_body, 'html'))
+    
+    # Attach menu file
+    with open(os.getenv('MENU_FILE_PATH'), 'rb') as f:
+        attachment = MIMEApplication(f.read(), _subtype=os.getenv('MENU_FILE_TYPE'))
+        attachment.add_header('Content-Disposition', 'attachment', 
+                            filename=f"Menu_{datetime.now().strftime('%Y%m%d')}.{os.getenv('MENU_FILE_TYPE')}")
+        msg.attach(attachment)
+    
     # Send email
     try:
         server = smtplib.SMTP(smtp_server, smtp_port)
@@ -137,7 +189,8 @@ def calculate_next_menu():
             
             # Update settings with new season
             settings['season'] = season
-            supabase.table('menu_settings').insert(settings).execute()
+            supabase = get_supabase_client()
+            supabase.table('menu_settings').update(settings).eq('id', settings['id']).execute()
     
     return {
         'send_date': send_date,
@@ -211,7 +264,8 @@ def send_menu_email(menu_details):
         </html>
         """
         
-        # Create both plain text and HTML versions
+        # Create message body versions
+        body = f"This is a test email from the menu service."
         msg.attach(MIMEText(body, 'plain'))
         msg.attach(MIMEText(html_body, 'html'))
         
