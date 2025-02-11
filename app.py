@@ -146,6 +146,8 @@ def index():
 @app.route('/preview')
 def preview():
     try:
+        print("Starting preview route...")  # Debug log
+        
         # Get latest settings
         settings_response = supabase.table('menu_settings')\
             .select('*')\
@@ -154,6 +156,7 @@ def preview():
             .execute()
             
         settings = settings_response.data[0] if settings_response.data else None
+        print("Settings loaded:", settings)  # Debug log
         
         # Get all menus
         menus_response = supabase.table('menus')\
@@ -168,24 +171,46 @@ def preview():
         next_menu = None
         if settings:
             try:
-                # Use today's date if start_date is empty
+                print("Processing dates...")  # Debug log
+                # Use today's date if start_date is empty or invalid
                 if not settings.get('start_date'):
+                    print("No start date, using today")  # Debug log
                     settings['start_date'] = datetime.now().strftime('%Y-%m-%d')
                 
-                # Ensure season dates are valid
-                if not settings.get('summer_start'):
-                    settings['summer_start'] = '2023-12-01'  # Default summer start
-                if not settings.get('winter_start'):
-                    settings['winter_start'] = '2024-06-01'  # Default winter start
+                print("Start date:", settings.get('start_date'))  # Debug log
+                print("Summer start:", settings.get('summer_start'))  # Debug log
+                print("Winter start:", settings.get('winter_start'))  # Debug log
                 
-                next_menu = calculate_next_menu()
+                # Ensure we have valid dates
+                today = datetime.now()
+                current_year = today.year
+                
+                # Set default dates if missing
+                if not settings.get('summer_start'):
+                    settings['summer_start'] = f"{current_year}-12-01"
+                if not settings.get('winter_start'):
+                    settings['winter_start'] = f"{current_year}-06-01"
+                
+                try:
+                    # Validate date formats
+                    datetime.strptime(settings['start_date'], '%Y-%m-%d')
+                    datetime.strptime(settings['summer_start'], '%Y-%m-%d')
+                    datetime.strptime(settings['winter_start'], '%Y-%m-%d')
+                    
+                    next_menu = calculate_next_menu()
+                except ValueError as date_error:
+                    print(f"Date parsing error: {date_error}")  # Debug log
+                    raise
+                    
             except Exception as e:
                 logger.log_activity(
                     action="Preview Calculation Failed",
                     details=str(e),
                     status="warning"
                 )
-                print(f"Preview calculation error: {str(e)}")
+                print(f"Preview calculation error: {str(e)}")  # Debug log
+        else:
+            print("No settings found")  # Debug log
         
         return render_template('preview.html', 
                              menus=menus_response.data,
@@ -199,7 +224,7 @@ def preview():
             details=str(e),
             status="error"
         )
-        print(f"Preview Error: {str(e)}")
+        print(f"Preview Error: {str(e)}")  # Debug log
         return f"Error loading preview: {str(e)}", 500
 
 # Add API endpoint for preview rendering
