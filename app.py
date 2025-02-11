@@ -781,28 +781,35 @@ def menu_management():
             .select('*')\
             .execute()
             
-        menus = menus_response.data if menus_response.data else []
+        all_menus = menus_response.data if menus_response.data else []
         
-        # Organize menus by season and week
-        organized_menus = {
+        # Initialize menu structure
+        menu_structure = {
             'summer': {
-                'week1': next((m for m in menus if m['name'].startswith('summerWeek1')), None),
-                'week2': next((m for m in menus if m['name'].startswith('summerWeek2')), None),
-                'week3': next((m for m in menus if m['name'].startswith('summerWeek3')), None),
-                'week4': next((m for m in menus if m['name'].startswith('summerWeek4')), None)
+                'week1': None,
+                'week2': None,
+                'week3': None,
+                'week4': None
             },
             'winter': {
-                'week1': next((m for m in menus if m['name'].startswith('winterWeek1')), None),
-                'week2': next((m for m in menus if m['name'].startswith('winterWeek2')), None),
-                'week3': next((m for m in menus if m['name'].startswith('winterWeek3')), None),
-                'week4': next((m for m in menus if m['name'].startswith('winterWeek4')), None)
+                'week1': None,
+                'week2': None,
+                'week3': None,
+                'week4': None
             }
         }
+        
+        # Populate menu structure
+        for menu in all_menus:
+            if menu['name'].startswith('summer') or menu['name'].startswith('winter'):
+                season = 'summer' if menu['name'].startswith('summer') else 'winter'
+                week_num = menu['name'].lower().replace(season.lower()+'week', '')
+                menu_structure[season][f'week{week_num}'] = menu
         
         return render_template(
             'menu_management.html',
             settings=settings,
-            menus=organized_menus
+            menus=menu_structure
         )
         
     except Exception as e:
