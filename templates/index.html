@@ -21,57 +21,95 @@
 
     <!-- Quick Stats -->
     <div class="row mb-4">
+        <!-- Next Menu Card -->
         <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Next Menu</h5>
-                    <p class="card-text">
-                        {% if next_menu %}
-                            {{ next_menu.season|title }} Week {{ next_menu.week_number }}
-                        {% else %}
-                            No menu scheduled
-                        {% endif %}
-                    </p>
+            <a href="/preview" class="text-decoration-none">
+                <div class="card bg-primary text-white hover-shadow" style="transition: all 0.3s ease;">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-calendar-alt me-2"></i>Next Menu
+                        </h5>
+                        <p class="card-text">
+                            {% if next_menu %}
+                                {{ next_menu.season|title }} Week {{ next_menu.week_number }}
+                            {% else %}
+                                No menu scheduled
+                            {% endif %}
+                        </p>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
+
+        <!-- Send Date Card -->
         <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Send Date</h5>
-                    <p class="card-text">
-                        {% if next_menu %}
-                            {{ next_menu.send_date.strftime('%d %B %Y') }}
-                        {% else %}
-                            Not configured
-                        {% endif %}
-                    </p>
+            <a href="/preview" class="text-decoration-none">
+                <div class="card bg-success text-white hover-shadow" style="transition: all 0.3s ease;">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-clock me-2"></i>Send Date
+                        </h5>
+                        <p class="card-text">
+                            {% if next_menu %}
+                                {{ next_menu.send_date.strftime('%d %B %Y') }}
+                            {% else %}
+                                Not configured
+                            {% endif %}
+                        </p>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
+
+        <!-- Recipients Card -->
         <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Templates</h5>
-                    <p class="card-text">{{ menu_count }} menus available</p>
+            <a href="/preview" class="text-decoration-none">
+                <div class="card bg-info text-white hover-shadow" style="transition: all 0.3s ease;">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-users me-2"></i>Recipients
+                        </h5>
+                        <p class="card-text">
+                            {% if settings and settings.recipient_emails %}
+                                {{ settings.recipient_emails|length }} configured
+                            {% else %}
+                                Not configured
+                            {% endif %}
+                        </p>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
+
+        <!-- Templates Card -->
         <div class="col-md-3">
-            <div class="card bg-warning text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Recipients</h5>
-                    <p class="card-text">
-                        {% if settings and settings.recipient_emails %}
-                            {{ settings.recipient_emails|length }} configured
-                        {% else %}
-                            None configured
-                        {% endif %}
-                    </p>
+            <a href="/menus" class="text-decoration-none">
+                <div class="card bg-warning text-white hover-shadow" style="transition: all 0.3s ease;">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-file-image me-2"></i>Templates
+                        </h5>
+                        <p class="card-text">
+                            {% if menus %}
+                                {{ menus|length }} menus
+                            {% else %}
+                                No menus uploaded
+                            {% endif %}
+                        </p>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
+
+    <!-- Add some hover effect styles -->
+    <style>
+        .hover-shadow:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            cursor: pointer;
+        }
+    </style>
 
     <!-- Add this after the Quick Stats section -->
     {% if unread_notifications %}
@@ -174,14 +212,6 @@
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Settings Section -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <h5 class="card-title">Menu Settings</h5>
-            <!-- Your existing settings form -->
         </div>
     </div>
 </div>
