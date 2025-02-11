@@ -145,7 +145,7 @@ def index():
         # Get recent activity
         activity_response = supabase.table('activity_log')\
             .select('*')\
-            .order('created_at', ascending=False)\
+            .order('created_at', desc=True)\
             .limit(10)\
             .execute()
             
@@ -386,7 +386,7 @@ def system_check():
         # Get current settings
         settings = supabase.table('menu_settings')\
             .select('*')\
-            .order('created_at', ascending=False)\
+            .order('created_at', desc=True)\
             .limit(1)\
             .execute()
         
@@ -693,7 +693,7 @@ def get_menus():
     try:
         response = supabase.table('menus')\
             .select('*')\
-            .order('name', ascending=True)\
+            .order('name')\
             .execute()
         return jsonify(response.data)
     except Exception as e:
@@ -728,7 +728,7 @@ def menu_management():
         # Get current settings
         settings_response = supabase.table('menu_settings')\
             .select('*')\
-            .order('created_at', ascending=False)\
+            .order('created_at', desc=True)\
             .limit(1)\
             .execute()
             
@@ -766,7 +766,7 @@ def get_next_menu():
     try:
         settings_response = supabase.table('menu_settings')\
             .select('*')\
-            .order('created_at', ascending=False)\
+            .order('created_at', desc=True)\
             .limit(1)\
             .execute()
             
@@ -955,7 +955,7 @@ def get_menu_settings():
     try:
         response = supabase.table('menu_settings')\
             .select('*')\
-            .order('created_at', ascending=False)\
+            .order('created_at', desc=True)\
             .limit(1)\
             .execute()
             
