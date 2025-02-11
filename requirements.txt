@@ -18,3 +18,4 @@ python-dateutil==2.8.2
 pytesseract==0.3.10
 urllib3==2.0.7
 pytz==2023.3
+Flask-Limiter==3.5.0

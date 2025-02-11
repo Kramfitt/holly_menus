@@ -21,9 +21,10 @@ from email.mime.image import MIMEImage
 from utils.logger import ActivityLogger
 from utils.notifications import NotificationManager
 from utils.backup import BackupManager
-from worker import calculate_next_menu
+from worker import calculate_next_menu, send_menu_email
 from config import supabase, redis_client, SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
 import pytz  # Add this import
+from postgrest.constants import desc  # Add this import at the top
 
 # Load environment variables
 load_dotenv()
@@ -592,6 +593,7 @@ def health_check():
     })
 
 @app.route('/api/menus', methods=['POST'])
+@login_required
 def upload_menu():
     try:
         if 'file' not in request.files:
@@ -603,37 +605,49 @@ def upload_menu():
         if not file or not menu_name:
             return "Missing required fields", 400
             
-        # Delete existing menu if it exists
-        existing_menu = supabase.table('menus')\
-            .select('*')\
-            .eq('name', menu_name)\
-            .execute()
-            
-        if existing_menu.data:
-            # Delete old file from storage
-            old_file_path = existing_menu.data[0]['file_path']
-            supabase.storage.from_('menus').remove([old_file_path])
-            
-            # Delete database record
-            supabase.table('menus')\
-                .delete()\
-                .eq('name', menu_name)\
-                .execute()
+        # Read the file into bytes
+        file_bytes = file.stream.read()
+        file_extension = file.filename.split('.')[-1].lower()
         
-        # Now upload the new file
-        file_path = f"menus/{menu_name}_{int(time.time())}.{file.filename.split('.')[-1]}"
-        supabase.storage.from_('menus').upload(file_path, file)
+        # Handle existing menu
+        existing = supabase.table('menus').select('*').eq('name', menu_name).execute()
+        if existing.data:
+            # Delete old file if it exists
+            supabase.storage.from_('menus').remove([existing.data[0]['file_path']])
+            supabase.table('menus').delete().eq('name', menu_name).execute()
         
-        # Create new database record
+        # Generate unique filename
+        timestamp = int(datetime.now().timestamp())
+        file_path = f"menus/{menu_name}_{timestamp}.{file_extension}"
+        
+        # Upload new file
+        supabase.storage.from_('menus').upload(
+            path=file_path,
+            file=file_bytes,
+            file_options={"content-type": file.content_type}
+        )
+        
+        # Create database record
         supabase.table('menus').insert({
             'name': menu_name,
             'file_path': file_path,
             'uploaded_at': datetime.now().isoformat()
         }).execute()
         
+        logger.log_activity(
+            action="Menu Uploaded",
+            details=f"Menu {menu_name} uploaded successfully",
+            status="success"
+        )
+        
         return jsonify({'success': True})
         
     except Exception as e:
+        logger.log_activity(
+            action="Menu Upload Failed",
+            details=str(e),
+            status="error"
+        )
         return str(e), 500
 
 @app.route('/api/menus/<menu_name>', methods=['DELETE'])
@@ -946,6 +960,7 @@ def get_menu_settings():
             .limit(1)\
             .execute()
             
+        settings = None
         if response.data:
             settings = response.data[0]
             # Convert ISO format datetime strings to datetime objects
@@ -961,7 +976,7 @@ def get_menu_settings():
                 settings['season_change_date'] = datetime.strptime(
                     settings['season_change_date'], '%Y-%m-%d'
                 ).date()
-        return settings if response.data else None
+        return settings
         
     except Exception as e:
         logger.log_activity(
@@ -1002,9 +1017,10 @@ def check_email_health():
 @app.route('/api/clear-activity-log', methods=['POST'])
 def clear_activity_log():
     try:
-        # Delete ALL entries from activity_log table
+        # Delete ALL entries from activity_log table using a true condition
         supabase.table('activity_log')\
             .delete()\
+            .not_('id', 'is', None)\
             .execute()
             
         logger.log_activity(
