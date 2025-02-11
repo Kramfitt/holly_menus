@@ -41,6 +41,22 @@ async function loadNextMenu() {
             throw new Error(data.error);
         }
         
+        // Calculate the actual dates for each week
+        const sendDate = new Date(data.send_date);
+        const week1Start = new Date(sendDate);
+        week1Start.setDate(week1Start.getDate() + 7); // Start a week after send date
+        const week2Start = new Date(week1Start);
+        week2Start.setDate(week2Start.getDate() + 7);
+        
+        // Format date ranges
+        function formatDateRange(startDate) {
+            const endDate = new Date(startDate);
+            endDate.setDate(endDate.getDate() + 6);
+            
+            return `Mon ${startDate.getDate()}${getOrdinal(startDate.getDate())} ${startDate.toLocaleDateString('en-NZ', { month: 'short' })} - 
+                    Sun ${endDate.getDate()}${getOrdinal(endDate.getDate())} ${endDate.toLocaleDateString('en-NZ', { month: 'short' })}`;
+        }
+        
         // Update menu details
         document.getElementById('nextMenuDetails').innerHTML = `
             <div class="mt-2">
@@ -50,8 +66,11 @@ async function loadNextMenu() {
                     year: 'numeric'
                 })}<br>
                 <strong>Season:</strong> ${data.season}<br>
-                <strong>Menu Period:</strong> ${data.week_numbers}<br>
-                <strong>Menu Pair:</strong> ${data.menu_pair}
+                <strong>Menu Period:</strong>
+                <div class="ms-3 mt-2">
+                    <strong>Week ${data.week_numbers.split(' & ')[0].split(' ')[1]}:</strong> ${formatDateRange(week1Start)}<br>
+                    <strong>Week ${data.week_numbers.split(' & ')[1].split(' ')[1]}:</strong> ${formatDateRange(week2Start)}
+                </div>
             </div>
         `;
         
@@ -60,19 +79,23 @@ async function loadNextMenu() {
         previewsContainer.innerHTML = '';
         
         data.menus.forEach((menu, index) => {
+            const weekStart = index === 0 ? week1Start : week2Start;
             const col = document.createElement('div');
             col.className = 'col-md-6 mb-3';
             col.innerHTML = `
                 <div class="card">
                     <div class="card-header">
                         <h6 class="mb-0">${menu.name}</h6>
+                        <small class="text-muted">
+                            ${formatDateRange(weekStart)}
+                        </small>
                     </div>
                     <div class="card-body p-2">
                         <img src="${menu.url}" 
                              class="img-fluid" 
                              alt="${menu.name}"
                              style="width: 100%; height: auto; cursor: pointer;"
-                             onclick="showFullPreview('${menu.url}', '${menu.name}')">
+                             onclick="showFullPreview('${menu.url}', '${menu.name}', '${formatDateRange(weekStart)}')">
                     </div>
                 </div>
             `;
@@ -89,14 +112,22 @@ async function loadNextMenu() {
     }
 }
 
-function showFullPreview(url, name) {
+// Helper function for ordinal numbers
+function getOrdinal(n) {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+// Update the full preview to include dates
+function showFullPreview(url, name, dateRange) {
     const modal = document.createElement('div');
     modal.className = 'modal fade';
     modal.innerHTML = `
         <div class="modal-dialog modal-fullscreen">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">${name}</h5>
+                    <h5 class="modal-title">${name} <small class="text-muted ms-2">${dateRange}</small></h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body d-flex align-items-center justify-content-center bg-light">

@@ -756,12 +756,20 @@ def get_next_menu():
         weeks_since_start = ((next_date - start_date).days // 7)
         week_number = (weeks_since_start % 4) + 1
         
-        # Determine season
-        season = 'Winter'
-        if settings.get('summer_start'):
-            summer_start = datetime.strptime(settings['summer_start'], '%Y-%m-%d')
-            if next_date >= summer_start:
-                season = 'Summer'
+        # Calculate season for Southern Hemisphere
+        month = next_date.month
+        if month in [12, 1, 2]:
+            season = 'Summer'
+        elif month in [3, 4, 5]:
+            season = 'Autumn'
+        elif month in [6, 7, 8]:
+            season = 'Winter'
+        else:  # months 9, 10, 11
+            season = 'Spring'
+            
+        # For now, we'll combine Autumn/Spring into the nearest major season
+        if season in ['Autumn', 'Spring']:
+            season = 'Winter' if month in [3, 4, 5] else 'Summer'
         
         # Get both menus for the fortnight
         menu_names = []
@@ -788,7 +796,6 @@ def get_next_menu():
             'send_date': next_date.strftime('%Y-%m-%d'),
             'season': season,
             'week_numbers': f"Weeks {week_number} & {week_number + 1}" if week_number % 2 == 1 else f"Weeks {week_number - 1} & {week_number}",
-            'menu_pair': 'A' if week_number <= 2 else 'B',
             'menus': menus
         })
         
