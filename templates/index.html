@@ -312,7 +312,8 @@ function clearActivityLog() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                location.reload();
+                // Reload the page to show updated activity log
+                window.location.reload();
             } else {
                 alert('Failed to clear log: ' + data.error);
             }

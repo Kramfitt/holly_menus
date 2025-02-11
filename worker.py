@@ -139,60 +139,99 @@ def get_menu_settings():
         
     return settings_response.data[0] if settings_response.data else None
 
-def get_menu_template(season, menu_pair):
+def get_menu_template(season, week_number):
     """Get the correct menu template from Supabase"""
+    menu_name = f"{season.lower()}_week_{week_number}"
     response = supabase.table('menus')\
         .select('*')\
-        .eq('name', f"{season}_{menu_pair}")\
+        .eq('name', menu_name)\
         .execute()
         
     if not response.data:
-        raise Exception(f"No menu template found for {season} {menu_pair}")
+        raise Exception(f"No menu template found for {season} Week {week_number}")
     
-    return response.data[0]
+    # Get the file from storage
+    file_path = response.data[0]['file_path']
+    file_data = supabase.storage.from_('menus').download(file_path)
+    
+    return file_data
 
 def calculate_next_menu():
     """Calculate which menu should be sent next"""
-    settings = get_menu_settings()
-    today = datetime.now().date()
-    
-    # Calculate weeks since start
-    start_date = datetime.strptime(settings['start_date'], '%Y-%m-%d').date()
-    weeks_since_start = (today - start_date).days // 7
-    
-    # Calculate the next period start
-    periods_elapsed = weeks_since_start // 2
-    next_period_start = start_date + timedelta(days=periods_elapsed * 14)
-    
-    # If we're past this period, move to next one
-    if today >= next_period_start:
-        next_period_start += timedelta(days=14)
-    
-    # Calculate send date backwards from period start
-    send_date = next_period_start - timedelta(days=settings['days_in_advance'])
-    
-    # Determine menu pair (1&2 or 3&4)
-    is_odd_period = (periods_elapsed % 2) == 0
-    menu_pair = "1_2" if is_odd_period else "3_4"
-    
-    # Check if we need to toggle season
-    season = settings['season']
-    if settings['season_change_date']:
-        change_date = datetime.strptime(settings['season_change_date'], '%Y-%m-%d').date()
-        if today >= change_date:
-            season = 'winter' if season == 'summer' else 'summer'
-            
-            # Update settings with new season
-            settings['season'] = season
-            supabase.table('menu_settings').update(settings).eq('id', settings['id']).execute()
-    
-    return {
-        'send_date': send_date,
-        'period_start': next_period_start,
-        'menu_pair': menu_pair,
-        'season': season,
-        'recipient_emails': settings['recipient_emails']
-    }
+    try:
+        settings = get_menu_settings()
+        today = datetime.now().date()
+        
+        # Calculate weeks since start
+        start_date = datetime.strptime(settings['start_date'], '%Y-%m-%d').date()
+        weeks_since_start = (today - start_date).days // 7
+        
+        # Calculate the next period start
+        periods_elapsed = weeks_since_start // 2
+        next_period_start = start_date + timedelta(days=periods_elapsed * 14)
+        
+        # If we're past this period, move to next one
+        if today >= next_period_start:
+            next_period_start += timedelta(days=14)
+        
+        # Calculate send date backwards from period start
+        send_date = next_period_start - timedelta(days=settings['days_in_advance'])
+        
+        # Determine menu pair (1&2 or 3&4)
+        is_odd_period = (periods_elapsed % 2) == 0
+        menu_pair = "1_2" if is_odd_period else "3_4"
+        
+        # Check if we need to toggle season
+        season = settings['season']
+        if settings['season_change_date']:
+            change_date = datetime.strptime(settings['season_change_date'], '%Y-%m-%d').date()
+            if today >= change_date:
+                season = 'winter' if season == 'summer' else 'summer'
+                
+                # Update settings with new season
+                settings['season'] = season
+                supabase.table('menu_settings').update(settings).eq('id', settings['id']).execute()
+        
+        # Add validation before returning menu details
+        if not check_menu_template_exists(season, (weeks_since_start % 4) + 1):
+            logger.log_activity(
+                action="Menu Check",
+                details=f"Menu template missing for {season.lower()} week {(weeks_since_start % 4) + 1}",
+                status="warning"  # Changed from error to warning
+            )
+            return None
+        
+        return {
+            'send_date': send_date,
+            'period_start': next_period_start,
+            'menu_pair': menu_pair,
+            'season': season,
+            'recipient_emails': settings['recipient_emails']
+        }
+        
+    except Exception as e:
+        logger.log_activity(
+            action="Menu Calculation Failed",
+            details=str(e),
+            status="error"
+        )
+        return None
+
+def check_menu_template_exists(season, week_number):
+    """Check if a menu template exists before trying to send it"""
+    try:
+        menu_name = f"{season.lower()}_week_{week_number}"
+        print(f"Checking for menu template: {menu_name}")  # Debug log
+        response = supabase.table('menus')\
+            .select('*')\
+            .eq('name', menu_name)\
+            .execute()
+        exists = bool(response.data)
+        print(f"Template exists: {exists}")  # Debug log
+        return exists
+    except Exception as e:
+        print(f"Error checking template: {str(e)}")  # Debug log
+        return False
 
 def draw_dates_on_menu(image_data, start_date):
     """Draw dates on menu image"""
@@ -201,26 +240,58 @@ def draw_dates_on_menu(image_data, start_date):
         img = Image.open(io.BytesIO(image_data))
         draw = ImageDraw.Draw(img)
         
-        # Load a font (you'll need to provide a path to a .ttf font file)
-        font = ImageFont.truetype("/path/to/your/font.ttf", 36)
+        # System font paths based on common locations
+        font = None
+        font_paths = [
+            # Linux system fonts
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+            # macOS system fonts
+            '/System/Library/Fonts/Helvetica.ttc',
+            # Windows system fonts
+            'C:/Windows/Fonts/arial.ttf'
+        ]
         
-        # Calculate dates for the two weeks
-        week1_start = start_date
-        week1_end = week1_start + timedelta(days=6)
-        week2_start = week1_start + timedelta(days=7)
-        week2_end = week2_start + timedelta(days=6)
+        # Try to find a system font
+        for font_path in font_paths:
+            try:
+                if os.path.exists(font_path):
+                    font = ImageFont.truetype(font_path, 36)
+                    break
+            except Exception:
+                continue
         
-        # Format date strings
-        week1_text = f"{week1_start.strftime('%d %B')} - {week1_end.strftime('%d %B %Y')}"
-        week2_text = f"{week2_start.strftime('%d %B')} - {week2_end.strftime('%d %B %Y')}"
+        # If no system font found, use default
+        if not font:
+            print("No system fonts found, using default font")
+            font = ImageFont.load_default()
         
-        # Draw dates on image (you'll need to adjust coordinates)
-        draw.text((100, 100), week1_text, font=font, fill='black')
-        draw.text((100, 200), week2_text, font=font, fill='black')
+        # Calculate dates for the week
+        week_end = start_date + timedelta(days=6)
+        
+        # Format date string
+        date_text = f"{start_date.strftime('%d %B')} - {week_end.strftime('%d %B %Y')}"
+        
+        # Calculate text size for positioning
+        text_bbox = draw.textbbox((0, 0), date_text, font=font)
+        text_width = text_bbox[2] - text_bbox[0]
+        
+        # Position text in top right corner with padding
+        x = img.width - text_width - 50  # 50px padding from right
+        y = 50  # 50px from top
+        
+        # Draw white background for better readability
+        padding = 10
+        draw.rectangle([x-padding, y-padding, x+text_width+padding, y+text_bbox[3]+padding], 
+                      fill='white', outline='black')
+        
+        # Draw text
+        draw.text((x, y), date_text, font=font, fill='black')
         
         # Convert back to bytes
         img_byte_arr = io.BytesIO()
-        img.save(img_byte_arr, format=img.format)
+        img.save(img_byte_arr, format=img.format if img.format else 'PNG')
         return img_byte_arr.getvalue()
         
     except Exception as e:
@@ -231,60 +302,42 @@ def draw_dates_on_menu(image_data, start_date):
         )
         return image_data  # Return original if processing fails
 
-def send_menu_email(start_date, recipient_list, season):
+def send_menu_email(start_date, recipient_list, season, week_number):
     """Send menu email to recipients"""
     try:
-        # Get menu template for current week
-        weeks_since_start = (start_date - datetime.strptime(get_menu_settings()['start_date'], '%Y-%m-%d').date()).days // 7
-        current_week = (weeks_since_start % 4) + 1
+        print(f"Starting menu email send process...")  # Debug log
+        print(f"Parameters: start_date={start_date}, season={season}, week={week_number}")
+        print(f"Recipients: {recipient_list}")
         
         # Get menu template
-        menu_response = supabase.table('menus')\
-            .select('*')\
-            .eq('name', f"{season}_week{current_week}")\
-            .execute()
+        menu_data = get_menu_template(season, week_number)
+        print(f"Menu template retrieved, size: {len(menu_data)} bytes")
         
-        if not menu_response.data:
-            raise Exception(f"No menu template found for {season} week {current_week}")
-            
-        # Format email content
+        # Draw dates on menu
+        menu_with_dates = draw_dates_on_menu(menu_data, start_date)
+        print("Dates drawn on menu successfully")
+        
+        # Create email
         msg = MIMEMultipart()
+        msg['Subject'] = f'Menu for week starting {start_date.strftime("%d %B %Y")}'
         msg['From'] = SMTP_USERNAME
-        msg['Subject'] = f"Menu for period starting {start_date.strftime('%d %B %Y')}"
-        
-        # Use recipient list from settings
-        if not recipient_list:
-            raise Exception("No recipient emails configured")
-            
         msg['To'] = ', '.join(recipient_list)
         
+        # Add body text
         body = f"""
-        Hello,
+        Please find attached the menu for:
+        {start_date.strftime('%d %B')} - {(start_date + timedelta(days=6)).strftime('%d %B %Y')}
         
-        Please find attached the menu for the period starting {start_date.strftime('%A, %d %B %Y')}.
-        
-        Best regards,
-        Menu System
+        Season: {season}
+        Week: {week_number}
         """
-        
         msg.attach(MIMEText(body, 'plain'))
         
-        # Attach menus
-        for menu in menu_response.data:
-            # Download menu from storage
-            file_data = supabase.storage.from_('menus')\
-                .download(menu['file_path'])
-                
-            # Draw dates on the menu
-            processed_file_data = draw_dates_on_menu(file_data, start_date)
-                
-            attachment = MIMEApplication(processed_file_data)
-            attachment.add_header(
-                'Content-Disposition', 
-                'attachment', 
-                filename=os.path.basename(menu['file_path'])
-            )
-            msg.attach(attachment)
+        # Attach menu image
+        img_attachment = MIMEImage(menu_with_dates)
+        img_attachment.add_header('Content-Disposition', 'attachment', 
+                                filename=f'menu_{start_date.strftime("%Y%m%d")}.png')
+        msg.attach(img_attachment)
         
         # Send email
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
@@ -294,10 +347,9 @@ def send_menu_email(start_date, recipient_list, season):
             
         logger.log_activity(
             action="Menu Email Sent",
-            details=f"Sent menu for period starting {start_date}",
+            details=f"Menu sent to {len(recipient_list)} recipients",
             status="success"
         )
-        
         return True
         
     except Exception as e:
@@ -306,7 +358,6 @@ def send_menu_email(start_date, recipient_list, season):
             details=str(e),
             status="error"
         )
-        print(f"❌ Email error: {str(e)}")
         return False
 
 def check_and_send():
@@ -317,7 +368,7 @@ def check_and_send():
         
         # TEMPORARY TEST CODE - Remove after testing
         print("🧪 TEST MODE: Forcing menu send...")
-        success = send_menu_email(next_menu['period_start'], next_menu['recipient_emails'], next_menu['season'])
+        success = send_menu_email(next_menu['period_start'], next_menu['recipient_emails'], next_menu['season'], (next_menu['period_start'] - datetime.strptime(get_menu_settings()['start_date'], '%Y-%m-%d').date()).days // 7 + 1)
         if success:
             print("✅ Test menu sent successfully!")
         else:
@@ -330,7 +381,7 @@ def check_and_send():
                 action="Menu Send Started",
                 details=f"Sending menu for period starting {next_menu['period_start']}"
             )
-            success = send_menu_email(next_menu['period_start'], next_menu['recipient_emails'], next_menu['season'])
+            success = send_menu_email(next_menu['period_start'], next_menu['recipient_emails'], next_menu['season'], (next_menu['period_start'] - datetime.strptime(get_menu_settings()['start_date'], '%Y-%m-%d').date()).days // 7 + 1)
             
         else:
             logger.log_activity(
@@ -367,6 +418,35 @@ def main():
         print(f"⏰ Next check in 60 seconds...")
         time.sleep(60)
 
+def test_menu_processing():
+    """Test function to verify menu processing"""
+    try:
+        # Get a test menu
+        season = "winter"  # or "summer"
+        week = 1  # 1-4
+        start_date = datetime.now().date()
+        
+        print(f"Testing menu processing for {season} week {week}")
+        
+        # Get template
+        menu_data = get_menu_template(season, week)
+        print(f"Template retrieved: {len(menu_data)} bytes")
+        
+        # Test date drawing
+        processed = draw_dates_on_menu(menu_data, start_date)
+        print(f"Date drawing successful: {len(processed)} bytes")
+        
+        # Save test output
+        with open('test_menu.png', 'wb') as f:
+            f.write(processed)
+        print("Test file saved as test_menu.png")
+        
+        return True
+    except Exception as e:
+        print(f"Test failed: {str(e)}")
+        return False
+
 if __name__ == "__main__":
     logging.info("🚀 Menu worker starting...")
-    main() 
+    main()
+    test_menu_processing() 

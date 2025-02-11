@@ -1140,7 +1140,8 @@ def format_datetime(value):
         except ValueError:
             return value
     if isinstance(value, datetime):
-        return value.strftime('%Y-%m-%d %H:%M:%S')
+        # Make timestamp more readable
+        return value.strftime('%d %b %Y %H:%M')  # e.g., "11 Feb 2025 20:28"
     return value
 
 if __name__ == '__main__':
