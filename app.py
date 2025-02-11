@@ -744,5 +744,27 @@ def get_menus():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/menus/<menu_id>')
+def get_menu(menu_id):
+    try:
+        print(f"Fetching menu {menu_id}")  # Debug log
+        
+        response = supabase.table('menus')\
+            .select('*')\
+            .eq('id', menu_id)\
+            .execute()
+            
+        if not response.data:
+            return jsonify({'error': 'Menu not found'}), 404
+            
+        menu = response.data[0]
+        print(f"Menu found: {menu}")  # Debug log
+        
+        return jsonify(menu)
+        
+    except Exception as e:
+        print(f"Get menu error: {str(e)}")  # Debug log
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True) 
