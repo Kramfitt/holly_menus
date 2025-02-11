@@ -23,6 +23,7 @@ from utils.notifications import NotificationManager
 from utils.backup import BackupManager
 from worker import calculate_next_menu
 from config import supabase, redis_client, SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
+import pytz  # Add this import
 
 # Load environment variables
 load_dotenv()
@@ -119,7 +120,7 @@ def logout():
 def index():
     try:
         # Get current settings
-        settings = get_menu_settings()  # Use the helper function
+        settings = get_menu_settings()
         
         # Calculate next menu
         next_menu = None
@@ -128,10 +129,16 @@ def index():
             if next_menu:
                 # Ensure next_menu has all required attributes
                 if 'period_start' in next_menu and isinstance(next_menu['period_start'], str):
-                    next_menu['period_start'] = datetime.strptime(next_menu['period_start'], '%Y-%m-%d').date()
+                    next_menu['period_start'] = datetime.strptime(
+                        next_menu['period_start'], '%Y-%m-%d'
+                    ).date()
+                if 'send_date' in next_menu and isinstance(next_menu['send_date'], str):
+                    next_menu['send_date'] = datetime.strptime(
+                        next_menu['send_date'], '%Y-%m-%d'
+                    ).date()
                 
                 # Calculate week number
-                start_date = datetime.strptime(settings['start_date'], '%Y-%m-%d').date()
+                start_date = settings['start_date']  # Already converted to date above
                 weeks_since_start = (next_menu['period_start'] - start_date).days // 7
                 next_menu['week'] = (weeks_since_start % 4) + 1
         
@@ -142,7 +149,13 @@ def index():
             .limit(10)\
             .execute()
             
-        recent_activity = activity_response.data if activity_response.data else []
+        recent_activity = []
+        for activity in activity_response.data or []:
+            if 'created_at' in activity:
+                activity['created_at'] = datetime.fromisoformat(
+                    activity['created_at'].replace('Z', '+00:00')
+                )
+            recent_activity.append(activity)
         
         # Get service state
         service_active = redis_client.get('service_state') == b'true'
@@ -932,7 +945,24 @@ def get_menu_settings():
             .order('created_at', desc=True)\
             .limit(1)\
             .execute()
-        return response.data[0] if response.data else None
+            
+        if response.data:
+            settings = response.data[0]
+            # Convert ISO format datetime strings to datetime objects
+            if 'created_at' in settings:
+                settings['created_at'] = datetime.fromisoformat(
+                    settings['created_at'].replace('Z', '+00:00')
+                )
+            if 'start_date' in settings:
+                settings['start_date'] = datetime.strptime(
+                    settings['start_date'], '%Y-%m-%d'
+                ).date()
+            if 'season_change_date' in settings:
+                settings['season_change_date'] = datetime.strptime(
+                    settings['season_change_date'], '%Y-%m-%d'
+                ).date()
+        return settings if response.data else None
+        
     except Exception as e:
         logger.log_activity(
             action="Settings Error",
