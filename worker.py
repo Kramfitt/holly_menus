@@ -177,11 +177,20 @@ def calculate_next_menu():
     """Calculate which menu should be sent next"""
     try:
         settings = get_menu_settings()
+        if not settings:
+            logger.log_activity(
+                action="Menu Calculation",
+                details="No menu settings found",
+                status="warning"
+            )
+            return None
+            
         today = datetime.now().date()
         
         # Calculate weeks since start
         start_date = datetime.strptime(settings['start_date'], '%Y-%m-%d').date()
         weeks_since_start = (today - start_date).days // 7
+        current_week = (weeks_since_start % 4) + 1
         
         # Calculate the next period start
         periods_elapsed = weeks_since_start // 2
@@ -194,35 +203,35 @@ def calculate_next_menu():
         # Calculate send date backwards from period start
         send_date = next_period_start - timedelta(days=settings['days_in_advance'])
         
-        # Determine menu pair (1&2 or 3&4)
-        is_odd_period = (periods_elapsed % 2) == 0
-        menu_pair = "1_2" if is_odd_period else "3_4"
-        
-        # Check if we need to toggle season
+        # Determine season
         season = settings['season']
         if settings['season_change_date']:
             change_date = datetime.strptime(settings['season_change_date'], '%Y-%m-%d').date()
             if today >= change_date:
                 season = 'winter' if season == 'summer' else 'summer'
-                
-                # Update settings with new season
-                settings['season'] = season
-                supabase.table('menu_settings').update(settings).eq('id', settings['id']).execute()
         
-        # Add validation before returning menu details
-        if not check_menu_template_exists(season, (weeks_since_start % 4) + 1):
+        # Verify menu template exists before returning
+        if not check_menu_template_exists(season, current_week):
             logger.log_activity(
                 action="Menu Check",
-                details=f"Menu template missing for {season.lower()} week {(weeks_since_start % 4) + 1}",
-                status="warning"  # Changed from error to warning
+                details=f"Menu template missing for {season.lower()} week {current_week}",
+                status="warning"
             )
-            return None
-        
+            return {
+                'send_date': send_date,  # Include send_date even if template missing
+                'period_start': next_period_start,
+                'season': season,
+                'week': current_week,
+                'template_missing': True,
+                'recipient_emails': settings['recipient_emails']
+            }
+            
         return {
             'send_date': send_date,
             'period_start': next_period_start,
-            'menu_pair': menu_pair,
             'season': season,
+            'week': current_week,
+            'template_missing': False,
             'recipient_emails': settings['recipient_emails']
         }
         
