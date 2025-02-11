@@ -717,21 +717,28 @@ def menu_management():
             
         all_menus = menus_response.data if menus_response.data else []
         
-        # Initialize menu structure with empty dictionaries
+        # Initialize menu structure with 4 weeks per season
         menu_structure = {
-            'summer': {},
-            'winter': {}
+            'summer': {
+                'week1': None,
+                'week2': None,
+                'week3': None,
+                'week4': None
+            },
+            'winter': {
+                'week1': None,
+                'week2': None,
+                'week3': None,
+                'week4': None
+            }
         }
         
-        # Process each menu and add to structure
+        # Process each menu
         for menu in all_menus:
-            if '_' in menu['name']:  # Check for season_pair format
-                season, pair = menu['name'].split('_')
-                if season in ['summer', 'winter']:
-                    if pair not in menu_structure[season]:
-                        menu_structure[season][pair] = menu
-        
-        print("Menu structure:", menu_structure)  # Debug print
+            if menu['name'].startswith(('summer', 'winter')):
+                season, week = menu['name'].split('_')
+                if week.startswith('week'):
+                    menu_structure[season][week] = menu
         
         return render_template(
             'menu_management.html',
@@ -745,7 +752,7 @@ def menu_management():
             details=str(e),
             status="error"
         )
-        print(f"Error loading menus: {str(e)}")
+        print(f"Error loading menus: {str(e)}")  # Debug print
         return f"Error loading menus: {str(e)}", 500
 
 @app.route('/api/next-menu')

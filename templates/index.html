@@ -165,7 +165,7 @@
                                     {% if activity.created_at is string %}
                                         {{ activity.created_at.split('T')[0] }}
                                     {% else %}
-                                        {{ activity.created_at.strftime('%d %B %Y %H:%M') }}
+                                        {{ activity.created_at.strftime('%a %d') }}th {{ activity.created_at.strftime('%b\\n%H:%M') }}
                                     {% endif %}
                                 </small>
                             </div>
@@ -250,25 +250,6 @@
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Current Settings section -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">Current Settings</h5>
-        </div>
-        <div class="card-body">
-            {% if settings %}
-            <ul class="list-unstyled mb-0">
-                <li class="mb-2">Start Date: {{ settings.start_date }}</li>
-                <li class="mb-2">Season: {{ settings.season|title }}</li>
-                <li class="mb-2">Days in Advance: {{ settings.days_in_advance }}</li>
-                <li>Recipients: {{ settings.recipient_emails|length }}</li>
-            </ul>
-            {% else %}
-            <p class="mb-0">No settings configured</p>
-            {% endif %}
         </div>
     </div>
 </div>

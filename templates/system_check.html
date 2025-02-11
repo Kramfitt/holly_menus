@@ -72,15 +72,21 @@
             <h5 class="mb-0">Debug Controls</h5>
         </div>
         <div class="card-body">
-            <div class="mb-3">
-                <label class="form-label">Debug Mode</label>
-                <div class="form-text mb-2">
-                    When enabled, this allows you to force-send test emails and bypass the normal schedule. 
-                    Test emails will be sent with the next scheduled menu to all configured recipients.
-                </div>
-                <div class="form-check form-switch">
+            <div class="mb-4">
+                <h6 class="mb-2">Debug Mode</h6>
+                <p class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    When enabled, Debug Mode allows you to:
+                    <ul class="mb-0 mt-2">
+                        <li>Force-send test emails immediately</li>
+                        <li>Bypass the normal schedule</li>
+                        <li>Send to all configured recipients</li>
+                        <li>Test the next scheduled menu</li>
+                    </ul>
+                </p>
+                <div class="form-check form-switch mt-3">
                     <input class="form-check-input" type="checkbox" id="debugToggle">
-                    <label class="form-check-label" for="debugToggle">Debug Mode</label>
+                    <label class="form-check-label" for="debugToggle">Enable Debug Mode</label>
                 </div>
             </div>
             
