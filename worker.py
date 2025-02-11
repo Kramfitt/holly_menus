@@ -15,6 +15,7 @@ from utils.notifications import NotificationManager
 from config import supabase, redis_client, SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
 from PIL import Image, ImageDraw, ImageFont
 import io
+from email.mime.image import MIMEImage
 
 # Force load from .env file
 load_dotenv(override=True)
@@ -141,20 +142,36 @@ def get_menu_settings():
 
 def get_menu_template(season, week_number):
     """Get the correct menu template from Supabase"""
-    menu_name = f"{season.lower()}_week_{week_number}"
-    response = supabase.table('menus')\
-        .select('*')\
-        .eq('name', menu_name)\
-        .execute()
+    try:
+        menu_name = f"{season.lower()}_week_{week_number}"
+        print(f"Looking for menu template: {menu_name}")  # Debug log
         
-    if not response.data:
-        raise Exception(f"No menu template found for {season} Week {week_number}")
-    
-    # Get the file from storage
-    file_path = response.data[0]['file_path']
-    file_data = supabase.storage.from_('menus').download(file_path)
-    
-    return file_data
+        response = supabase.table('menus')\
+            .select('*')\
+            .eq('name', menu_name)\
+            .execute()
+            
+        if not response.data:
+            logger.log_activity(
+                action="Menu Check",
+                details=f"Menu template missing for {season.lower()} week {week_number}",
+                status="warning"
+            )
+            return None
+        
+        # Get the file from storage
+        file_path = response.data[0]['file_path']
+        file_data = supabase.storage.from_('menus').download(file_path)
+        
+        return file_data
+        
+    except Exception as e:
+        logger.log_activity(
+            action="Menu Template Error",
+            details=str(e),
+            status="error"
+        )
+        return None
 
 def calculate_next_menu():
     """Calculate which menu should be sent next"""
@@ -415,8 +432,8 @@ def main():
         else:
             print(f"⏸️  Worker PID {os.getpid()} is paused, skipping email send")
         
-        print(f"⏰ Next check in 60 seconds...")
-        time.sleep(60)
+        print(f"⏰ Next check in 5 minutes...")
+        time.sleep(300)  # Check every 5 minutes instead of every minute
 
 def test_menu_processing():
     """Test function to verify menu processing"""

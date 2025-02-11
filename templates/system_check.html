@@ -68,8 +68,8 @@
     </div>
 
     <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">Debug Controls</h5>
+        <div class="card-header bg-warning text-dark">
+            <h4 class="mb-0">Debug Controls</h4>
         </div>
         <div class="card-body">
             <div class="mb-4">
@@ -85,15 +85,75 @@
                     </ul>
                 </p>
                 <div class="form-check form-switch mt-3">
-                    <input class="form-check-input" type="checkbox" id="debugToggle">
+                    <input class="form-check-input" type="checkbox" id="debugToggle" onchange="toggleDebugMode()">
                     <label class="form-check-label" for="debugToggle">Enable Debug Mode</label>
                 </div>
+                <div id="debugStatus" class="mt-2"></div>
             </div>
             
-            <button id="forceSendBtn" class="btn btn-warning" disabled>
-                <i class="fas fa-paper-plane"></i> Force Send Next Menu
-            </button>
+            <!-- Debug Actions -->
+            <div id="debugActions" class="mt-3" style="display: none;">
+                <button class="btn btn-warning" onclick="forceSendMenu()">
+                    <i class="fas fa-paper-plane"></i> Force Send Next Menu
+                </button>
+                <div id="forceSendResult" class="mt-2"></div>
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+async function toggleDebugMode() {
+    try {
+        const isDebug = document.getElementById('debugToggle').checked;
+        const response = await fetch('/api/debug-mode', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ active: isDebug })
+        });
+        
+        if (response.ok) {
+            document.getElementById('debugStatus').innerHTML = `
+                <div class="alert alert-${isDebug ? 'warning' : 'info'}">
+                    Debug Mode: ${isDebug ? 'Active' : 'Inactive'}
+                </div>`;
+            document.getElementById('debugActions').style.display = isDebug ? 'block' : 'none';
+        }
+    } catch (error) {
+        console.error('Debug toggle error:', error);
+    }
+}
+
+async function forceSendMenu() {
+    try {
+        const response = await fetch('/api/force-send', {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        document.getElementById('forceSendResult').innerHTML = `
+            <div class="alert alert-${data.success ? 'success' : 'danger'}">
+                ${data.message}
+            </div>`;
+    } catch (error) {
+        console.error('Force send error:', error);
+    }
+}
+
+// Check initial debug state on page load
+document.addEventListener('DOMContentLoaded', async function() {
+    try {
+        const response = await fetch('/api/debug-mode');
+        const data = await response.json();
+        document.getElementById('debugToggle').checked = data.active;
+        if (data.active) {
+            document.getElementById('debugActions').style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Error checking debug state:', error);
+    }
+});
+</script>
 {% endblock %} 

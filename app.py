@@ -126,7 +126,7 @@ def index():
         next_menu = None
         if settings:
             next_menu = calculate_next_menu()
-            if next_menu:
+            if next_menu:  # Only process if next_menu is not None
                 # Ensure next_menu has all required attributes
                 if 'period_start' in next_menu and isinstance(next_menu['period_start'], str):
                     next_menu['period_start'] = datetime.strptime(
@@ -141,6 +141,12 @@ def index():
                 start_date = settings['start_date']  # Already converted to date above
                 weeks_since_start = (next_menu['period_start'] - start_date).days // 7
                 next_menu['week'] = (weeks_since_start % 4) + 1
+            else:
+                logger.log_activity(
+                    action="Menu Calculation",
+                    details="No next menu could be calculated",
+                    status="warning"
+                )
         
         # Get recent activity
         print("Fetching recent activity...")  # Debug log
@@ -961,42 +967,54 @@ def send_test_email():
         )
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/debug-mode', methods=['POST'])
-def toggle_debug_mode():
-    try:
-        data = request.json
-        redis_client.set('debug_mode', str(data['active']).lower())
+@app.route('/api/debug-mode', methods=['GET', 'POST'])
+@login_required
+def debug_mode():
+    if request.method == 'POST':
+        active = request.json.get('active', False)
+        redis_client.set('debug_mode', str(active).lower())
         
         logger.log_activity(
-            action="Debug Mode Toggled",
-            details=f"Debug mode {'activated' if data['active'] else 'deactivated'}",
+            action="Debug Mode",
+            details=f"Debug mode {'enabled' if active else 'disabled'}",
             status="debug"
         )
         
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'active': active})
+    else:
+        is_debug = redis_client.get('debug_mode') == b'true'
+        return jsonify({'active': is_debug})
 
 @app.route('/api/force-send', methods=['POST'])
+@login_required
 def force_send():
     try:
         if redis_client.get('debug_mode') != b'true':
-            return jsonify({'success': False, 'message': 'Debug mode not active'}), 400
+            return jsonify({
+                'success': False, 
+                'message': 'Debug mode not active'
+            }), 400
             
         next_menu = calculate_next_menu()
-        
+        if not next_menu:
+            return jsonify({
+                'success': False,
+                'message': 'Could not calculate next menu'
+            }), 400
+            
         # Get recipient emails from settings
         settings = get_menu_settings()
         if not settings.get('recipient_emails'):
             return jsonify({
                 'success': False, 
-                'message': 'No recipient emails configured in settings'
+                'message': 'No recipient emails configured'
             }), 400
             
         success = send_menu_email(
             start_date=next_menu['period_start'],
             recipient_list=settings['recipient_emails'],
-            season=next_menu['season']
+            season=next_menu['season'],
+            week_number=next_menu['week']
         )
         
         message = "Test menu sent successfully!" if success else "Failed to send test menu"
