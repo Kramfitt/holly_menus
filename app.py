@@ -32,15 +32,15 @@ app = Flask(__name__)
 
 # Config from environment variables
 app.config.update(
-    SECRET_KEY=os.getenv('SECRET_KEY', 'dev-key-please-change'),
-    STATE_FILE=os.getenv('STATE_FILE', 'service_state.txt'),
-    ADMIN_EMAIL=os.getenv('ADMIN_EMAIL', 'default@example.com'),
-    SMTP_SERVER=os.getenv('SMTP_SERVER', 'smtp.gmail.com'),
-    SMTP_PORT=int(os.getenv('SMTP_PORT', '587')),
-    SMTP_USERNAME=os.getenv('SMTP_USERNAME', ''),
-    SMTP_PASSWORD=os.getenv('SMTP_PASSWORD', ''),
-    RECIPIENT_EMAILS=os.getenv('RECIPIENT_EMAILS', '').split(','),
-    DASHBOARD_PASSWORD=os.getenv('DASHBOARD_PASSWORD', 'change-this-password')
+    SECRET_KEY=os.getenv('SECRET_KEY'),
+    STATE_FILE=os.getenv('STATE_FILE'),
+    ADMIN_EMAIL=os.getenv('ADMIN_EMAIL'),
+    SMTP_SERVER=os.getenv('SMTP_SERVER'),
+    SMTP_PORT=int(os.getenv('SMTP_PORT')) if os.getenv('SMTP_PORT') else None,
+    SMTP_USERNAME=os.getenv('SMTP_USERNAME'),
+    SMTP_PASSWORD=os.getenv('SMTP_PASSWORD'),
+    RECIPIENT_EMAILS=os.getenv('RECIPIENT_EMAILS', '').split(',') if os.getenv('RECIPIENT_EMAILS') else [],
+    DASHBOARD_PASSWORD=os.getenv('DASHBOARD_PASSWORD')
 )
 
 # Near the top with other configs
@@ -783,28 +783,21 @@ def menu_management():
             
         all_menus = menus_response.data if menus_response.data else []
         
-        # Initialize menu structure
+        # Initialize menu structure with empty dictionaries
         menu_structure = {
-            'summer': {
-                'week1': None,
-                'week2': None,
-                'week3': None,
-                'week4': None
-            },
-            'winter': {
-                'week1': None,
-                'week2': None,
-                'week3': None,
-                'week4': None
-            }
+            'summer': {},
+            'winter': {}
         }
         
-        # Populate menu structure
+        # Process each menu and add to structure
         for menu in all_menus:
-            if menu['name'].startswith('summer') or menu['name'].startswith('winter'):
-                season = 'summer' if menu['name'].startswith('summer') else 'winter'
-                week_num = menu['name'].lower().replace(season.lower()+'week', '')
-                menu_structure[season][f'week{week_num}'] = menu
+            if '_' in menu['name']:  # Check for season_pair format
+                season, pair = menu['name'].split('_')
+                if season in ['summer', 'winter']:
+                    if pair not in menu_structure[season]:
+                        menu_structure[season][pair] = menu
+        
+        print("Menu structure:", menu_structure)  # Debug print
         
         return render_template(
             'menu_management.html',
@@ -818,6 +811,7 @@ def menu_management():
             details=str(e),
             status="error"
         )
+        print(f"Error loading menus: {str(e)}")
         return f"Error loading menus: {str(e)}", 500
 
 @app.route('/api/next-menu')
