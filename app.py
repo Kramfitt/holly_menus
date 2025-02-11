@@ -1005,7 +1005,6 @@ def clear_activity_log():
         # Delete ALL entries from activity_log table
         supabase.table('activity_log')\
             .delete()\
-            .neq('id', 0)\
             .execute()
             
         logger.log_activity(
