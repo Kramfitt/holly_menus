@@ -208,104 +208,78 @@ logger = ActivityLogger()
 
 notifications = NotificationManager()
 
-def send_menu_email(menu_details):
-    """Send the menu email"""
+def send_menu_email(start_date, recipient_list, season, menu_pair):
+    """Send menu email to recipients"""
     try:
-        # Get SMTP settings from environment
-        smtp_server = os.getenv('SMTP_SERVER')
-        smtp_port = int(os.getenv('SMTP_PORT'))
-        sender_email = os.getenv('SMTP_USERNAME')
-        sender_password = os.getenv('SMTP_PASSWORD')
+        # Get menu templates
+        menu_response = supabase.table('menus')\
+            .select('*')\
+            .eq('name', f"{season}_{menu_pair}")\
+            .execute()
         
-        # Get menu template
-        menu = get_menu_template(menu_details['season'], menu_details['menu_pair'])
-        
-        # Create message
+        if not menu_response.data:
+            raise Exception(f"No menu template found for {season} {menu_pair}")
+            
+        # Format email content
         msg = MIMEMultipart()
-        msg['From'] = f"Holly Lea Menus <{sender_email}>"
-        msg['To'] = ', '.join(menu_details['recipient_emails'])
-        msg['Subject'] = f"Menu for period starting {menu_details['period_start'].strftime('%d %B %Y')}"
+        msg['From'] = app.config['SMTP_USERNAME']
+        msg['Subject'] = f"Menu for period starting {start_date.strftime('%d %B %Y')}"
         
-        # HTML Email Template
-        html_body = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <style>
-                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-                .header {{ background-color: #004d99; color: white; padding: 20px; text-align: center; }}
-                .content {{ padding: 20px; background-color: #f9f9f9; }}
-                .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
-                .menu-details {{ background-color: #fff; padding: 15px; border-left: 4px solid #004d99; margin: 15px 0; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <h1>Holly Lea Menu</h1>
-                </div>
-                <div class="content">
-                    <p>Hello,</p>
-                    <p>Please find attached the menu for the upcoming period.</p>
-                    
-                    <div class="menu-details">
-                        <strong>Period:</strong><br>
-                        {menu_details['period_start'].strftime('%d %B %Y')} - 
-                        {(menu_details['period_start'] + timedelta(days=13)).strftime('%d %B %Y')}<br><br>
-                        
-                        <strong>Menu Type:</strong><br>
-                        {menu_details['season'].title()} Menus {menu_details['menu_pair'].replace('_', ' & ')}
-                    </div>
-                    
-                    <p>Best regards,<br>Holly Lea Menu System</p>
-                </div>
-                <div class="footer">
-                    This is an automated message from the Holly Lea Menu System
-                </div>
-            </div>
-        </body>
-        </html>
+        # Use recipient list from settings
+        if not recipient_list:
+            raise Exception("No recipient emails configured")
+            
+        msg['To'] = ', '.join(recipient_list)
+        
+        body = f"""
+        Hello,
+        
+        Please find attached the menu for the period starting {start_date.strftime('%A, %d %B %Y')}.
+        
+        Best regards,
+        Menu System
         """
         
-        # Create message body versions
-        body = f"This is a test email from the menu service."
         msg.attach(MIMEText(body, 'plain'))
-        msg.attach(MIMEText(html_body, 'html'))
         
-        # Attach menu file
-        with open(menu['file_path'], 'rb') as f:
-            attachment = MIMEApplication(f.read(), _subtype=menu['file_type'])
-            attachment.add_header('Content-Disposition', 'attachment', 
-                                filename=f"Menu_{menu_details['period_start'].strftime('%Y%m%d')}.{menu['file_type']}")
+        # Attach menus
+        for menu in menu_response.data:
+            # Download menu from storage
+            file_data = supabase.storage.from_('menus')\
+                .download(menu['file_path'])
+                
+            attachment = MIMEApplication(file_data)
+            attachment.add_header(
+                'Content-Disposition', 
+                'attachment', 
+                filename=os.path.basename(menu['file_path'])
+            )
             msg.attach(attachment)
         
         # Send email
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
+        with smtplib.SMTP(app.config['SMTP_SERVER'], app.config['SMTP_PORT']) as server:
             server.starttls()
-            server.login(sender_email, sender_password)
+            server.login(
+                app.config['SMTP_USERNAME'],
+                app.config['SMTP_PASSWORD']
+            )
             server.send_message(msg)
             
         logger.log_activity(
-            action="Menu Sent",
-            details=f"Sent {menu_details['season']} menu {menu_details['menu_pair']} "
-                   f"for period starting {menu_details['period_start'].strftime('%Y-%m-%d')}",
+            action="Menu Email Sent",
+            details=f"Sent menu for period starting {start_date}",
             status="success"
         )
+        
         return True
         
     except Exception as e:
-        error_msg = f"Failed to send menu: {str(e)}"
         logger.log_activity(
-            action="Menu Send Failed",
-            details=error_msg,
+            action="Menu Email Failed",
+            details=str(e),
             status="error"
         )
-        notifications.create_notification(
-            type="error",
-            message="Menu Send Failed",
-            details=error_msg
-        )
+        print(f"❌ Email error: {str(e)}")
         return False
 
 def check_and_send():
@@ -316,7 +290,7 @@ def check_and_send():
         
         # TEMPORARY TEST CODE - Remove after testing
         print("🧪 TEST MODE: Forcing menu send...")
-        success = send_menu_email(next_menu)
+        success = send_menu_email(next_menu['period_start'], next_menu['recipient_emails'], next_menu['season'], next_menu['menu_pair'])
         if success:
             print("✅ Test menu sent successfully!")
         else:
@@ -329,7 +303,7 @@ def check_and_send():
                 action="Menu Send Started",
                 details=f"Sending menu for period starting {next_menu['period_start']}"
             )
-            success = send_menu_email(next_menu)
+            success = send_menu_email(next_menu['period_start'], next_menu['recipient_emails'], next_menu['season'], next_menu['menu_pair'])
             
         else:
             logger.log_activity(
