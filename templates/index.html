@@ -27,7 +27,7 @@
                     <h5 class="card-title">Next Menu</h5>
                     <p class="card-text">
                         {% if next_menu %}
-                            {{ next_menu.season|title }} Menus {{ next_menu.menu_pair }}
+                            {{ next_menu.season|title }} Week {{ next_menu.week_number }}
                         {% else %}
                             No menu scheduled
                         {% endif %}
@@ -177,72 +177,11 @@
         </div>
     </div>
 
-    <!-- Add this card for menu management -->
+    <!-- Settings Section -->
     <div class="card mb-4">
         <div class="card-body">
-            <h5 class="card-title">Menu Management</h5>
-            
-            <!-- Upload Form -->
-            <form id="uploadForm" class="mb-4">
-                <div class="mb-3">
-                    <label for="menuFile" class="form-label">Upload New Menu</label>
-                    <input type="file" class="form-control" id="menuFile" accept="image/*" required>
-                </div>
-                <div class="mb-3">
-                    <label for="menuName" class="form-label">Menu Name</label>
-                    <input type="text" class="form-control" id="menuName" required 
-                           placeholder="e.g., SummerWeek1">
-                </div>
-                <button type="submit" class="btn btn-primary">Upload Menu</button>
-            </form>
-
-            <!-- Menu List -->
-            <h6>Current Menus</h6>
-            <div class="table-responsive">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Preview</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="menuList">
-                        {% for menu in menus %}
-                        <tr>
-                            <td>{{ menu.name }}</td>
-                            <td>
-                                <img src="{{ menu.file_url }}" 
-                                     style="max-height: 50px; cursor: pointer;"
-                                     onclick="showMenuPreview('{{ menu.file_url }}')"
-                                     alt="{{ menu.name }}">
-                            </td>
-                            <td>
-                                <button class="btn btn-danger btn-sm" 
-                                        onclick="deleteMenu('{{ menu.id }}', '{{ menu.name }}')">
-                                    Delete
-                                </button>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- Preview Modal -->
-    <div class="modal fade" id="previewModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Menu Preview</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <img id="modalPreview" src="" style="width: 100%;" alt="Menu Preview">
-                </div>
-            </div>
+            <h5 class="card-title">Menu Settings</h5>
+            <!-- Your existing settings form -->
         </div>
     </div>
 </div>
@@ -272,69 +211,6 @@ async function markAllRead() {
     } catch (error) {
         console.error('Failed to mark all notifications as read:', error);
     }
-}
-
-// Upload menu
-document.getElementById('uploadForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    const file = document.getElementById('menuFile').files[0];
-    const name = document.getElementById('menuName').value;
-    
-    if (!file || !name) {
-        alert('Please select a file and enter a name');
-        return;
-    }
-    
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('name', name);
-    
-    try {
-        const response = await fetch('/api/menus', {
-            method: 'POST',
-            body: formData
-        });
-        
-        if (response.ok) {
-            alert('Menu uploaded successfully!');
-            location.reload();  // Refresh to show new menu
-        } else {
-            const error = await response.text();
-            alert(`Upload failed: ${error}`);
-        }
-    } catch (error) {
-        alert(`Upload error: ${error}`);
-    }
-});
-
-// Delete menu
-async function deleteMenu(id, name) {
-    if (!confirm(`Are you sure you want to delete menu "${name}"?`)) {
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/api/menus/${id}`, {
-            method: 'DELETE'
-        });
-        
-        if (response.ok) {
-            alert('Menu deleted successfully!');
-            location.reload();  // Refresh to show updated list
-        } else {
-            const error = await response.text();
-            alert(`Delete failed: ${error}`);
-        }
-    } catch (error) {
-        alert(`Delete error: ${error}`);
-    }
-}
-
-// Show preview modal
-function showMenuPreview(url) {
-    document.getElementById('modalPreview').src = url;
-    new bootstrap.Modal(document.getElementById('previewModal')).show();
 }
 </script>
 {% endblock %} 

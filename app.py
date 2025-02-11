@@ -731,6 +731,7 @@ def get_menu(menu_id):
 @app.route('/menus')
 def menu_management():
     try:
+        # Get all menus
         menus_response = supabase.table('menus')\
             .select('*')\
             .order('name')\
@@ -740,7 +741,12 @@ def menu_management():
                              menus=menus_response.data)
                              
     except Exception as e:
-        return f"Error loading menus: {str(e)}", 500
+        logger.log_activity(
+            action="Menu Management Load Failed",
+            details=str(e),
+            status="error"
+        )
+        return f"Error loading menu management: {str(e)}", 500
 
 @app.route('/api/next-menu')
 def get_next_menu():

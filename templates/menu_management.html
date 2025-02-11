@@ -15,9 +15,22 @@
                 </div>
                 <div class="mb-3">
                     <label for="menuName" class="form-label">Menu Name</label>
-                    <input type="text" class="form-control" id="menuName" required 
-                           placeholder="e.g., SummerWeek1">
-                    <small class="text-muted">Use format: SeasonWeekNumber (e.g., SummerWeek1, WinterWeek3)</small>
+                    <select class="form-control" id="menuName" required>
+                        <option value="">Select menu name...</option>
+                        <optgroup label="Summer Menus">
+                            <option value="SummerWeek1">Summer Week 1</option>
+                            <option value="SummerWeek2">Summer Week 2</option>
+                            <option value="SummerWeek3">Summer Week 3</option>
+                            <option value="SummerWeek4">Summer Week 4</option>
+                        </optgroup>
+                        <optgroup label="Winter Menus">
+                            <option value="WinterWeek1">Winter Week 1</option>
+                            <option value="WinterWeek2">Winter Week 2</option>
+                            <option value="WinterWeek3">Winter Week 3</option>
+                            <option value="WinterWeek4">Winter Week 4</option>
+                        </optgroup>
+                    </select>
+                    <small class="text-muted">Select the menu week this image represents</small>
                 </div>
                 <button type="submit" class="btn btn-primary">Upload Menu</button>
             </form>

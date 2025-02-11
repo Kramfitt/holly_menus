@@ -78,5 +78,66 @@ async function loadNextMenu() {
         `;
     }
 }
+
+function updateMenuRotation() {
+    const previewDate = document.getElementById('previewDate').value;
+    if (!previewDate) {
+        document.getElementById('rotationDetails').innerHTML = `
+            <div class="mt-2 text-muted">
+                Please select a date to see menu rotation details
+            </div>
+        `;
+        return;
+    }
+    
+    document.getElementById('rotationDetails').innerHTML = `
+        <div class="mt-2">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            Calculating...
+        </div>
+    `;
+    
+    fetch(`/api/calculate-menu?date=${previewDate}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            // Update rotation details
+            document.getElementById('rotationDetails').innerHTML = `
+                <div class="mt-2">
+                    <strong>Date:</strong> ${new Date(previewDate).toLocaleDateString()}<br>
+                    <strong>Season:</strong> ${data.season}<br>
+                    <strong>Week:</strong> ${data.week_number} of 4<br>
+                    <strong>Menu Pair:</strong> ${data.menu_pair}
+                </div>
+            `;
+            
+            // Auto-select the corresponding menu
+            const menuName = `${data.season.charAt(0).toUpperCase() + data.season.slice(1)}Week${data.week_number}`;
+            const menuSelect = document.getElementById('menuSelect');
+            
+            // Find and select the matching menu
+            for(let option of menuSelect.options) {
+                if(option.text.includes(menuName)) {
+                    menuSelect.value = option.value;
+                    updateMenuPreview();  // Show the selected menu
+                    break;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('rotationDetails').innerHTML = `
+                <div class="mt-2 text-danger">
+                    <i class="fas fa-exclamation-circle"></i>
+                    Please configure menu settings first
+                </div>
+            `;
+        });
+}
 </script>
 {% endblock %} 
