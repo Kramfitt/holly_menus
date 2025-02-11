@@ -17,16 +17,9 @@
     <!-- Menu Preview -->
     <div class="card">
         <div class="card-body">
-            <h5 class="card-title">Menu Preview</h5>
-            <div class="preview-container" style="width: 100%; height: 800px; overflow: hidden;">
-                <div id="loadingSpinner" style="display: none; text-align: center; padding: 20px;">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                </div>
-                <img id="menuPreview" 
-                     style="width: 100%; height: auto; object-fit: contain; display: none;" 
-                     alt="Next Menu Preview">
+            <h5 class="card-title">Menu Previews</h5>
+            <div id="menuPreviews" class="row">
+                <!-- Menus will be inserted here -->
             </div>
         </div>
     </div>
@@ -56,23 +49,35 @@ async function loadNextMenu() {
                     month: 'long',
                     year: 'numeric'
                 })}<br>
-                <strong>Menu Week:</strong> ${data.season} Week ${data.week_number}<br>
+                <strong>Season:</strong> ${data.season}<br>
+                <strong>Menu Period:</strong> ${data.week_numbers}<br>
                 <strong>Menu Pair:</strong> ${data.menu_pair}
             </div>
         `;
         
-        // Show menu preview
-        if (data.menu_url) {
-            const img = document.getElementById('menuPreview');
-            document.getElementById('loadingSpinner').style.display = 'block';
-            
-            img.onload = () => {
-                document.getElementById('loadingSpinner').style.display = 'none';
-                img.style.display = 'block';
-            };
-            
-            img.src = data.menu_url;
-        }
+        // Show menu previews
+        const previewsContainer = document.getElementById('menuPreviews');
+        previewsContainer.innerHTML = '';
+        
+        data.menus.forEach((menu, index) => {
+            const col = document.createElement('div');
+            col.className = 'col-md-6 mb-3';
+            col.innerHTML = `
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">${menu.name}</h6>
+                    </div>
+                    <div class="card-body p-2">
+                        <img src="${menu.url}" 
+                             class="img-fluid" 
+                             alt="${menu.name}"
+                             style="width: 100%; height: auto; cursor: pointer;"
+                             onclick="showFullPreview('${menu.url}', '${menu.name}')">
+                    </div>
+                </div>
+            `;
+            previewsContainer.appendChild(col);
+        });
         
     } catch (error) {
         document.getElementById('nextMenuDetails').innerHTML = `
@@ -82,6 +87,32 @@ async function loadNextMenu() {
             </div>
         `;
     }
+}
+
+function showFullPreview(url, name) {
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.innerHTML = `
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">${name}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body d-flex align-items-center justify-content-center bg-light">
+                    <img src="${url}" 
+                         style="max-height: 90vh; max-width: 90vw; object-fit: contain;" 
+                         alt="${name}">
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+    modal.addEventListener('hidden.bs.modal', () => {
+        modal.remove();
+    });
 }
 </script>
 {% endblock %} 

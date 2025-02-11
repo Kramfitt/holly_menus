@@ -763,21 +763,33 @@ def get_next_menu():
             if next_date >= summer_start:
                 season = 'Summer'
         
-        # Get menu URL
-        menu_name = f"{season}Week{week_number}"
-        menu_response = supabase.table('menus')\
-            .select('*')\
-            .ilike('name', f'{menu_name}%')\
-            .execute()
+        # Get both menus for the fortnight
+        menu_names = []
+        if week_number <= 2:
+            menu_names = [f"{season}Week1", f"{season}Week2"]
+        else:
+            menu_names = [f"{season}Week3", f"{season}Week4"]
             
-        menu_url = menu_response.data[0]['file_url'] if menu_response.data else None
+        # Get menu URLs
+        menus = []
+        for name in menu_names:
+            menu_response = supabase.table('menus')\
+                .select('*')\
+                .ilike('name', f'{name}%')\
+                .execute()
+                
+            if menu_response.data:
+                menus.append({
+                    'name': menu_response.data[0]['name'],
+                    'url': menu_response.data[0]['file_url']
+                })
         
         return jsonify({
             'send_date': next_date.strftime('%Y-%m-%d'),
             'season': season,
-            'week_number': week_number,
-            'menu_pair': f"Week {week_number}{'A' if week_number <= 2 else 'B'}",
-            'menu_url': menu_url
+            'week_numbers': f"Weeks {week_number} & {week_number + 1}" if week_number % 2 == 1 else f"Weeks {week_number - 1} & {week_number}",
+            'menu_pair': 'A' if week_number <= 2 else 'B',
+            'menus': menus
         })
         
     except Exception as e:
