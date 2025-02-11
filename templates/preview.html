@@ -35,129 +35,64 @@
     <!-- Settings Form -->
     <div class="card mb-4">
         <div class="card-body">
-            <h5 class="card-title">Menu Settings</h5>
-            <!-- Control Panel Table -->
-            <div class="card mb-4">
-                <div class="card-body p-0">
-                    <table class="table table-bordered m-0">
-                        <tr>
-                            <!-- Left Cell: Templates -->
-                            <td class="w-25 p-3">
-                                <h4 class="mb-3">Menu Templates</h4>
-                                <!-- Template List -->
-                                <div class="list-group list-group-flush" id="templateList">
-                                    {% for menu in menus %}
-                                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                                        <button class="btn btn-link text-start p-0" onclick="selectTemplate('{{ menu.id }}')">
-                                            {{ menu.name }}
-                                        </button>
-                                        <button class="btn btn-danger" onclick="deleteTemplate('{{ menu.id }}')" 
-                                                title="Delete Menu">
-                                            <i class="fas fa-trash"></i> Delete
-                                        </button>
-                                    </div>
-                                    {% endfor %}
-                                </div>
-                                
-                                <!-- File Upload -->
-                                <div class="mt-3">
-                                    <input type="file" 
-                                           id="templateFile" 
-                                           accept=".pdf,.jpg,.jpeg,.png" 
-                                           class="form-control"
-                                           onchange="uploadTemplate()">
-                                </div>
-                            </td>
-
-                            <!-- Second Cell: Menu Rotation -->
-                            <td class="w-25 p-3">
-                                <h4 class="mb-3">Menu Rotation</h4>
-                                <div class="form-group mb-3">
-                                    <label class="form-label"><strong>Start Date:</strong></label>
-                                    <input type="date" id="startDate" 
-                                           class="form-control"
-                                           value="{{ settings.start_date if settings else '' }}"
-                                           onchange="updateMenuRotation()">
-                                </div>
-                                <div class="form-group mb-3">
-                                    <label class="form-label"><strong>Season:</strong></label>
-                                    <select id="season" class="form-control" onchange="updateMenuRotation()">
-                                        <option value="summer" {% if settings and settings.season == 'summer' %}selected{% endif %}>Summer</option>
-                                        <option value="winter" {% if settings and settings.season == 'winter' %}selected{% endif %}>Winter</option>
-                                    </select>
-                                </div>
-                                <div class="form-group mb-3">
-                                    <label class="form-label"><strong>Season Change Date:</strong></label>
-                                    <input type="date" id="seasonChangeDate" 
-                                           class="form-control"
-                                           value="{{ settings.season_change_date if settings else '' }}"
-                                           onchange="updateMenuRotation()">
-                                </div>
-                                <div class="alert alert-info mt-3">
-                                    <strong>Next Menu to Send:</strong><br>
-                                    <span id="currentRotation">Select dates to see next menu</span>
-                                </div>
-                            </td>
-
-                            <!-- Third Cell: Send Settings -->
-                            <td class="w-25 p-3">
-                                <h4 class="mb-3">Send Settings</h4>
-                                <div class="form-group mb-3">
-                                    <label class="form-label"><strong>Days in Advance to Send:</strong></label>
-                                    <input type="number" 
-                                           id="daysInAdvance" 
-                                           class="form-control" 
-                                           value="{{ settings.days_in_advance if settings else '3' }}"
-                                           min="1" 
-                                           max="14"
-                                           onchange="updateMenuRotation()">
-                                </div>
-                                <div class="form-group mb-3">
-                                    <label for="previewDate" class="form-label"><strong>Select Date:</strong></label>
-                                    <input type="date" id="previewDate" 
-                                           class="form-control"
-                                           value="{{ preview_date }}"
-                                           onchange="updatePreview()">
-                                </div>
-                                <div class="form-group mb-3">
-                                    <label for="emailRecipients" class="d-block"><strong>Email Recipients</strong></label>
-                                    <input type="text" class="form-control" id="emailRecipients" 
-                                           value="{{ ','.join(settings.recipient_emails) if settings and settings.recipient_emails else '' }}"
-                                           placeholder="email1@example.com, email2@example.com">
-                                </div>
-                                <button class="btn btn-primary w-100" onclick="sendMenu()">
-                                    Send Menu Email
-                                </button>
-                                <div id="emailSpinner" class="d-none text-center mt-2">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">Sending...</span>
-                                    </div>
-                                    <div>Sending email...</div>
-                                </div>
-                                <div class="mt-3">
-                                    <button class="btn btn-warning w-100" onclick="saveSettings()">
-                                        <i class="fas fa-save"></i> Save Settings
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    </table>
+            <h5 class="card-title">1. Configure Menu Settings</h5>
+            <form id="settingsForm">
+                <div class="mb-3">
+                    <label for="startDate" class="form-label">Rotation Start Date</label>
+                    <input type="date" class="form-control" id="startDate" 
+                           value="{{ settings.start_date if settings else '' }}">
+                    <small class="text-muted">This is when your 4-week menu rotation cycle begins</small>
                 </div>
-            </div>
-
-            <!-- Add auto-send button in a nice spot -->
-            <div class="text-end mb-3">
-                <button class="btn btn-success" id="autoSendButton" onclick="toggleAutoSend()">
-                    Start Auto-Send
-                </button>
-            </div>
+                <div class="mb-3">
+                    <label class="form-label"><strong>Season:</strong></label>
+                    <select id="season" class="form-control" onchange="updateMenuRotation()">
+                        <option value="summer" {% if settings and settings.season == 'summer' %}selected{% endif %}>Summer</option>
+                        <option value="winter" {% if settings and settings.season == 'winter' %}selected{% endif %}>Winter</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label"><strong>Season Change Date:</strong></label>
+                    <input type="date" id="seasonChangeDate" 
+                           class="form-control"
+                           value="{{ settings.season_change_date if settings else '' }}"
+                           onchange="updateMenuRotation()">
+                </div>
+                <div class="alert alert-info mt-3">
+                    <strong>Next Menu to Send:</strong><br>
+                    <span id="currentRotation">Select dates to see next menu</span>
+                </div>
+            </form>
         </div>
     </div>
 
-    <!-- Menu Preview with increased size -->
+    <!-- Add auto-send button in a nice spot -->
+    <div class="text-end mb-3">
+        <button class="btn btn-success" id="autoSendButton" onclick="toggleAutoSend()">
+            Start Auto-Send
+        </button>
+    </div>
+
+    <!-- Menu Preview -->
     <div class="card mb-4">
         <div class="card-body">
-            <h5 class="card-title">Current Menu Rotation</h5>
+            <h5 class="card-title">2. Preview Menu</h5>
+            
+            <!-- Date Selection for Preview -->
+            <div class="mb-4">
+                <label for="previewDate" class="form-label">Choose a Date to Preview</label>
+                <input type="date" class="form-control" id="previewDate" 
+                       onchange="updateMenuRotation()"
+                       value="{{ preview_date.strftime('%Y-%m-%d') }}">
+                <small class="text-muted">Select any date to see which menu would be used on that day</small>
+            </div>
+            
+            <!-- Rotation Display -->
+            <div id="currentRotation" class="mb-3 p-3 bg-light rounded">
+                <strong>Menu Rotation for Selected Date:</strong>
+                <div id="rotationDetails">Loading...</div>
+            </div>
+            
+            <!-- Menu Selection and Preview -->
             <div class="mb-3">
                 <label for="menuSelect" class="form-label">Select Menu to Preview</label>
                 <select class="form-control" id="menuSelect">
@@ -167,10 +102,19 @@
                     {% endfor %}
                 </select>
             </div>
-            <div id="currentRotation" class="mb-3">
-                Loading...
+
+            <!-- Loading and Error States -->
+            <div id="previewStatus" class="mb-3" style="display: none;">
+                <div class="alert" role="alert"></div>
             </div>
+
+            <!-- Preview Container -->
             <div class="preview-container" style="width: 100%; height: 800px; overflow: hidden;">
+                <div id="loadingSpinner" style="display: none; text-align: center; padding: 20px;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
                 <img id="menuPreview" 
                      style="width: 100%; height: auto; object-fit: contain; display: none;" 
                      alt="Menu Preview">
@@ -434,35 +378,80 @@ async function saveSettings() {
 
 {% block scripts %}
 <script>
-// Function to update menu preview
+function showStatus(message, type = 'info') {
+    const status = document.getElementById('previewStatus');
+    const alert = status.querySelector('.alert');
+    alert.className = `alert alert-${type}`;
+    alert.textContent = message;
+    status.style.display = 'block';
+}
+
+function showLoading(show = true) {
+    document.getElementById('loadingSpinner').style.display = show ? 'block' : 'none';
+    document.getElementById('menuPreview').style.display = show ? 'none' : 'block';
+}
+
 async function updateMenuPreview() {
     const selectedMenu = document.getElementById('menuSelect')?.value;
-    if (!selectedMenu) return;
+    if (!selectedMenu) {
+        document.getElementById('menuPreview').style.display = 'none';
+        return;
+    }
     
-    console.log('Updating preview for menu:', selectedMenu);  // Debug log
+    showLoading(true);
+    showStatus('Loading menu preview...', 'info');
     
     try {
-        const img = document.getElementById('menuPreview');
-        if (!img) {
-            console.error('Preview image element not found');  // Debug log
-            return;
-        }
-        
-        // Get menu URL from Supabase
         const response = await fetch(`/api/menus/${selectedMenu}`);
-        const menuData = await response.json();
+        if (!response.ok) throw new Error('Failed to fetch menu data');
         
+        const menuData = await response.json();
         console.log('Menu data:', menuData);  // Debug log
         
         if (menuData.url) {
+            const img = document.getElementById('menuPreview');
+            img.onerror = () => {
+                showStatus('Failed to load menu image. Please try again.', 'danger');
+                showLoading(false);
+            };
+            img.onload = () => {
+                showStatus('Menu loaded successfully!', 'success');
+                showLoading(false);
+            };
             img.src = menuData.url;
-            img.style.display = 'block';
         } else {
-            console.error('No URL in menu data');  // Debug log
+            throw new Error('No menu URL found');
         }
     } catch (error) {
-        console.error('Preview error:', error);  // Debug log
+        console.error('Preview error:', error);
+        showStatus(`Error loading menu: ${error.message}`, 'danger');
+        showLoading(false);
     }
+}
+
+function updateMenuRotation() {
+    const previewDate = document.getElementById('previewDate').value;
+    if (!previewDate) return;
+    
+    document.getElementById('rotationDetails').innerHTML = 'Loading...';
+    
+    fetch(`/api/calculate-menu?date=${previewDate}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('rotationDetails').innerHTML = `
+                <div class="mt-2">
+                    <strong>Date:</strong> ${new Date(previewDate).toLocaleDateString()}<br>
+                    <strong>Season:</strong> ${data.season}<br>
+                    <strong>Week:</strong> ${data.week_number} of 4<br>
+                    <strong>Menu Pair:</strong> ${data.menu_pair || 'Not calculated'}
+                </div>
+            `;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('rotationDetails').innerHTML = 
+                `<div class="text-danger">Error calculating menu rotation</div>`;
+        });
 }
 
 // Add event listeners
@@ -472,10 +461,7 @@ document.addEventListener('DOMContentLoaded', function() {
         menuSelect.addEventListener('change', updateMenuPreview);
     }
     
-    // Initial preview if menu is already selected
-    if (menuSelect?.value) {
-        updateMenuPreview();
-    }
+    updateMenuRotation();
 });
 </script>
 {% endblock %} 
