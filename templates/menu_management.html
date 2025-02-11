@@ -56,92 +56,55 @@
         </div>
     </div>
 
-    <!-- Menu File Management -->
-    <div class="card">
+    <!-- Menu Files Section -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Menu Files</h5>
+        </div>
         <div class="card-body">
-            <h5 class="card-title">Menu Files</h5>
-            
-            <!-- Upload Form -->
-            <form id="uploadForm" class="mb-4">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label for="menuName" class="form-label">Menu Name</label>
-                            <select class="form-control" id="menuName" required>
-                                <option value="">Select menu name...</option>
-                                <optgroup label="Summer Menus">
-                                    <option value="SummerWeek1">Summer Week 1</option>
-                                    <option value="SummerWeek2">Summer Week 2</option>
-                                    <option value="SummerWeek3">Summer Week 3</option>
-                                    <option value="SummerWeek4">Summer Week 4</option>
-                                </optgroup>
-                                <optgroup label="Winter Menus">
-                                    <option value="WinterWeek1">Winter Week 1</option>
-                                    <option value="WinterWeek2">Winter Week 2</option>
-                                    <option value="WinterWeek3">Winter Week 3</option>
-                                    <option value="WinterWeek4">Winter Week 4</option>
-                                </optgroup>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label for="menuFile" class="form-label">Menu File</label>
-                            <input type="file" class="form-control" id="menuFile" accept="image/*" required>
-                        </div>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-success">Upload Menu</button>
-            </form>
-
-            <!-- Menu List -->
-            <div id="menuListView">
-                <h6>Current Menus</h6>
-                <div class="table-responsive">
-                    <table class="table">
-                        <thead>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Menu Type</th>
+                        <th>Current File</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for season in ['Summer', 'Winter'] %}
+                        {% for week in ['1', '2', '3', '4'] %}
                             <tr>
-                                <th>Name</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="menuList">
-                            {% for menu in menus %}
-                            <tr>
-                                <td>{{ menu.name }}</td>
+                                <td>{{ season }} Week {{ week }}</td>
                                 <td>
-                                    <button class="btn btn-info btn-sm me-2" 
-                                            onclick="showMenu('{{ menu.file_url }}', '{{ menu.name }}')">
-                                        <i class="fas fa-eye"></i> View
-                                    </button>
-                                    <button class="btn btn-danger btn-sm" 
-                                            onclick="deleteMenu('{{ menu.id }}', '{{ menu.name }}')">
-                                        <i class="fas fa-trash"></i> Delete
-                                    </button>
+                                    {% set menu_name = season + 'Week' + week %}
+                                    {% if menus and menu_name in menus %}
+                                        {{ menus[menu_name] }}
+                                    {% else %}
+                                        <span class="text-muted">No file uploaded</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group">
+                                        <button class="btn btn-primary btn-sm" onclick="openFileUpload('{{ season }}Week{{ week }}')">
+                                            <i class="fas fa-upload"></i> Update
+                                        </button>
+                                        {% if menus and menu_name in menus %}
+                                            <button class="btn btn-danger btn-sm" onclick="deleteMenu('{{ season }}Week{{ week }}')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        {% endif %}
+                                    </div>
                                 </td>
                             </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Add this new menu preview view -->
-            <div id="menuPreviewView" style="display: none;">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 id="previewTitle">Menu Preview</h6>
-                    <button class="btn btn-secondary" onclick="showMenuList()">
-                        <i class="fas fa-arrow-left"></i> Back to Menu List
-                    </button>
-                </div>
-                <div class="bg-light p-3 rounded">
-                    <img id="menuPreviewImage" src="" 
-                         style="width: 100%; height: auto; object-fit: contain;" 
-                         alt="Menu Preview">
-                </div>
-            </div>
+                        {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
+
+    <!-- Hidden file input for uploads -->
+    <input type="file" id="menuFileInput" style="display: none;" accept=".pdf">
 </div>
 
 <!-- Update the JavaScript -->
@@ -193,6 +156,60 @@ document.getElementById('settingsForm').addEventListener('submit', async functio
     }
 });
 
-// Your existing upload/delete functions remain the same
+function openFileUpload(menuName) {
+    const input = document.getElementById('menuFileInput');
+    input.setAttribute('data-menu-name', menuName);
+    input.click();
+}
+
+async function deleteMenu(menuName) {
+    if (!confirm(`Are you sure you want to delete ${menuName}?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/menus/' + menuName, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            alert('Menu deleted successfully');
+            location.reload();
+        } else {
+            const error = await response.text();
+            alert(`Failed to delete menu: ${error}`);
+        }
+    } catch (error) {
+        alert(`Error deleting menu: ${error}`);
+    }
+}
+
+// File upload handler
+document.getElementById('menuFileInput').addEventListener('change', async function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const menuName = this.getAttribute('data-menu-name');
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('name', menuName);
+    
+    try {
+        const response = await fetch('/api/menus', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            alert('Menu uploaded successfully');
+            location.reload();
+        } else {
+            const error = await response.text();
+            alert(`Failed to upload menu: ${error}`);
+        }
+    } catch (error) {
+        alert(`Error uploading menu: ${error}`);
+    }
+});
 </script>
 {% endblock %} 

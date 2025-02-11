@@ -44,16 +44,16 @@ async function loadNextMenu() {
         // Calculate the actual dates for each week
         const sendDate = new Date(data.send_date);
         
-        // Calculate first week start (should be 2 weeks from send date)
+        // Calculate first week start (2 weeks after send date)
         const week1Start = new Date(sendDate);
-        week1Start.setDate(sendDate.getDate() + 14);  // Start 2 weeks after send date
+        week1Start.setDate(sendDate.getDate() + 14);
         
         // Second week starts 7 days after first week
         const week2Start = new Date(week1Start);
         week2Start.setDate(week1Start.getDate() + 7);
         
-        // Get week numbers from data
-        const [week1Num, week2Num] = data.week_numbers.split(' & ').map(w => w.split(' ')[1]);
+        // Get week numbers
+        const [week1Num, week2Num] = data.week_numbers.replace('Weeks ', '').split(' & ');
         
         // Update menu details
         document.getElementById('nextMenuDetails').innerHTML = `
@@ -63,11 +63,7 @@ async function loadNextMenu() {
                     month: 'long',
                     year: 'numeric'
                 })}<br>
-                <strong>Season:</strong> ${data.season}
-                ${data.season !== data.calculated_season ? 
-                    `<small class="text-muted">(Overriding automatic ${data.calculated_season})</small>` 
-                    : `<small class="text-muted">(Automatic)</small>`
-                }<br>
+                <strong>Season:</strong> ${data.season}<br>
                 <strong>Menu Period:</strong>
                 <div class="ms-3 mt-2">
                     <strong>Week ${week1Num}:</strong> ${formatDateRange(week1Start)}<br>
@@ -76,32 +72,20 @@ async function loadNextMenu() {
             </div>
         `;
         
-        // Show menu previews
+        // Show menu previews with click handler
         const previewsContainer = document.getElementById('menuPreviews');
         previewsContainer.innerHTML = '';
-        
-        data.menus.forEach((menu, index) => {
-            const weekStart = index === 0 ? week1Start : week2Start;
-            const col = document.createElement('div');
-            col.className = 'col-md-6 mb-3';
-            col.innerHTML = `
-                <div class="card">
-                    <div class="card-header">
-                        <h6 class="mb-0">${menu.name}</h6>
-                        <small class="text-muted">
-                            ${formatDateRange(weekStart)}
-                        </small>
-                    </div>
-                    <div class="card-body p-2">
-                        <img src="${menu.url}" 
-                             class="img-fluid" 
-                             alt="${menu.name}"
-                             style="width: 100%; height: auto; cursor: pointer;"
-                             onclick="showFullPreview('${menu.url}', '${menu.name}', '${formatDateRange(weekStart)}')">
-                    </div>
+        data.menus.forEach(menu => {
+            const preview = document.createElement('div');
+            preview.className = 'mb-4';
+            preview.innerHTML = `
+                <h5>${menu.name}</h5>
+                <div class="menu-preview">
+                    <img src="${menu.url}" alt="${menu.name}" class="img-fluid" 
+                         style="cursor: default;" /> <!-- Remove pointer cursor -->
                 </div>
             `;
-            previewsContainer.appendChild(col);
+            previewsContainer.appendChild(preview);
         });
         
     } catch (error) {

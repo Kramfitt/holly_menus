@@ -654,25 +654,43 @@ def upload_menu():
     except Exception as e:
         return str(e), 500
 
-@app.route('/api/menus/<menu_id>', methods=['DELETE'])
-def delete_menu(menu_id):
+@app.route('/api/menus/<menu_name>', methods=['DELETE'])
+def delete_menu(menu_name):
     try:
-        # Get menu details first
-        menu = supabase.table('menus').select('*').eq('id', menu_id).execute()
-        
-        if not menu.data:
-            return 'Menu not found', 404
+        # Get the menu record
+        menu_response = supabase.table('menus')\
+            .select('*')\
+            .eq('name', menu_name)\
+            .execute()
             
-        # Delete from storage
-        file_path = menu.data[0]['name']
-        supabase.storage.from_('menus').remove([f"menus/{file_path}"])
+        if not menu_response.data:
+            return "Menu not found", 404
+            
+        # Delete from storage first
+        menu = menu_response.data[0]
+        storage_path = f"menus/{menu['file_path'].split('/')[-1]}"
+        supabase.storage.from_('menus').remove([storage_path])
         
-        # Delete from database
-        supabase.table('menus').delete().eq('id', menu_id).execute()
+        # Then delete the database record
+        supabase.table('menus')\
+            .delete()\
+            .eq('name', menu_name)\
+            .execute()
+            
+        logger.log_activity(
+            action="Menu Deleted",
+            details=f"Deleted menu: {menu_name}",
+            status="success"
+        )
         
-        return 'Menu deleted successfully'
+        return jsonify({'success': True})
         
     except Exception as e:
+        logger.log_activity(
+            action="Menu Delete Failed",
+            details=str(e),
+            status="error"
+        )
         return str(e), 500
 
 @app.route('/api/menus', methods=['GET'])
@@ -823,6 +841,20 @@ def get_email_status():
         active = settings.get('email_active', False) if settings else False
         
         return jsonify({'active': active})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/toggle-email', methods=['POST'])
+def toggle_email():
+    try:
+        # Get current state from Redis
+        current_state = redis_client.get('service_state')
+        new_state = b'false' if current_state == b'true' else b'true'
+        
+        # Update Redis
+        redis_client.set('service_state', new_state)
+        
+        return jsonify({'active': new_state == b'true'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

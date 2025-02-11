@@ -334,29 +334,25 @@ async function updateEmailStatus() {
         const response = await fetch('/api/email-status');
         const data = await response.json();
         
-        const card = document.getElementById('emailStatusCard');
-        const text = document.getElementById('emailStatusText');
-        
+        const statusText = document.getElementById('emailStatusText');
         if (data.active) {
-            card.className = 'card bg-success text-white hover-shadow';
-            text.innerHTML = 'Active';
+            statusText.innerHTML = 'Active';
+            statusText.parentElement.parentElement.className = 'card bg-success text-white hover-shadow';
         } else {
-            card.className = 'card bg-secondary text-white hover-shadow';
-            text.innerHTML = 'Paused';
+            statusText.innerHTML = 'Paused';
+            statusText.parentElement.parentElement.className = 'card bg-secondary text-white hover-shadow';
         }
     } catch (error) {
-        console.error('Error loading email status:', error);
-        const card = document.getElementById('emailStatusCard');
-        const text = document.getElementById('emailStatusText');
-        card.className = 'card bg-danger text-white hover-shadow';
-        text.innerHTML = 'Error';
+        console.error('Error:', error);
+        const statusText = document.getElementById('emailStatusText');
+        statusText.innerHTML = 'Error';
+        statusText.parentElement.parentElement.className = 'card bg-danger text-white hover-shadow';
     }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
     updateEmailStatus();
-    // Update status every minute
-    setInterval(updateEmailStatus, 60000);
+    setInterval(updateEmailStatus, 30000); // Update every 30 seconds
 });
 </script>
 {% endblock %} 
