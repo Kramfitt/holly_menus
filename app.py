@@ -24,7 +24,6 @@ from utils.backup import BackupManager
 from worker import calculate_next_menu, send_menu_email
 from config import supabase, redis_client, SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
 import pytz  # Add this import
-from postgrest.constants import desc  # Add this import at the top
 
 # Load environment variables
 load_dotenv()
@@ -146,7 +145,7 @@ def index():
         # Get recent activity
         activity_response = supabase.table('activity_log')\
             .select('*')\
-            .order('created_at', desc=True)\
+            .order('created_at', ascending=False)\
             .limit(10)\
             .execute()
             
@@ -387,7 +386,7 @@ def system_check():
         # Get current settings
         settings = supabase.table('menu_settings')\
             .select('*')\
-            .order('created_at', desc=True)\
+            .order('created_at', ascending=False)\
             .limit(1)\
             .execute()
         
@@ -694,7 +693,7 @@ def get_menus():
     try:
         response = supabase.table('menus')\
             .select('*')\
-            .order('name', desc=False)\
+            .order('name', ascending=True)\
             .execute()
         return jsonify(response.data)
     except Exception as e:
@@ -729,7 +728,7 @@ def menu_management():
         # Get current settings
         settings_response = supabase.table('menu_settings')\
             .select('*')\
-            .order('created_at', desc=True)\
+            .order('created_at', ascending=False)\
             .limit(1)\
             .execute()
             
@@ -767,7 +766,7 @@ def get_next_menu():
     try:
         settings_response = supabase.table('menu_settings')\
             .select('*')\
-            .order('created_at', desc=True)\
+            .order('created_at', ascending=False)\
             .limit(1)\
             .execute()
             
@@ -956,7 +955,7 @@ def get_menu_settings():
     try:
         response = supabase.table('menu_settings')\
             .select('*')\
-            .order('created_at', desc=True)\
+            .order('created_at', ascending=False)\
             .limit(1)\
             .execute()
             
