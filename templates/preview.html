@@ -43,22 +43,17 @@ async function loadNextMenu() {
         
         // Calculate the actual dates for each week
         const sendDate = new Date(data.send_date);
+        
+        // Calculate first week start (should be 2 weeks from send date)
         const week1Start = new Date(sendDate);
-        week1Start.setDate(week1Start.getDate() + 7); // Start a week after send date
+        week1Start.setDate(sendDate.getDate() + 14);  // Start 2 weeks after send date
+        
+        // Second week starts 7 days after first week
         const week2Start = new Date(week1Start);
-        week2Start.setDate(week2Start.getDate() + 7);
+        week2Start.setDate(week1Start.getDate() + 7);
         
         // Get week numbers from data
         const [week1Num, week2Num] = data.week_numbers.split(' & ').map(w => w.split(' ')[1]);
-        
-        // Format date ranges
-        function formatDateRange(startDate) {
-            const endDate = new Date(startDate);
-            endDate.setDate(endDate.getDate() + 6);
-            
-            return `Mon ${startDate.getDate()}${getOrdinal(startDate.getDate())} ${startDate.toLocaleDateString('en-NZ', { month: 'short' })} - 
-                    Sun ${endDate.getDate()}${getOrdinal(endDate.getDate())} ${endDate.toLocaleDateString('en-NZ', { month: 'short' })}`;
-        }
         
         // Update menu details
         document.getElementById('nextMenuDetails').innerHTML = `
@@ -110,16 +105,24 @@ async function loadNextMenu() {
         });
         
     } catch (error) {
+        console.error('Error:', error);
         document.getElementById('nextMenuDetails').innerHTML = `
-            <div class="text-danger">
-                <i class="fas fa-exclamation-circle"></i>
-                Error: ${error.message}
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle"></i> Error: ${error.message}
             </div>
         `;
     }
 }
 
-// Helper function for ordinal numbers
+// Helper function to format date range
+function formatDateRange(startDate) {
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 6);  // End date is 6 days after start (Mon-Sun)
+    
+    return `Mon ${startDate.getDate()}${getOrdinal(startDate.getDate())} ${startDate.toLocaleDateString('en-NZ', { month: 'short' })} - 
+            Sun ${endDate.getDate()}${getOrdinal(endDate.getDate())} ${endDate.toLocaleDateString('en-NZ', { month: 'short' })}`;
+}
+
 function getOrdinal(n) {
     const s = ["th", "st", "nd", "rd"];
     const v = n % 100;

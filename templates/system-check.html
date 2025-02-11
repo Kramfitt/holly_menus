@@ -22,44 +22,68 @@
     <!-- System Status -->
     <div class="row">
         <div class="col-md-6">
-            <!-- Current Settings -->
+            <!-- Email Service Control -->
             <div class="card mb-4">
                 <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">Current Settings</h4>
+                    <h4 class="mb-0">Email Service Control</h4>
                 </div>
                 <div class="card-body">
-                    {% if settings %}
-                        <dl class="row">
-                            <dt class="col-sm-4">Start Date:</dt>
-                            <dd class="col-sm-8">{{ settings.start_date }}</dd>
-                            
-                            <dt class="col-sm-4">Season:</dt>
-                            <dd class="col-sm-8">{{ settings.season|title }}</dd>
-                            
-                            <dt class="col-sm-4">Season Change:</dt>
-                            <dd class="col-sm-8">{{ settings.season_change_date }}</dd>
-                            
-                            <dt class="col-sm-4">Send Days:</dt>
-                            <dd class="col-sm-8">{{ settings.days_in_advance }} days before period</dd>
-                            
-                            <dt class="col-sm-4">Recipients:</dt>
-                            <dd class="col-sm-8">
-                                {% for email in settings.recipient_emails %}
-                                    {{ email }}<br>
-                                {% endfor %}
-                            </dd>
-                        </dl>
-                    {% else %}
-                        <div class="alert alert-warning">
-                            No settings found. Please configure settings in the Preview & Send page.
-                        </div>
-                    {% endif %}
+                    <div id="emailStatus" class="mb-3">
+                        Loading status...
+                    </div>
+                    <button id="toggleEmailBtn" class="btn btn-lg" onclick="toggleEmailService()">
+                        <i class="fas"></i>
+                        <span>Loading...</span>
+                    </button>
                 </div>
             </div>
         </div>
 
         <div class="col-md-6">
-            <!-- Next Menu Status -->
+            <!-- System Health -->
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0">System Health</h4>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Database Connection
+                            <span class="badge bg-success rounded-pill">Connected</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Email Service
+                            <span class="badge bg-success rounded-pill">Ready</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Worker Service
+                            <span class="badge bg-success rounded-pill">Running</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Test Email Function -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0">Email Testing</h4>
+                </div>
+                <div class="card-body">
+                    <form id="testEmailForm">
+                        <div class="mb-3">
+                            <label for="testEmail" class="form-label">Test Email Address</label>
+                            <input type="email" class="form-control" id="testEmail" required
+                                   placeholder="Enter email address for test">
+                        </div>
+                        <button type="submit" class="btn btn-info">
+                            <i class="fas fa-paper-plane"></i> Send Test Email
+                        </button>
+                    </form>
+                    <div id="emailStatus" class="mt-3" style="display: none;"></div>
+                </div>
+            </div>
+
+            <!-- Next Menu Schedule -->
             <div class="card mb-4">
                 <div class="card-header bg-success text-white">
                     <h4 class="mb-0">Next Menu Schedule</h4>
@@ -87,65 +111,6 @@
                             Cannot calculate next menu. Please check settings.
                         </div>
                     {% endif %}
-                </div>
-            </div>
-
-            <!-- System Health -->
-            <div class="card">
-                <div class="card-header bg-info text-white">
-                    <h4 class="mb-0">System Health</h4>
-                </div>
-                <div class="card-body">
-                    <ul class="list-group">
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Database Connection
-                            <span class="badge bg-success rounded-pill">Connected</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Email Service
-                            <span class="badge bg-success rounded-pill">Ready</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Worker Service
-                            <span class="badge bg-success rounded-pill">Running</span>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-
-            <!-- Add this card -->
-            <div class="card mb-4">
-                <div class="card-header bg-info text-white">
-                    <h4 class="mb-0">Email Testing</h4>
-                </div>
-                <div class="card-body">
-                    <form id="testEmailForm">
-                        <div class="mb-3">
-                            <label for="testEmail" class="form-label">Test Email Address</label>
-                            <input type="email" class="form-control" id="testEmail" required
-                                   placeholder="Enter email address for test">
-                        </div>
-                        <button type="submit" class="btn btn-info">
-                            <i class="fas fa-paper-plane"></i> Send Test Email
-                        </button>
-                    </form>
-                    <div id="emailStatus" class="mt-3" style="display: none;"></div>
-                </div>
-            </div>
-
-            <!-- Add this card after the existing system status cards -->
-            <div class="card mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">Email Service Control</h4>
-                </div>
-                <div class="card-body">
-                    <div id="emailStatus" class="mb-3">
-                        Loading status...
-                    </div>
-                    <button id="toggleEmailBtn" class="btn btn-lg" onclick="toggleEmailService()">
-                        <i class="fas"></i>
-                        <span>Loading...</span>
-                    </button>
                 </div>
             </div>
         </div>

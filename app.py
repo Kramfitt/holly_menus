@@ -800,5 +800,15 @@ def get_next_menu():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.template_filter('strftime')
+def _jinja2_filter_strftime(date, fmt=None):
+    if not date:
+        return ''
+    if isinstance(date, str):
+        date = datetime.strptime(date, '%Y-%m-%d')
+    native = date.replace(tzinfo=None)
+    format='%d %B %Y'
+    return native.strftime(format)
+
 if __name__ == '__main__':
     app.run(debug=True) 

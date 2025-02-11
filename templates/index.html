@@ -100,6 +100,40 @@
                 </div>
             </a>
         </div>
+
+        <!-- Season Change Card -->
+        <div class="col-md-3">
+            <a href="/menus" class="text-decoration-none">
+                <div class="card bg-warning text-white hover-shadow" style="transition: all 0.3s ease;">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-sync-alt me-2"></i>Season Change
+                        </h5>
+                        <p class="card-text">
+                            {% if settings and settings.season_change_date %}
+                                {{ settings.season_change_date|strftime('%d %B %Y') }}
+                            {% else %}
+                                Not scheduled
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Email Status Card -->
+        <div class="col-md-3">
+            <a href="/system-check" class="text-decoration-none">
+                <div id="emailStatusCard" class="card hover-shadow" style="transition: all 0.3s ease;">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-envelope me-2"></i>Email Service
+                        </h5>
+                        <p class="card-text" id="emailStatusText">Loading...</p>
+                    </div>
+                </div>
+            </a>
+        </div>
     </div>
 
     <!-- Add some hover effect styles -->
@@ -188,14 +222,36 @@
                     <h6>Current Settings</h6>
                     {% if settings %}
                     <dl class="row">
+                        <dt class="col-sm-4">Rotation Start:</dt>
+                        <dd class="col-sm-8">
+                            {% if settings and settings.start_date %}
+                                {{ settings.start_date|strftime }}
+                            {% else %}
+                                Not set
+                            {% endif %}
+                        </dd>
+                        
                         <dt class="col-sm-4">Season:</dt>
-                        <dd class="col-sm-8">{{ settings.season|title }}</dd>
+                        <dd class="col-sm-8">
+                            {% if settings and settings.season %}
+                                {% if settings.season == 'auto' %}
+                                    Automatic (Currently {{ calculated_season }})
+                                {% else %}
+                                    {{ settings.season|title }} (Manual Override)
+                                {% endif %}
+                            {% else %}
+                                Automatic
+                            {% endif %}
+                        </dd>
                         
                         <dt class="col-sm-4">Season Change:</dt>
-                        <dd class="col-sm-8">{{ settings.season_change_date }}</dd>
-                        
-                        <dt class="col-sm-4">Send Days:</dt>
-                        <dd class="col-sm-8">{{ settings.days_in_advance }} days before period</dd>
+                        <dd class="col-sm-8">
+                            {% if settings and settings.season_change_date %}
+                                {{ settings.season_change_date|strftime }}
+                            {% else %}
+                                Not scheduled
+                            {% endif %}
+                        </dd>
                     </dl>
                     {% else %}
                     <p class="text-muted">No settings configured</p>
@@ -208,6 +264,86 @@
                         </a>
                         <a href="/system-check" class="btn btn-outline-info">
                             <i class="fas fa-check-circle"></i> Check System Status
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- After your existing Quick Stats row -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Current Settings</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Rotation Start:</dt>
+                                <dd class="col-sm-8">
+                                    {% if settings and settings.start_date %}
+                                        {{ settings.start_date|strftime }}
+                                    {% else %}
+                                        Not set
+                                    {% endif %}
+                                </dd>
+                                
+                                <dt class="col-sm-4">Season:</dt>
+                                <dd class="col-sm-8">
+                                    {% if settings and settings.season %}
+                                        {% if settings.season == 'auto' %}
+                                            Automatic (Currently {{ calculated_season }})
+                                        {% else %}
+                                            {{ settings.season|title }} (Manual Override)
+                                        {% endif %}
+                                    {% else %}
+                                        Automatic
+                                    {% endif %}
+                                </dd>
+                                
+                                <dt class="col-sm-4">Season Change:</dt>
+                                <dd class="col-sm-8">
+                                    {% if settings and settings.season_change_date %}
+                                        {{ settings.season_change_date|strftime }}
+                                    {% else %}
+                                        Not scheduled
+                                    {% endif %}
+                                </dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Send Days:</dt>
+                                <dd class="col-sm-8">
+                                    {% if settings and settings.days_in_advance %}
+                                        {{ settings.days_in_advance }} days before menu start
+                                    {% else %}
+                                        Not set
+                                    {% endif %}
+                                </dd>
+                                
+                                <dt class="col-sm-4">Recipients:</dt>
+                                <dd class="col-sm-8">
+                                    {% if settings and settings.recipient_emails %}
+                                        {{ settings.recipient_emails|length }} configured
+                                    {% else %}
+                                        None configured
+                                    {% endif %}
+                                </dd>
+                                
+                                <dt class="col-sm-4">Email Service:</dt>
+                                <dd class="col-sm-8" id="emailStatusText">
+                                    Loading...
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                    <div class="text-end mt-3">
+                        <a href="/menus" class="btn btn-primary">
+                            <i class="fas fa-cog"></i> Manage Settings
                         </a>
                     </div>
                 </div>
@@ -242,5 +378,35 @@ async function markAllRead() {
         console.error('Failed to mark all notifications as read:', error);
     }
 }
+
+async function updateEmailStatus() {
+    try {
+        const response = await fetch('/api/email-status');
+        const data = await response.json();
+        
+        const card = document.getElementById('emailStatusCard');
+        const text = document.getElementById('emailStatusText');
+        
+        if (data.active) {
+            card.className = 'card bg-success text-white hover-shadow';
+            text.innerHTML = 'Active';
+        } else {
+            card.className = 'card bg-secondary text-white hover-shadow';
+            text.innerHTML = 'Paused';
+        }
+    } catch (error) {
+        console.error('Error loading email status:', error);
+        const card = document.getElementById('emailStatusCard');
+        const text = document.getElementById('emailStatusText');
+        card.className = 'card bg-danger text-white hover-shadow';
+        text.innerHTML = 'Error';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    updateEmailStatus();
+    // Update status every minute
+    setInterval(updateEmailStatus, 60000);
+});
 </script>
 {% endblock %} 
