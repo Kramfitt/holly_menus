@@ -163,9 +163,9 @@
                                 </h6>
                                 <small>
                                     {% if activity.created_at is string %}
-                                        {{ activity.created_at.split('T')[0] }}
+                                        {{ activity.created_at|strftime('%a %d %b %H:%M') }}
                                     {% else %}
-                                        {{ activity.created_at.strftime('%a %d') }}th {{ activity.created_at.strftime('%b\\n%H:%M') }}
+                                        {{ activity.created_at.strftime('%a %d %b %H:%M') }}
                                     {% endif %}
                                 </small>
                             </div>

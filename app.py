@@ -24,6 +24,7 @@ from utils.backup import BackupManager
 from worker import calculate_next_menu
 from utils.supabase_client import get_supabase_client
 import tempfile
+from config import supabase, redis_client, SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
 
 # Load environment variables
 load_dotenv()
@@ -116,6 +117,7 @@ def logout():
     return redirect(url_for('login'))
 
 @app.route('/')
+@login_required
 def index():
     try:
         # Get current settings
@@ -167,6 +169,7 @@ def index():
         return f"Error loading dashboard: {str(e)}", 500
 
 @app.route('/preview')
+@login_required
 def preview():
     # Get current settings with proper season
     settings = get_menu_settings()  # Use the same function we use elsewhere
@@ -699,6 +702,7 @@ def get_menu(menu_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/menus')
+@login_required
 def menu_management():
     try:
         # Get current settings
@@ -715,28 +719,17 @@ def menu_management():
             .select('*')\
             .execute()
             
-        all_menus = menus_response.data if menus_response.data else []
-        
-        # Initialize menu structure with empty dictionaries
-        menu_structure = {
-            'summer': {},
-            'winter': {}
-        }
-        
-        # Process each menu and add to structure
-        for menu in all_menus:
-            if '_' in menu['name']:  # Check for season_pair format
-                season, pair = menu['name'].split('_')
-                if season in ['summer', 'winter']:
-                    if pair not in menu_structure[season]:
-                        menu_structure[season][pair] = menu
-        
-        print("Menu structure:", menu_structure)  # Debug print
+        # Convert to dictionary with menu_name as key
+        menus = {}
+        for menu in menus_response.data:
+            if 'file_path' in menu:
+                menu['file_url'] = supabase.storage.from_('menus').get_public_url(menu['file_path'])
+            menus[menu['name']] = menu
         
         return render_template(
             'menu_management.html',
             settings=settings,
-            menus=menu_structure
+            menus=menus
         )
         
     except Exception as e:
@@ -985,21 +978,25 @@ def check_email_health():
 @app.route('/api/clear-activity-log', methods=['POST'])
 def clear_activity_log():
     try:
-        # Delete all but the last 50 entries
+        # Delete ALL entries from activity_log table
         supabase.table('activity_log')\
             .delete()\
-            .lt('created_at', supabase.table('activity_log')
-                .select('created_at')
-                .order('created_at', desc=True)
-                .limit(1)
-                .offset(50)
-                .execute()
-                .data[0]['created_at']
-            )\
+            .neq('id', 0)\
             .execute()
             
+        logger.log_activity(
+            action="Activity Log Cleared",
+            details="All activity log entries were cleared",
+            status="success"
+        )
+        
         return jsonify({'success': True})
     except Exception as e:
+        logger.log_activity(
+            action="Clear Log Failed",
+            details=str(e),
+            status="error"
+        )
         return jsonify({'success': False, 'error': str(e)}), 500
 
 def log_activity(action, details, status):
