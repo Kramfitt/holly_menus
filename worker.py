@@ -127,18 +127,23 @@ def calculate_next_menu():
     is_odd_period = (periods_elapsed % 2) == 0
     menu_pair = "1_2" if is_odd_period else "3_4"
     
-    # Determine season
-    season_change_date = datetime.strptime(settings['season_change_date'], '%Y-%m-%d').date()
-    current_season = settings['season']
-    
-    if today >= season_change_date:
-        current_season = 'winter' if current_season == 'summer' else 'summer'
+    # Check if we need to toggle season
+    season = settings['season']
+    if settings['season_change_date']:
+        change_date = datetime.strptime(settings['season_change_date'], '%Y-%m-%d').date()
+        if today >= change_date:
+            # Toggle season
+            season = 'winter' if season == 'summer' else 'summer'
+            
+            # Update settings with new season
+            settings['season'] = season
+            supabase.table('menu_settings').insert(settings).execute()
     
     return {
         'send_date': send_date,
         'period_start': next_period_start,
         'menu_pair': menu_pair,
-        'season': current_season,
+        'season': season,
         'recipient_emails': settings['recipient_emails']
     }
 

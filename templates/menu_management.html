@@ -18,14 +18,13 @@
                             <small class="text-muted">When your menu rotation begins</small>
                         </div>
                         <div class="mb-3">
-                            <label for="season" class="form-label">Season Override</label>
+                            <label for="season" class="form-label">Current Season</label>
                             <select class="form-control" id="season" required>
-                                <option value="auto" {% if not settings.season or settings.season == 'auto' %}selected{% endif %}>Automatic (Based on Date)</option>
-                                <option value="summer" {% if settings and settings.season == 'summer' %}selected{% endif %}>Force Summer Menus</option>
-                                <option value="winter" {% if settings and settings.season == 'winter' %}selected{% endif %}>Force Winter Menus</option>
+                                <option value="summer" {% if settings and settings.season == 'summer' %}selected{% endif %}>Summer</option>
+                                <option value="winter" {% if settings and settings.season == 'winter' %}selected{% endif %}>Winter</option>
                             </select>
                             <small class="text-muted">
-                                Automatic will use Summer menus for Dec-Feb, Winter menus for Mar-Nov
+                                Will automatically switch when Season Change Date is reached
                             </small>
                         </div>
                     </div>

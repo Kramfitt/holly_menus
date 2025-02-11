@@ -24,7 +24,7 @@
         <!-- Next Menu Card -->
         <div class="col-md-3">
             <a href="/preview" class="text-decoration-none">
-                <div class="card bg-primary text-white hover-shadow" style="transition: all 0.3s ease;">
+                <div class="card bg-primary text-white hover-shadow">
                     <div class="card-body">
                         <h5 class="card-title">
                             <i class="fas fa-calendar-alt me-2"></i>Next Menu
@@ -44,7 +44,7 @@
         <!-- Send Date Card -->
         <div class="col-md-3">
             <a href="/preview" class="text-decoration-none">
-                <div class="card bg-success text-white hover-shadow" style="transition: all 0.3s ease;">
+                <div class="card bg-success text-white hover-shadow">
                     <div class="card-body">
                         <h5 class="card-title">
                             <i class="fas fa-clock me-2"></i>Send Date
@@ -61,17 +61,17 @@
             </a>
         </div>
 
-        <!-- Recipients Card -->
+        <!-- Period Date Card -->
         <div class="col-md-3">
             <a href="/preview" class="text-decoration-none">
-                <div class="card bg-info text-white hover-shadow" style="transition: all 0.3s ease;">
+                <div class="card bg-info text-white hover-shadow">
                     <div class="card-body">
                         <h5 class="card-title">
-                            <i class="fas fa-users me-2"></i>Recipients
+                            <i class="fas fa-calendar me-2"></i>Period Date
                         </h5>
                         <p class="card-text">
-                            {% if settings and settings.recipient_emails %}
-                                {{ settings.recipient_emails|length }} configured
+                            {% if next_menu %}
+                                {{ next_menu.period_start.strftime('%d %B %Y') }}
                             {% else %}
                                 Not configured
                             {% endif %}
@@ -81,50 +81,10 @@
             </a>
         </div>
 
-        <!-- Templates Card -->
-        <div class="col-md-3">
-            <a href="/menus" class="text-decoration-none">
-                <div class="card bg-warning text-white hover-shadow" style="transition: all 0.3s ease;">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <i class="fas fa-file-image me-2"></i>Templates
-                        </h5>
-                        <p class="card-text">
-                            {% if menus %}
-                                {{ menus|length }} menus
-                            {% else %}
-                                No menus uploaded
-                            {% endif %}
-                        </p>
-                    </div>
-                </div>
-            </a>
-        </div>
-
-        <!-- Season Change Card -->
-        <div class="col-md-3">
-            <a href="/menus" class="text-decoration-none">
-                <div class="card bg-warning text-white hover-shadow" style="transition: all 0.3s ease;">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <i class="fas fa-sync-alt me-2"></i>Season Change
-                        </h5>
-                        <p class="card-text">
-                            {% if settings and settings.season_change_date %}
-                                {{ settings.season_change_date|strftime('%d %B %Y') }}
-                            {% else %}
-                                Not scheduled
-                            {% endif %}
-                        </p>
-                    </div>
-                </div>
-            </a>
-        </div>
-
-        <!-- Email Status Card -->
+        <!-- Email Service Card -->
         <div class="col-md-3">
             <a href="/system-check" class="text-decoration-none">
-                <div id="emailStatusCard" class="card hover-shadow" style="transition: all 0.3s ease;">
+                <div id="emailStatusCard" class="card hover-shadow">
                     <div class="card-body">
                         <h5 class="card-title">
                             <i class="fas fa-envelope me-2"></i>Email Service
@@ -219,38 +179,28 @@
                     <h5 class="mb-0">System Overview</h5>
                 </div>
                 <div class="card-body">
-                    <h6>Current Settings</h6>
                     {% if settings %}
                     <dl class="row">
-                        <dt class="col-sm-4">Rotation Start:</dt>
-                        <dd class="col-sm-8">
-                            {% if settings and settings.start_date %}
-                                {{ settings.start_date|strftime }}
-                            {% else %}
-                                Not set
-                            {% endif %}
-                        </dd>
+                        <dt class="col-sm-4">Current Season:</dt>
+                        <dd class="col-sm-8">{{ settings.season|title }}</dd>
                         
-                        <dt class="col-sm-4">Season:</dt>
+                        <dt class="col-sm-4">Season Changes:</dt>
                         <dd class="col-sm-8">
-                            {% if settings and settings.season %}
-                                {% if settings.season == 'auto' %}
-                                    Automatic (Currently {{ calculated_season }})
-                                {% else %}
-                                    {{ settings.season|title }} (Manual Override)
-                                {% endif %}
-                            {% else %}
-                                Automatic
-                            {% endif %}
-                        </dd>
-                        
-                        <dt class="col-sm-4">Season Change:</dt>
-                        <dd class="col-sm-8">
-                            {% if settings and settings.season_change_date %}
+                            {% if settings.season_change_date %}
                                 {{ settings.season_change_date|strftime }}
                             {% else %}
                                 Not scheduled
                             {% endif %}
+                        </dd>
+                        
+                        <dt class="col-sm-4">Send Schedule:</dt>
+                        <dd class="col-sm-8">
+                            {{ settings.days_in_advance }} days before period start
+                        </dd>
+                        
+                        <dt class="col-sm-4">Recipients:</dt>
+                        <dd class="col-sm-8">
+                            {{ settings.recipient_emails|length }} configured
                         </dd>
                     </dl>
                     {% else %}

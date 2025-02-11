@@ -810,5 +810,21 @@ def _jinja2_filter_strftime(date, fmt=None):
     format='%d %B %Y'
     return native.strftime(format)
 
+@app.route('/api/email-status')
+def get_email_status():
+    try:
+        settings_response = supabase.table('menu_settings')\
+            .select('email_active')\
+            .order('created_at', desc=True)\
+            .limit(1)\
+            .execute()
+            
+        settings = settings_response.data[0] if settings_response.data else None
+        active = settings.get('email_active', False) if settings else False
+        
+        return jsonify({'active': active})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True) 
