@@ -13,6 +13,8 @@ from email.mime.application import MIMEApplication
 from utils.logger import ActivityLogger
 from utils.notifications import NotificationManager
 from config import supabase, redis_client, SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
+from PIL import Image, ImageDraw, ImageFont
+import io
 
 # Force load from .env file
 load_dotenv(override=True)
@@ -198,9 +200,52 @@ def calculate_next_menu():
         'recipient_emails': settings['recipient_emails']
     }
 
-def send_menu_email(start_date, recipient_list, season, menu_pair):
+def draw_dates_on_menu(image_data, start_date):
+    """Draw dates on menu image"""
+    try:
+        # Open image from bytes
+        img = Image.open(io.BytesIO(image_data))
+        draw = ImageDraw.Draw(img)
+        
+        # Load a font (you'll need to provide a path to a .ttf font file)
+        font = ImageFont.truetype("/path/to/your/font.ttf", 36)
+        
+        # Calculate dates for the two weeks
+        week1_start = start_date
+        week1_end = week1_start + timedelta(days=6)
+        week2_start = week1_start + timedelta(days=7)
+        week2_end = week2_start + timedelta(days=6)
+        
+        # Format date strings
+        week1_text = f"{week1_start.strftime('%d %B')} - {week1_end.strftime('%d %B %Y')}"
+        week2_text = f"{week2_start.strftime('%d %B')} - {week2_end.strftime('%d %B %Y')}"
+        
+        # Draw dates on image (you'll need to adjust coordinates)
+        draw.text((100, 100), week1_text, font=font, fill='black')
+        draw.text((100, 200), week2_text, font=font, fill='black')
+        
+        # Convert back to bytes
+        img_byte_arr = io.BytesIO()
+        img.save(img_byte_arr, format=img.format)
+        return img_byte_arr.getvalue()
+        
+    except Exception as e:
+        logger.log_activity(
+            action="Draw Dates Failed",
+            details=str(e),
+            status="error"
+        )
+        return image_data  # Return original if processing fails
+
+def send_menu_email(start_date, recipient_list, season):
     """Send menu email to recipients"""
     try:
+        # Calculate menu pair based on start date
+        weeks_since_start = (start_date - datetime.strptime(get_menu_settings()['start_date'], '%Y-%m-%d').date()).days // 7
+        periods_elapsed = weeks_since_start // 2
+        is_odd_period = (periods_elapsed % 2) == 0
+        menu_pair = "1_2" if is_odd_period else "3_4"
+        
         # Get menu templates
         menu_response = supabase.table('menus')\
             .select('*')\
@@ -238,7 +283,10 @@ def send_menu_email(start_date, recipient_list, season, menu_pair):
             file_data = supabase.storage.from_('menus')\
                 .download(menu['file_path'])
                 
-            attachment = MIMEApplication(file_data)
+            # Draw dates on the menu
+            processed_file_data = draw_dates_on_menu(file_data, start_date)
+                
+            attachment = MIMEApplication(processed_file_data)
             attachment.add_header(
                 'Content-Disposition', 
                 'attachment', 
@@ -277,7 +325,7 @@ def check_and_send():
         
         # TEMPORARY TEST CODE - Remove after testing
         print("🧪 TEST MODE: Forcing menu send...")
-        success = send_menu_email(next_menu['period_start'], next_menu['recipient_emails'], next_menu['season'], next_menu['menu_pair'])
+        success = send_menu_email(next_menu['period_start'], next_menu['recipient_emails'], next_menu['season'])
         if success:
             print("✅ Test menu sent successfully!")
         else:
@@ -290,7 +338,7 @@ def check_and_send():
                 action="Menu Send Started",
                 details=f"Sending menu for period starting {next_menu['period_start']}"
             )
-            success = send_menu_email(next_menu['period_start'], next_menu['recipient_emails'], next_menu['season'], next_menu['menu_pair'])
+            success = send_menu_email(next_menu['period_start'], next_menu['recipient_emails'], next_menu['season'])
             
         else:
             logger.log_activity(

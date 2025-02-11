@@ -466,23 +466,22 @@ def system_check():
         print(f"❌ System check error: {str(e)}")
         return f"Error loading system status: {str(e)}", 500
 
-def send_menu_email(menu_id, start_date, recipient_list):
+def send_menu_email(start_date, recipient_list, season):
     try:
         # Get menu data
         response = supabase.table('menus')\
             .select('*')\
-            .eq('id', menu_id)\
-            .single()\
+            .eq('season', season)\
             .execute()
             
         if not response.data:
             return "Menu not found", 404
             
-        menu = response.data
+        menu = response.data[0]
         
         # Generate preview image
         preview_date = start_date.strftime('%Y-%m-%d')
-        preview_path = f"previews/preview_{menu_id}_{preview_date}.{menu['file_type']}"
+        preview_path = f"previews/preview_{menu['id']}_{preview_date}.{menu['file_type']}"
         
         # Get the preview URL
         preview_url = supabase.storage.from_('menus').get_public_url(preview_path)
@@ -541,7 +540,7 @@ def api_send_menu():
         if not menu_id or not date or not recipients:
             return "Missing required data", 400
             
-        result = send_menu_email(menu_id, date, recipients)
+        result = send_menu_email(date, recipients, date.strftime('%Y-%m-%d'))
         return result
         
     except Exception as e:
@@ -768,24 +767,50 @@ def get_menu(menu_id):
 @app.route('/menus')
 def menu_management():
     try:
-        # Get menus
-        menus_response = supabase.table('menus')\
-            .select('*')\
-            .order('name')\
-            .execute()
-            
-        # Get settings
+        # Get current settings
         settings_response = supabase.table('menu_settings')\
             .select('*')\
             .order('created_at', desc=True)\
             .limit(1)\
             .execute()
             
-        return render_template('menu_management.html', 
-                             menus=menus_response.data,
-                             settings=settings_response.data[0] if settings_response.data else None)
-                             
+        settings = settings_response.data[0] if settings_response.data else None
+        
+        # Get all menus
+        menus_response = supabase.table('menus')\
+            .select('*')\
+            .execute()
+            
+        menus = menus_response.data if menus_response.data else []
+        
+        # Organize menus by season and week
+        organized_menus = {
+            'summer': {
+                'week1': next((m for m in menus if m['name'].startswith('summerWeek1')), None),
+                'week2': next((m for m in menus if m['name'].startswith('summerWeek2')), None),
+                'week3': next((m for m in menus if m['name'].startswith('summerWeek3')), None),
+                'week4': next((m for m in menus if m['name'].startswith('summerWeek4')), None)
+            },
+            'winter': {
+                'week1': next((m for m in menus if m['name'].startswith('winterWeek1')), None),
+                'week2': next((m for m in menus if m['name'].startswith('winterWeek2')), None),
+                'week3': next((m for m in menus if m['name'].startswith('winterWeek3')), None),
+                'week4': next((m for m in menus if m['name'].startswith('winterWeek4')), None)
+            }
+        }
+        
+        return render_template(
+            'menu_management.html',
+            settings=settings,
+            menus=organized_menus
+        )
+        
     except Exception as e:
+        logger.log_activity(
+            action="Menu Page Load Failed",
+            details=str(e),
+            status="error"
+        )
         return f"Error loading menus: {str(e)}", 500
 
 @app.route('/api/next-menu')
@@ -955,10 +980,9 @@ def force_send():
             }), 400
             
         success = send_menu_email(
-            next_menu['period_start'],  # start_date
-            settings['recipient_emails'],  # recipient_list
-            next_menu['season'],
-            next_menu['menu_pair']
+            start_date=next_menu['period_start'],
+            recipient_list=settings['recipient_emails'],
+            season=next_menu['season']
         )
         
         message = "Test menu sent successfully!" if success else "Failed to send test menu"
