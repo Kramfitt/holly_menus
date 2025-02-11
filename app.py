@@ -642,28 +642,35 @@ def upload_menu():
         if not file or not menu_name:
             return "Missing required fields", 400
             
+        # Check file type
+        if not file.content_type in ['image/jpeg', 'image/png']:
+            return "Invalid file type. Please upload JPG or PNG images only", 400
+            
         # Create a temporary file
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             file.save(temp_file.name)
             
             # Upload to Supabase storage
-            file_name = secure_filename(f"{menu_name}_{datetime.now().strftime('%Y%m%d')}.pdf")
+            file_ext = 'jpg' if file.content_type == 'image/jpeg' else 'png'
+            file_name = secure_filename(f"{menu_name}_{datetime.now().strftime('%Y%m%d')}.{file_ext}")
+            file_path = f"menus/{file_name}"
+            
             with open(temp_file.name, 'rb') as f:
                 supabase.storage.from_('menus').upload(
-                    path=f"menus/{file_name}",
+                    path=file_path,
                     file=f,
-                    file_options={"content-type": "application/pdf"}
+                    file_options={"content-type": file.content_type}
                 )
             
             # Get the public URL
-            file_url = supabase.storage.from_('menus').get_public_url(f"menus/{file_name}")
+            file_url = supabase.storage.from_('menus').get_public_url(file_path)
             
             # Save to database
-            supabase.table('menus').insert({
+            supabase.table('menus').upsert({
                 'name': menu_name,
-                'file_path': f"menus/{file_name}",
-                'file_type': 'pdf',
-                'url': file_url
+                'file_path': file_path,
+                'url': file_url,
+                'uploaded_at': datetime.now().isoformat()
             }).execute()
             
         # Clean up temp file
@@ -794,35 +801,15 @@ def get_next_menu():
         if not settings:
             return jsonify({'error': 'Please configure menu settings first'})
             
-        # Calculate next send date (2 weeks from now)
-        next_date = datetime.now() + timedelta(days=14)
+        # Calculate next menu using worker logic
+        next_menu = calculate_next_menu()
         
-        # Calculate menu details
-        start_date = datetime.strptime(settings['start_date'], '%Y-%m-%d')
-        weeks_since_start = ((next_date - start_date).days // 7)
-        week_number = (weeks_since_start % 4) + 1
-        
-        # Calculate season for Southern Hemisphere
-        month = next_date.month
-        calculated_season = 'Summer' if month in [12, 1, 2] else 'Winter'
-        
-        # Use settings season as override if present and not set to 'auto'
-        season = calculated_season
-        if settings.get('season') and settings['season'] != 'auto':
-            season = settings['season'].title()
-        
-        # Calculate week numbers ensuring both are defined
-        if week_number % 2 == 1:
-            week_pair = f"Weeks {week_number} & {week_number + 1}"
-        else:
-            week_pair = f"Weeks {week_number - 1} & {week_number}"
-        
-        # Get menu names for the fortnight
+        # Get menu names for the period
         menu_names = []
-        if week_number <= 2:
-            menu_names = [f"{season}Week1", f"{season}Week2"]
+        if next_menu['menu_pair'] == "1_2":
+            menu_names = [f"{next_menu['season']}Week1", f"{next_menu['season']}Week2"]
         else:
-            menu_names = [f"{season}Week3", f"{season}Week4"]
+            menu_names = [f"{next_menu['season']}Week3", f"{next_menu['season']}Week4"]
             
         # Get menu URLs
         menus = []
@@ -839,10 +826,10 @@ def get_next_menu():
                 })
         
         return jsonify({
-            'send_date': next_date.strftime('%Y-%m-%d'),
-            'season': season,
-            'calculated_season': calculated_season,  # Added for reference
-            'week_numbers': week_pair,
+            'send_date': next_menu['send_date'].strftime('%Y-%m-%d'),
+            'period_start': next_menu['period_start'].strftime('%Y-%m-%d'),
+            'season': next_menu['season'].title(),
+            'menu_pair': next_menu['menu_pair'],
             'menus': menus
         })
         
@@ -958,7 +945,7 @@ def force_send():
             
         next_menu = calculate_next_menu()
         
-        # Get recipient emails from menu settings
+        # Get recipient emails from settings
         settings = get_menu_settings()
         if not settings.get('recipient_emails'):
             return jsonify({
@@ -966,7 +953,12 @@ def force_send():
                 'message': 'No recipient emails configured in settings'
             }), 400
             
-        success = send_menu_email(next_menu)
+        success = send_menu_email(
+            next_menu['period_start'],  # start_date
+            settings['recipient_emails'],  # recipient_list
+            next_menu['season'],
+            next_menu['menu_pair']
+        )
         
         message = "Test menu sent successfully!" if success else "Failed to send test menu"
         logger.log_activity(
@@ -1000,6 +992,34 @@ def get_menu_settings():
             status="error"
         )
         return None
+
+@app.route('/api/email-health', methods=['GET'])
+def check_email_health():
+    try:
+        # Check if email service is active
+        service_state = redis_client.get('service_state')
+        is_active = service_state == b'true'
+        
+        # Check SMTP settings exist
+        smtp_configured = all([
+            app.config.get('SMTP_SERVER'),
+            app.config.get('SMTP_PORT'),
+            app.config.get('SMTP_USERNAME'),
+            app.config.get('SMTP_PASSWORD')
+        ])
+        
+        return jsonify({
+            'status': 'healthy' if is_active and smtp_configured else 'inactive',
+            'details': {
+                'service_active': is_active,
+                'smtp_configured': smtp_configured
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
 
 if __name__ == '__main__':
     app.run(debug=True) 

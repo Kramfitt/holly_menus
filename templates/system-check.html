@@ -237,5 +237,35 @@ async function forceSendMenu() {
         console.error('Force send error:', error);
     }
 }
+
+async function checkEmailHealth() {
+    try {
+        const response = await fetch('/api/email-health');
+        const data = await response.json();
+        
+        const statusElement = document.getElementById('emailHealthStatus');
+        
+        if (data.status === 'healthy') {
+            statusElement.className = 'text-success';
+            statusElement.innerHTML = '<i class="fas fa-check-circle"></i> Healthy';
+        } else if (data.status === 'inactive') {
+            statusElement.className = 'text-warning';
+            statusElement.innerHTML = '<i class="fas fa-pause-circle"></i> Inactive';
+        } else {
+            statusElement.className = 'text-danger';
+            statusElement.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error';
+        }
+    } catch (error) {
+        const statusElement = document.getElementById('emailHealthStatus');
+        statusElement.className = 'text-danger';
+        statusElement.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error';
+    }
+}
+
+// Call health check immediately and every 5 seconds
+document.addEventListener('DOMContentLoaded', function() {
+    checkEmailHealth();
+    setInterval(checkEmailHealth, 5000);
+});
 </script>
 {% endblock %} 
