@@ -985,5 +985,21 @@ def force_send():
             'message': f"Error: {str(e)}"
         }), 500
 
+def get_menu_settings():
+    try:
+        settings_response = supabase.table('menu_settings')\
+            .select('*')\
+            .order('created_at', desc=True)\
+            .limit(1)\
+            .execute()
+        return settings_response.data[0] if settings_response.data else None
+    except Exception as e:
+        logger.log_activity(
+            action="Get Settings Failed",
+            details=str(e),
+            status="error"
+        )
+        return None
+
 if __name__ == '__main__':
     app.run(debug=True) 
