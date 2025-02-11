@@ -48,6 +48,9 @@ async function loadNextMenu() {
         const week2Start = new Date(week1Start);
         week2Start.setDate(week2Start.getDate() + 7);
         
+        // Get week numbers from data
+        const [week1Num, week2Num] = data.week_numbers.split(' & ').map(w => w.split(' ')[1]);
+        
         // Format date ranges
         function formatDateRange(startDate) {
             const endDate = new Date(startDate);
@@ -60,16 +63,20 @@ async function loadNextMenu() {
         // Update menu details
         document.getElementById('nextMenuDetails').innerHTML = `
             <div class="mt-2">
-                <strong>Send Date:</strong> ${new Date(data.send_date).toLocaleDateString('en-NZ', {
+                <strong>Send Date:</strong> ${sendDate.toLocaleDateString('en-NZ', {
                     day: '2-digit',
                     month: 'long',
                     year: 'numeric'
                 })}<br>
-                <strong>Season:</strong> ${data.season}<br>
+                <strong>Season:</strong> ${data.season}
+                ${data.season !== data.calculated_season ? 
+                    `<small class="text-muted">(Overriding automatic ${data.calculated_season})</small>` 
+                    : `<small class="text-muted">(Automatic)</small>`
+                }<br>
                 <strong>Menu Period:</strong>
                 <div class="ms-3 mt-2">
-                    <strong>Week ${data.week_numbers.split(' & ')[0].split(' ')[1]}:</strong> ${formatDateRange(week1Start)}<br>
-                    <strong>Week ${data.week_numbers.split(' & ')[1].split(' ')[1]}:</strong> ${formatDateRange(week2Start)}
+                    <strong>Week ${week1Num}:</strong> ${formatDateRange(week1Start)}<br>
+                    <strong>Week ${week2Num}:</strong> ${formatDateRange(week2Start)}
                 </div>
             </div>
         `;

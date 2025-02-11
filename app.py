@@ -734,7 +734,6 @@ def menu_management():
 @app.route('/api/next-menu')
 def get_next_menu():
     try:
-        # Get settings
         settings_response = supabase.table('menu_settings')\
             .select('*')\
             .order('created_at', desc=True)\
@@ -744,9 +743,7 @@ def get_next_menu():
         settings = settings_response.data[0] if settings_response.data else None
         
         if not settings:
-            return jsonify({
-                'error': 'Please configure menu settings first'
-            })
+            return jsonify({'error': 'Please configure menu settings first'})
             
         # Calculate next send date (2 weeks from now)
         next_date = datetime.now() + timedelta(days=14)
@@ -758,20 +755,20 @@ def get_next_menu():
         
         # Calculate season for Southern Hemisphere
         month = next_date.month
-        if month in [12, 1, 2]:
-            season = 'Summer'
-        elif month in [3, 4, 5]:
-            season = 'Autumn'
-        elif month in [6, 7, 8]:
-            season = 'Winter'
-        else:  # months 9, 10, 11
-            season = 'Spring'
-            
-        # For now, we'll combine Autumn/Spring into the nearest major season
-        if season in ['Autumn', 'Spring']:
-            season = 'Winter' if month in [3, 4, 5] else 'Summer'
+        calculated_season = 'Summer' if month in [12, 1, 2] else 'Winter'
         
-        # Get both menus for the fortnight
+        # Use settings season as override if present and not set to 'auto'
+        season = calculated_season
+        if settings.get('season') and settings['season'] != 'auto':
+            season = settings['season'].title()
+        
+        # Calculate week numbers ensuring both are defined
+        if week_number % 2 == 1:
+            week_pair = f"Weeks {week_number} & {week_number + 1}"
+        else:
+            week_pair = f"Weeks {week_number - 1} & {week_number}"
+        
+        # Get menu names for the fortnight
         menu_names = []
         if week_number <= 2:
             menu_names = [f"{season}Week1", f"{season}Week2"]
@@ -795,7 +792,8 @@ def get_next_menu():
         return jsonify({
             'send_date': next_date.strftime('%Y-%m-%d'),
             'season': season,
-            'week_numbers': f"Weeks {week_number} & {week_number + 1}" if week_number % 2 == 1 else f"Weeks {week_number - 1} & {week_number}",
+            'calculated_season': calculated_season,  # Added for reference
+            'week_numbers': week_pair,
             'menus': menus
         })
         
