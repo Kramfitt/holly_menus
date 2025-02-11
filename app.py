@@ -22,6 +22,7 @@ from utils.logger import ActivityLogger
 from utils.notifications import NotificationManager
 from utils.backup import BackupManager
 from worker import calculate_next_menu  # Import the function
+import tempfile
 
 # Load environment variables
 load_dotenv()
@@ -44,6 +45,10 @@ app.config.update(
 # Near the top with other configs
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
 redis_client = redis.from_url(redis_url)
+
+# Ensure initial state exists
+if redis_client.get('service_state') is None:
+    redis_client.set('service_state', 'false')
 
 # Initialize Supabase client
 supabase = create_client(
@@ -625,33 +630,55 @@ def health_check():
 def upload_menu():
     try:
         if 'file' not in request.files:
-            return 'No file uploaded', 400
+            return "No file provided", 400
             
         file = request.files['file']
-        name = request.form.get('name')
+        menu_name = request.form.get('name')
         
-        if not file or not name:
-            return 'Missing file or name', 400
+        if not file or not menu_name:
+            return "Missing required fields", 400
             
-        # Upload to Supabase Storage
-        file_path = f"menus/{name}"
-        supabase.storage.from_('menus').upload(file_path, file)
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            file.save(temp_file.name)
+            
+            # Upload to Supabase storage
+            file_name = secure_filename(f"{menu_name}_{datetime.now().strftime('%Y%m%d')}.pdf")
+            with open(temp_file.name, 'rb') as f:
+                supabase.storage.from_('menus').upload(
+                    path=f"menus/{file_name}",
+                    file=f,
+                    file_options={"content-type": "application/pdf"}
+                )
+            
+            # Get the public URL
+            file_url = supabase.storage.from_('menus').get_public_url(f"menus/{file_name}")
+            
+            # Save to database
+            supabase.table('menus').insert({
+                'name': menu_name,
+                'file_path': f"menus/{file_name}",
+                'file_type': 'pdf',
+                'url': file_url
+            }).execute()
+            
+        # Clean up temp file
+        os.unlink(temp_file.name)
         
-        # Get public URL
-        file_url = supabase.storage.from_('menus').get_public_url(file_path)
+        logger.log_activity(
+            action="Menu Uploaded",
+            details=f"Uploaded menu: {menu_name}",
+            status="success"
+        )
         
-        # Save to database
-        menu_data = {
-            'name': name,
-            'file_url': file_url,
-            'file_type': file.filename.split('.')[-1]
-        }
-        
-        response = supabase.table('menus').insert(menu_data).execute()
-        
-        return jsonify(response.data[0])
+        return jsonify({'success': True, 'url': file_url})
         
     except Exception as e:
+        logger.log_activity(
+            action="Menu Upload Failed",
+            details=str(e),
+            status="error"
+        )
         return str(e), 500
 
 @app.route('/api/menus/<menu_name>', methods=['DELETE'])
@@ -851,8 +878,8 @@ def toggle_email():
         current_state = redis_client.get('service_state')
         new_state = b'false' if current_state == b'true' else b'true'
         
-        # Update Redis
-        redis_client.set('service_state', new_state)
+        # Update Redis with string value
+        redis_client.set('service_state', new_state.decode())
         
         # Log the change
         logger.log_activity(

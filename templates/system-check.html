@@ -109,39 +109,35 @@ async function sendTestEmail(event) {
     }
 }
 
-// Add these functions to your existing script
-async function loadEmailStatus() {
+async function updateEmailStatus() {
     try {
         const response = await fetch('/api/email-status');
         const data = await response.json();
         
-        const btn = document.getElementById('toggleEmailBtn');
         const statusDiv = document.getElementById('emailStatus');
+        const toggleBtn = document.getElementById('toggleEmailBtn');
         
         if (data.active) {
-            btn.className = 'btn btn-lg btn-danger';
-            btn.innerHTML = '<i class="fas fa-stop-circle"></i> Stop Email Service';
             statusDiv.innerHTML = `
                 <div class="alert alert-success">
-                    <i class="fas fa-check-circle"></i> Email service is active and will send menus automatically
-                </div>
-            `;
+                    <i class="fas fa-check-circle"></i> Email service is active
+                </div>`;
+            toggleBtn.className = 'btn btn-lg btn-danger';
+            toggleBtn.innerHTML = '<i class="fas fa-pause"></i> Pause Service';
         } else {
-            btn.className = 'btn btn-lg btn-success';
-            btn.innerHTML = '<i class="fas fa-play-circle"></i> Start Email Service';
             statusDiv.innerHTML = `
-                <div class="alert alert-warning">
+                <div class="alert alert-secondary">
                     <i class="fas fa-pause-circle"></i> Email service is paused
-                </div>
-            `;
+                </div>`;
+            toggleBtn.className = 'btn btn-lg btn-success';
+            toggleBtn.innerHTML = '<i class="fas fa-play"></i> Start Service';
         }
     } catch (error) {
-        console.error('Error loading email status:', error);
+        console.error('Error:', error);
         document.getElementById('emailStatus').innerHTML = `
             <div class="alert alert-danger">
-                <i class="fas fa-exclamation-circle"></i> Error loading email status
-            </div>
-        `;
+                <i class="fas fa-exclamation-circle"></i> Error checking email status
+            </div>`;
     }
 }
 
@@ -163,7 +159,7 @@ async function toggleEmailService() {
         }
         
         // Reload status after toggle
-        await loadEmailStatus();
+        await updateEmailStatus();
     } catch (error) {
         console.error('Error toggling email service:', error);
         document.getElementById('emailStatus').innerHTML = `
@@ -176,9 +172,8 @@ async function toggleEmailService() {
     }
 }
 
-// Add this to your existing document.ready function
-document.addEventListener('DOMContentLoaded', function() {
-    loadEmailStatus();
-});
+// Call immediately and set up interval
+updateEmailStatus();
+setInterval(updateEmailStatus, 5000); // Update every 5 seconds
 </script>
 {% endblock %} 

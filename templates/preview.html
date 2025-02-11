@@ -41,9 +41,10 @@ async function loadNextMenu() {
             throw new Error(data.error);
         }
         
-        // Parse dates properly
+        // Parse dates properly ensuring they're valid
         const sendDate = new Date(data.send_date);
-        const periodStart = new Date(data.period_start);
+        const periodStart = new Date(data.send_date);
+        periodStart.setDate(sendDate.getDate() + 14); // Period starts 2 weeks after send date
         
         // First week is the period start date
         const week1Start = new Date(periodStart);
