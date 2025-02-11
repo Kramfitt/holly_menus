@@ -7,13 +7,12 @@ from email.mime.multipart import MIMEMultipart
 import smtplib
 import time
 import redis
-from supabase import create_client, Client
+from supabase import create_client
+from app import app
 import logging
 from email.mime.application import MIMEApplication
 from utils.logger import ActivityLogger
 from utils.notifications import NotificationManager
-from postgrest.constants import desc
-from utils.supabase_client import get_supabase_client
 
 # Force load from .env file
 load_dotenv(override=True)
@@ -132,10 +131,9 @@ def send_email():
 
 def get_menu_settings():
     """Get latest menu settings from database"""
-    supabase = get_supabase_client()
     settings_response = supabase.table('menu_settings')\
         .select('*')\
-        .order('created_at', desc=False)\
+        .order('created_at', ascending=False)\
         .limit(1)\
         .execute()
         
