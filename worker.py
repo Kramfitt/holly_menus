@@ -137,7 +137,7 @@ def get_menu_settings():
     """Get latest menu settings from database"""
     settings_response = supabase.table('menu_settings')\
         .select('*')\
-        .order('created_at', ascending=False)\
+        .order('created_at', desc=True)\
         .limit(1)\
         .execute()
         
