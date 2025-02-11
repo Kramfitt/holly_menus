@@ -9,8 +9,11 @@
                 <a href="/" class="btn btn-outline-primary active">
                     <i class="fas fa-home"></i> Dashboard
                 </a>
+                <a href="/menus" class="btn btn-outline-primary">
+                    <i class="fas fa-eye"></i> Settings
+                </a>
                 <a href="/preview" class="btn btn-outline-primary">
-                    <i class="fas fa-eye"></i> Menu Preview & Send
+                    <i class="fas fa-eye"></i> Preview
                 </a>
                 <a href="/system-check" class="btn btn-outline-primary">
                     <i class="fas fa-cog"></i> System Status
@@ -247,7 +250,7 @@
                                         {% if settings.season == 'auto' %}
                                             Automatic (Currently {{ calculated_season }})
                                         {% else %}
-                                            {{ settings.season|title }} (Manual Override)
+                                            {{ settings.season|title }}
                                         {% endif %}
                                     {% else %}
                                         Automatic

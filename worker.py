@@ -167,13 +167,12 @@ def calculate_next_menu():
     periods_elapsed = weeks_since_start // 2
     next_period_start = start_date + timedelta(days=periods_elapsed * 14)
     
-    # Calculate send date
-    send_date = next_period_start - timedelta(days=settings['days_in_advance'])
-    
-    # If we're past the send date, move to next period
-    if today > send_date:
+    # If we're past this period, move to next one
+    if today >= next_period_start:
         next_period_start += timedelta(days=14)
-        send_date += timedelta(days=14)
+    
+    # Calculate send date backwards from period start
+    send_date = next_period_start - timedelta(days=settings['days_in_advance'])
     
     # Determine menu pair (1&2 or 3&4)
     is_odd_period = (periods_elapsed % 2) == 0
@@ -184,7 +183,6 @@ def calculate_next_menu():
     if settings['season_change_date']:
         change_date = datetime.strptime(settings['season_change_date'], '%Y-%m-%d').date()
         if today >= change_date:
-            # Toggle season
             season = 'winter' if season == 'summer' else 'summer'
             
             # Update settings with new season

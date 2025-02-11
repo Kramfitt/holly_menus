@@ -854,8 +854,56 @@ def toggle_email():
         # Update Redis
         redis_client.set('service_state', new_state)
         
+        # Log the change
+        logger.log_activity(
+            action="Email Service Toggled",
+            details=f"Email service {'activated' if new_state == b'true' else 'deactivated'}",
+            status="success"
+        )
+        
         return jsonify({'active': new_state == b'true'})
     except Exception as e:
+        logger.log_activity(
+            action="Email Service Toggle Failed",
+            details=str(e),
+            status="error"
+        )
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/test-email', methods=['POST'])
+def send_test_email():
+    try:
+        email = request.json.get('email')
+        if not email:
+            return jsonify({'error': 'Email address required'}), 400
+            
+        # Send test email
+        msg = MIMEMultipart()
+        msg['From'] = f"Holly Lea Menus <{os.getenv('SMTP_USERNAME')}>"
+        msg['To'] = email
+        msg['Subject'] = "Test Email from Holly Lea Menu System"
+        
+        body = "This is a test email from the Holly Lea Menu System."
+        msg.attach(MIMEText(body, 'plain'))
+        
+        with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
+            server.starttls()
+            server.login(os.getenv('SMTP_USERNAME'), os.getenv('SMTP_PASSWORD'))
+            server.send_message(msg)
+        
+        logger.log_activity(
+            action="Test Email Sent",
+            details=f"Test email sent to {email}",
+            status="success"
+        )
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.log_activity(
+            action="Test Email Failed",
+            details=str(e),
+            status="error"
+        )
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
