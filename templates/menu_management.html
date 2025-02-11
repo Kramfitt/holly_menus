@@ -92,60 +92,72 @@
             </form>
 
             <!-- Menu List -->
-            <h6>Current Menus</h6>
-            <div class="table-responsive">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Preview</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="menuList">
-                        {% for menu in menus %}
-                        <tr>
-                            <td>{{ menu.name }}</td>
-                            <td>
-                                <img src="{{ menu.file_url }}" 
-                                     style="max-height: 50px; cursor: pointer;"
-                                     onclick="showMenuPreview('{{ menu.file_url }}')"
-                                     alt="{{ menu.name }}">
-                            </td>
-                            <td>
-                                <button class="btn btn-danger btn-sm" 
-                                        onclick="deleteMenu('{{ menu.id }}', '{{ menu.name }}')">
-                                    <i class="fas fa-trash"></i> Delete
-                                </button>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div id="menuListView">
+                <h6>Current Menus</h6>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="menuList">
+                            {% for menu in menus %}
+                            <tr>
+                                <td>{{ menu.name }}</td>
+                                <td>
+                                    <button class="btn btn-info btn-sm me-2" 
+                                            onclick="showMenu('{{ menu.file_url }}', '{{ menu.name }}')">
+                                        <i class="fas fa-eye"></i> View
+                                    </button>
+                                    <button class="btn btn-danger btn-sm" 
+                                            onclick="deleteMenu('{{ menu.id }}', '{{ menu.name }}')">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Add this new menu preview view -->
+            <div id="menuPreviewView" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 id="previewTitle">Menu Preview</h6>
+                    <button class="btn btn-secondary" onclick="showMenuList()">
+                        <i class="fas fa-arrow-left"></i> Back to Menu List
+                    </button>
+                </div>
+                <div class="bg-light p-3 rounded">
+                    <img id="menuPreviewImage" src="" 
+                         style="width: 100%; height: auto; object-fit: contain;" 
+                         alt="Menu Preview">
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Preview Modal -->
-<div class="modal fade" id="previewModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Menu Preview</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <img id="modalPreview" src="" style="width: 100%;" alt="Menu Preview">
-            </div>
-        </div>
-    </div>
-</div>
-
-{% endblock %}
-
-{% block scripts %}
+<!-- Update the JavaScript -->
 <script>
+function showMenu(url, name) {
+    document.getElementById('menuListView').style.display = 'none';
+    document.getElementById('menuPreviewView').style.display = 'block';
+    document.getElementById('previewTitle').textContent = `Viewing: ${name}`;
+    document.getElementById('menuPreviewImage').src = url;
+    
+    // Scroll to the preview
+    document.getElementById('menuPreviewView').scrollIntoView({ behavior: 'smooth' });
+}
+
+function showMenuList() {
+    document.getElementById('menuPreviewView').style.display = 'none';
+    document.getElementById('menuListView').style.display = 'block';
+}
+
 // Settings form submission
 document.getElementById('settingsForm').addEventListener('submit', async function(e) {
     e.preventDefault();
@@ -178,6 +190,6 @@ document.getElementById('settingsForm').addEventListener('submit', async functio
     }
 });
 
-// Your existing upload/delete/preview JavaScript
+// Your existing upload/delete functions remain the same
 </script>
 {% endblock %} 
