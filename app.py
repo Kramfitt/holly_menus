@@ -595,43 +595,103 @@ def health_check():
 @login_required
 def upload_menu():
     try:
+        print("Starting file upload...")  # Debug log
+        
         if 'file' not in request.files:
+            logger.log_activity(
+                action="Menu Upload Failed",
+                details="No file provided in request",
+                status="error"
+            )
             return "No file provided", 400
             
         file = request.files['file']
         menu_name = request.form.get('name')
         
+        print(f"Received file upload request for menu: {menu_name}")  # Debug log
+        
         if not file or not menu_name:
+            logger.log_activity(
+                action="Menu Upload Failed",
+                details="Missing file or menu name",
+                status="error"
+            )
             return "Missing required fields", 400
             
         # Read the file into bytes
-        file_bytes = file.stream.read()
-        file_extension = file.filename.split('.')[-1].lower()
+        try:
+            file_bytes = file.stream.read()
+            file_extension = file.filename.split('.')[-1].lower()
+            print(f"File read successfully, size: {len(file_bytes)} bytes")  # Debug log
+        except Exception as e:
+            logger.log_activity(
+                action="Menu Upload Failed",
+                details=f"Error reading file: {str(e)}",
+                status="error"
+            )
+            return f"Error reading file: {str(e)}", 500
         
-        # Handle existing menu
-        existing = supabase.table('menus').select('*').eq('name', menu_name).execute()
-        if existing.data:
-            # Delete old file if it exists
-            supabase.storage.from_('menus').remove([existing.data[0]['file_path']])
-            supabase.table('menus').delete().eq('name', menu_name).execute()
+        try:
+            # Handle existing menu
+            print("Checking for existing menu...")  # Debug log
+            existing = supabase.table('menus').select('*').eq('name', menu_name).execute()
+            if existing.data:
+                print(f"Found existing menu: {existing.data[0]}")  # Debug log
+                # Delete old file if it exists
+                supabase.storage.from_('menus').remove([existing.data[0]['file_path']])
+                supabase.table('menus').delete().eq('name', menu_name).execute()
+        except Exception as e:
+            logger.log_activity(
+                action="Menu Upload Failed",
+                details=f"Error handling existing menu: {str(e)}",
+                status="error"
+            )
+            return f"Error handling existing menu: {str(e)}", 500
         
-        # Generate unique filename
-        timestamp = int(datetime.now().timestamp())
-        file_path = f"menus/{menu_name}_{timestamp}.{file_extension}"
+        try:
+            # Generate unique filename
+            timestamp = int(datetime.now().timestamp())
+            file_path = f"menus/{menu_name}_{timestamp}.{file_extension}"
+            print(f"Generated file path: {file_path}")  # Debug log
+            
+            # Upload new file
+            print("Uploading file to storage...")  # Debug log
+            upload_response = supabase.storage.from_('menus').upload(
+                path=file_path,
+                file=file_bytes,
+                file_options={"content-type": file.content_type}
+            )
+            print(f"Storage upload response: {upload_response}")  # Debug log
+        except Exception as e:
+            logger.log_activity(
+                action="Menu Upload Failed",
+                details=f"Error uploading to storage: {str(e)}",
+                status="error"
+            )
+            return f"Error uploading to storage: {str(e)}", 500
         
-        # Upload new file
-        supabase.storage.from_('menus').upload(
-            path=file_path,
-            file=file_bytes,
-            file_options={"content-type": file.content_type}
-        )
-        
-        # Create database record
-        supabase.table('menus').insert({
-            'name': menu_name,
-            'file_path': file_path,
-            'uploaded_at': datetime.now().isoformat()
-        }).execute()
+        try:
+            # Create database record
+            print("Creating database record...")  # Debug log
+            db_response = supabase.table('menus').insert({
+                'name': menu_name,
+                'file_path': file_path,
+                'uploaded_at': datetime.now().isoformat()
+            }).execute()
+            print(f"Database insert response: {db_response}")  # Debug log
+        except Exception as e:
+            # If database insert fails, try to clean up the uploaded file
+            try:
+                supabase.storage.from_('menus').remove([file_path])
+            except:
+                pass
+            
+            logger.log_activity(
+                action="Menu Upload Failed",
+                details=f"Error creating database record: {str(e)}",
+                status="error"
+            )
+            return f"Error creating database record: {str(e)}", 500
         
         logger.log_activity(
             action="Menu Uploaded",
@@ -644,9 +704,10 @@ def upload_menu():
     except Exception as e:
         logger.log_activity(
             action="Menu Upload Failed",
-            details=str(e),
+            details=f"Unexpected error: {str(e)}",
             status="error"
         )
+        print(f"❌ Upload error: {str(e)}")  # Debug print
         return str(e), 500
 
 @app.route('/api/menus/<menu_name>', methods=['DELETE'])
@@ -1016,10 +1077,10 @@ def check_email_health():
 @app.route('/api/clear-activity-log', methods=['POST'])
 def clear_activity_log():
     try:
-        # Delete ALL entries from activity_log table using a true condition
+        # Delete ALL entries from activity_log table
         supabase.table('activity_log')\
             .delete()\
-            .not_('id', 'is', None)\
+            .is_('id', 'not.null')\
             .execute()
             
         logger.log_activity(
