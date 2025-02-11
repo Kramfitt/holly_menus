@@ -21,7 +21,8 @@ from email.mime.image import MIMEImage
 from utils.logger import ActivityLogger
 from utils.notifications import NotificationManager
 from utils.backup import BackupManager
-from worker import calculate_next_menu  # Import the function
+from worker import calculate_next_menu
+from utils.supabase_client import get_supabase_client
 import tempfile
 
 # Load environment variables
@@ -979,6 +980,7 @@ def force_send():
 
 def get_menu_settings():
     try:
+        supabase = get_supabase_client()  # Get client instance
         settings_response = supabase.table('menu_settings')\
             .select('*')\
             .order('created_at', desc=True)\

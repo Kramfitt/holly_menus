@@ -12,6 +12,8 @@ import logging
 from email.mime.application import MIMEApplication
 from utils.logger import ActivityLogger
 from utils.notifications import NotificationManager
+from postgrest.constants import desc
+from utils.supabase_client import get_supabase_client
 
 # Force load from .env file
 load_dotenv(override=True)
@@ -24,6 +26,12 @@ redis_client = redis.from_url(redis_url)
 if redis_client.get('service_state') is None:
     print("📝 Setting initial Redis state to: false")
     redis_client.set('service_state', 'false')  # Start paused
+
+# Instead, get SMTP settings directly from env:
+SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
+SMTP_USERNAME = os.getenv('SMTP_USERNAME', '')
+SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
 
 def should_send_emails():
     """Check if email service is active"""
@@ -46,15 +54,11 @@ def send_email():
     """Send email using settings from .env"""
     print(f"🔄 Worker PID {os.getpid()} attempting to send email")
     # Get settings
-    smtp_server = os.getenv('SMTP_SERVER')
-    smtp_port = int(os.getenv('SMTP_PORT'))
-    username = os.getenv('SMTP_USERNAME')
-    password = os.getenv('SMTP_PASSWORD')
     recipients = os.getenv('RECIPIENT_EMAILS').split(',')
     
     # Create message
     msg = MIMEMultipart()
-    msg['From'] = username
+    msg['From'] = SMTP_USERNAME
     msg['To'] = ', '.join(recipients)
     msg['Subject'] = "Menu Service Test"
     
@@ -115,9 +119,9 @@ def send_email():
     
     # Send email
     try:
-        server = smtplib.SMTP(smtp_server, smtp_port)
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
         server.starttls()
-        server.login(username, password)
+        server.login(SMTP_USERNAME, SMTP_PASSWORD)
         server.send_message(msg)
         server.quit()
         print(f"✉️  Email sent successfully at {datetime.now()}")
@@ -126,26 +130,16 @@ def send_email():
         print(f"❌ Failed to send email: {str(e)}")
         return False
 
-def get_supabase_client():
-    """Initialize Supabase client"""
-    return create_client(
-        os.getenv("SUPABASE_URL", ''),
-        os.getenv("SUPABASE_KEY", '')
-    )
-
 def get_menu_settings():
-    """Get latest settings from Supabase"""
+    """Get latest menu settings from database"""
     supabase = get_supabase_client()
-    response = supabase.table('menu_settings')\
+    settings_response = supabase.table('menu_settings')\
         .select('*')\
         .order('created_at', desc=True)\
         .limit(1)\
         .execute()
         
-    if not response.data:
-        raise Exception("No menu settings found")
-    
-    return response.data[0]
+    return settings_response.data[0] if settings_response.data else None
 
 def get_menu_template(season, menu_pair):
     """Get the correct menu template from Supabase"""
@@ -211,6 +205,7 @@ notifications = NotificationManager()
 def send_menu_email(start_date, recipient_list, season, menu_pair):
     """Send menu email to recipients"""
     try:
+        supabase = get_supabase_client()
         # Get menu templates
         menu_response = supabase.table('menus')\
             .select('*')\
@@ -222,7 +217,7 @@ def send_menu_email(start_date, recipient_list, season, menu_pair):
             
         # Format email content
         msg = MIMEMultipart()
-        msg['From'] = app.config['SMTP_USERNAME']
+        msg['From'] = SMTP_USERNAME
         msg['Subject'] = f"Menu for period starting {start_date.strftime('%d %B %Y')}"
         
         # Use recipient list from settings
@@ -257,11 +252,11 @@ def send_menu_email(start_date, recipient_list, season, menu_pair):
             msg.attach(attachment)
         
         # Send email
-        with smtplib.SMTP(app.config['SMTP_SERVER'], app.config['SMTP_PORT']) as server:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
             server.login(
-                app.config['SMTP_USERNAME'],
-                app.config['SMTP_PASSWORD']
+                SMTP_USERNAME,
+                SMTP_PASSWORD
             )
             server.send_message(msg)
             
@@ -285,6 +280,7 @@ def send_menu_email(start_date, recipient_list, season, menu_pair):
 def check_and_send():
     """Main worker function"""
     try:
+        supabase = get_supabase_client()
         next_menu = calculate_next_menu()
         today = datetime.now().date()
         
@@ -324,7 +320,7 @@ def main():
     print(f"📁 Environment check:")
     print(f"- STATE_FILE: {os.getenv('STATE_FILE')}")
     print(f"- Working dir: {os.getcwd()}")
-    print(f"📧 Using email: {os.getenv('SMTP_USERNAME')}")
+    print(f"📧 Using email: {SMTP_USERNAME}")
     print(f"👥 Sending to: {os.getenv('RECIPIENT_EMAILS')}")
     print(f"📁 State file path: {os.getenv('STATE_FILE', 'service_state.txt')}")
     
