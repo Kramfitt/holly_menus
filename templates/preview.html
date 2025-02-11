@@ -2,6 +2,24 @@
 
 {% block content %}
 <div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <div class="d-flex gap-3">
+                <a href="/" class="btn btn-outline-primary active">
+                    <i class="fas fa-home"></i> Dashboard
+                </a>
+                <a href="/menus" class="btn btn-outline-primary">
+                    <i class="fas fa-eye"></i> Settings
+                </a>
+                <a href="/preview" class="btn btn-outline-primary">
+                    <i class="fas fa-eye"></i> Preview
+                </a>
+                <a href="/system-check" class="btn btn-outline-primary">
+                    <i class="fas fa-cog"></i> System Status
+                </a>
+            </div>
+        </div>
+    </div>
     <h2>Next Menu Preview</h2>
     
     <!-- Next Menu Details -->
@@ -41,14 +59,12 @@ async function loadNextMenu() {
             throw new Error(data.error);
         }
         
-        // Parse dates properly ensuring they're valid
+        // Parse dates properly
         const sendDate = new Date(data.send_date);
-        const periodStart = new Date(data.send_date);
-        periodStart.setDate(sendDate.getDate() + 14); // Period starts 2 weeks after send date
+        const periodStart = new Date(data.period_start);  // Use the period_start directly from API
         
-        // First week is the period start date
+        // Calculate week dates based on period start
         const week1Start = new Date(periodStart);
-        // Second week starts 7 days after first week
         const week2Start = new Date(periodStart);
         week2Start.setDate(periodStart.getDate() + 7);
         
