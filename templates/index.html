@@ -33,9 +33,9 @@
                             <i class="fas fa-calendar-alt me-2"></i>Next Menu
                         </h5>
                         <p class="card-text">
-                            {% if next_menu %}
-                                {{ next_menu.season|title }} Weeks 
-                                {% if next_menu.menu_pair == "1_2" %}1 & 2{% else %}3 & 4{% endif %}
+                            {% if settings %}
+                                {{ settings.season|title }} Weeks 
+                                {% if next_menu and next_menu.menu_pair == "1_2" %}1 & 2{% else %}3 & 4{% endif %}
                             {% else %}
                                 No menu scheduled
                             {% endif %}

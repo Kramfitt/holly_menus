@@ -29,8 +29,14 @@ def should_send_emails():
     """Check if email service is active"""
     try:
         state = redis_client.get('service_state')
+        debug = redis_client.get('debug_mode')
+        
         is_active = state == b'true' if state else False
-        print(f"⚡ Service state: {'ACTIVE' if is_active else 'PAUSED'}")
+        is_debug = debug == b'true' if debug else False
+        
+        if is_debug:
+            print("🔧 Running in DEBUG mode")
+            
         return is_active
     except Exception as e:
         print(f"❌ Redis error: {str(e)}")
@@ -307,6 +313,16 @@ def check_and_send():
     try:
         next_menu = calculate_next_menu()
         today = datetime.now().date()
+        
+        # TEMPORARY TEST CODE - Remove after testing
+        print("🧪 TEST MODE: Forcing menu send...")
+        success = send_menu_email(next_menu)
+        if success:
+            print("✅ Test menu sent successfully!")
+        else:
+            print("❌ Test menu send failed!")
+        return
+        # END TEST CODE
         
         if today == next_menu['send_date']:
             logger.log_activity(

@@ -50,6 +50,10 @@ redis_client = redis.from_url(redis_url)
 if redis_client.get('service_state') is None:
     redis_client.set('service_state', 'false')
 
+# Add near top with other Redis initialization
+if redis_client.get('debug_mode') is None:
+    redis_client.set('debug_mode', 'false')
+
 # Initialize Supabase client
 supabase = create_client(
     supabase_url=os.getenv('SUPABASE_URL'),
@@ -876,19 +880,22 @@ def toggle_email():
     try:
         # Get current state from Redis
         current_state = redis_client.get('service_state')
-        new_state = b'false' if current_state == b'true' else b'true'
+        current_state = current_state.decode() if current_state else 'false'
+        
+        # Toggle state
+        new_state = 'false' if current_state == 'true' else 'true'
         
         # Update Redis with string value
-        redis_client.set('service_state', new_state.decode())
+        redis_client.set('service_state', new_state)
         
         # Log the change
         logger.log_activity(
             action="Email Service Toggled",
-            details=f"Email service {'activated' if new_state == b'true' else 'deactivated'}",
+            details=f"Email service {'activated' if new_state == 'true' else 'deactivated'}",
             status="success"
         )
         
-        return jsonify({'active': new_state == b'true'})
+        return jsonify({'active': new_state == 'true'})
     except Exception as e:
         logger.log_activity(
             action="Email Service Toggle Failed",
@@ -932,6 +939,48 @@ def send_test_email():
             status="error"
         )
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/debug-mode', methods=['POST'])
+def toggle_debug_mode():
+    try:
+        data = request.json
+        redis_client.set('debug_mode', str(data['active']).lower())
+        
+        logger.log_activity(
+            action="Debug Mode Toggled",
+            details=f"Debug mode {'activated' if data['active'] else 'deactivated'}",
+            status="debug"
+        )
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/force-send', methods=['POST'])
+def force_send():
+    try:
+        if redis_client.get('debug_mode') != b'true':
+            return jsonify({'success': False, 'message': 'Debug mode not active'}), 400
+            
+        next_menu = calculate_next_menu()
+        success = send_menu_email(next_menu)
+        
+        message = "Test menu sent successfully!" if success else "Failed to send test menu"
+        logger.log_activity(
+            action="Force Send Menu",
+            details=message,
+            status="debug"
+        )
+        
+        return jsonify({
+            'success': success,
+            'message': message
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f"Error: {str(e)}"
+        }), 500
 
 if __name__ == '__main__':
     app.run(debug=True) 
