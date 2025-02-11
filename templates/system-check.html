@@ -112,7 +112,70 @@
                     </ul>
                 </div>
             </div>
+
+            <!-- Add this card -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0">Email Testing</h4>
+                </div>
+                <div class="card-body">
+                    <form id="testEmailForm">
+                        <div class="mb-3">
+                            <label for="testEmail" class="form-label">Test Email Address</label>
+                            <input type="email" class="form-control" id="testEmail" required
+                                   placeholder="Enter email address for test">
+                        </div>
+                        <button type="submit" class="btn btn-info">
+                            <i class="fas fa-paper-plane"></i> Send Test Email
+                        </button>
+                    </form>
+                    <div id="emailStatus" class="mt-3" style="display: none;"></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+document.getElementById('testEmailForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('testEmail').value;
+    const statusDiv = document.getElementById('emailStatus');
+    
+    try {
+        statusDiv.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-spinner fa-spin"></i> Sending test email...
+            </div>
+        `;
+        statusDiv.style.display = 'block';
+        
+        const response = await fetch('/api/test-email', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email: email })
+        });
+        
+        if (response.ok) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i> Test email sent successfully!
+                </div>
+            `;
+        } else {
+            const error = await response.text();
+            throw new Error(error);
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle"></i> Failed to send test email: ${error}
+            </div>
+        `;
+    }
+});
+</script>
 {% endblock %} 

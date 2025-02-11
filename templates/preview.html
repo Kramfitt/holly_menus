@@ -51,7 +51,11 @@ async function loadNextMenu() {
         // Update menu details
         document.getElementById('nextMenuDetails').innerHTML = `
             <div class="mt-2">
-                <strong>Send Date:</strong> ${new Date(data.send_date).toLocaleDateString()}<br>
+                <strong>Send Date:</strong> ${new Date(data.send_date).toLocaleDateString('en-NZ', {
+                    day: '2-digit',
+                    month: 'long',
+                    year: 'numeric'
+                })}<br>
                 <strong>Menu Week:</strong> ${data.season} Week ${data.week_number}<br>
                 <strong>Menu Pair:</strong> ${data.menu_pair}
             </div>

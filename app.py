@@ -539,43 +539,18 @@ def api_send_menu():
         return f"Failed to send menu: {str(e)}", 500
 
 @app.route('/api/settings', methods=['POST'])
-def save_settings():
+def update_settings():
     try:
-        data = request.json
-        print("Incoming settings data:", data)  # Debug log
+        settings = request.json
         
-        # Handle empty dates
-        if 'summer_start' in data:
-            if not data['summer_start']:
-                data['summer_start'] = None
-            else:
-                try:
-                    if isinstance(data['summer_start'], str):
-                        if 'T' in data['summer_start']:
-                            data['summer_start'] = data['summer_start'].split('T')[0]
-                        date_obj = datetime.strptime(data['summer_start'], '%Y-%m-%d')
-                        data['summer_start'] = date_obj.isoformat()
-                except Exception as e:
-                    print(f"Error parsing summer_start: {e}")
-                    data['summer_start'] = None
-                    
-        if 'winter_start' in data:
-            if not data['winter_start']:
-                data['winter_start'] = None
-            else:
-                try:
-                    if isinstance(data['winter_start'], str):
-                        if 'T' in data['winter_start']:
-                            data['winter_start'] = data['winter_start'].split('T')[0]
-                        date_obj = datetime.strptime(data['winter_start'], '%Y-%m-%d')
-                        data['winter_start'] = date_obj.isoformat()
-                except Exception as e:
-                    print(f"Error parsing winter_start: {e}")
-                    data['winter_start'] = None
-            
-        print("Processed settings data:", data)  # Debug log
-            
-        response = supabase.table('menu_settings').insert(data).execute()
+        # Validate settings
+        required_fields = ['start_date', 'season', 'days_in_advance', 'recipient_emails']
+        for field in required_fields:
+            if field not in settings:
+                return f"Missing required field: {field}", 400
+                
+        # Save to database
+        response = supabase.table('menu_settings').insert(settings).execute()
         
         logger.log_activity(
             action="Settings Updated",
@@ -591,7 +566,7 @@ def save_settings():
             details=str(e),
             status="error"
         )
-        return jsonify({'error': str(e)}), 500
+        return str(e), 500
 
 @app.route('/api/notifications/<notification_id>/read', methods=['POST'])
 def mark_notification_read(notification_id):
