@@ -122,31 +122,34 @@ def index():
         # Get current settings
         settings = get_menu_settings()
         
-        # Calculate next menu
+        # Initialize next_menu as None
         next_menu = None
+        
         if settings:
-            next_menu = calculate_next_menu()
-            if next_menu:  # Only process if next_menu is not None
-                # Ensure next_menu has all required attributes
-                if 'period_start' in next_menu and isinstance(next_menu['period_start'], str):
-                    next_menu['period_start'] = datetime.strptime(
-                        next_menu['period_start'], '%Y-%m-%d'
-                    ).date()
-                if 'send_date' in next_menu and isinstance(next_menu['send_date'], str):
-                    next_menu['send_date'] = datetime.strptime(
-                        next_menu['send_date'], '%Y-%m-%d'
-                    ).date()
-                
-                # Calculate week number
-                start_date = settings['start_date']  # Already converted to date above
-                weeks_since_start = (next_menu['period_start'] - start_date).days // 7
-                next_menu['week'] = (weeks_since_start % 4) + 1
-            else:
+            try:
+                next_menu = calculate_next_menu()
+                if next_menu and 'send_date' in next_menu:  # Check if next_menu exists and has send_date
+                    # Process dates if they exist
+                    if isinstance(next_menu['period_start'], str):
+                        next_menu['period_start'] = datetime.strptime(
+                            next_menu['period_start'], '%Y-%m-%d'
+                        ).date()
+                    if isinstance(next_menu['send_date'], str):
+                        next_menu['send_date'] = datetime.strptime(
+                            next_menu['send_date'], '%Y-%m-%d'
+                        ).date()
+                    
+                    # Calculate week number
+                    start_date = settings['start_date']
+                    weeks_since_start = (next_menu['period_start'] - start_date).days // 7
+                    next_menu['week'] = (weeks_since_start % 4) + 1
+            except Exception as e:
                 logger.log_activity(
                     action="Menu Calculation",
-                    details="No next menu could be calculated",
-                    status="warning"
+                    details=f"Error calculating next menu: {str(e)}",
+                    status="error"
                 )
+                next_menu = None  # Reset to None on error
         
         # Get recent activity
         print("Fetching recent activity...")  # Debug log
