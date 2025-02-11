@@ -34,7 +34,8 @@
                         </h5>
                         <p class="card-text">
                             {% if next_menu %}
-                                {{ next_menu.season|title }} Week {{ next_menu.week_number }}
+                                {{ next_menu.season|title }} Weeks 
+                                {% if next_menu.menu_pair == "1_2" %}1 & 2{% else %}3 & 4{% endif %}
                             {% else %}
                                 No menu scheduled
                             {% endif %}
