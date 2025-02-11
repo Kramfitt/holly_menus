@@ -118,17 +118,15 @@ def index():
             .limit(1)\
             .execute()
             
-        # Get menu count
-        menus = supabase.table('menus')\
-            .select('*')\
-            .execute()
-            
         # Calculate next menu
         next_menu = None
         if settings.data:
-            current_settings = settings.data[0]
             next_menu = calculate_next_menu()
-            
+            # Add week number if not present
+            if next_menu and 'week' not in next_menu:
+                weeks_since_start = (next_menu['period_start'] - datetime.strptime(settings.data[0]['start_date'], '%Y-%m-%d').date()).days // 7
+                next_menu['week'] = (weeks_since_start % 4) + 1
+        
         # Get recent activity with proper sorting
         activity_response = supabase.table('activity_log')\
             .select('*')\
@@ -138,23 +136,14 @@ def index():
             
         recent_activity = activity_response.data if activity_response.data else []
         
-        # Format dates if needed
-        if recent_activity:
-            for activity in recent_activity:
-                if isinstance(activity['created_at'], str):
-                    activity['created_at'] = datetime.fromisoformat(
-                        activity['created_at'].replace('Z', '+00:00')
-                    )
-        
-        # Get unread notifications
-        unread_notifications = notifications.get_unread_notifications()
+        # Get service state
+        service_active = redis_client.get('service_state') == b'true'
         
         return render_template('index.html',
                              settings=settings.data[0] if settings.data else None,
                              next_menu=next_menu,
-                             menu_count=len(menus.data) if menus.data else 0,
                              recent_activity=recent_activity,
-                             unread_notifications=unread_notifications)
+                             service_active=service_active)
                              
     except Exception as e:
         logger.log_activity(
