@@ -980,5 +980,45 @@ def check_email_health():
             'error': str(e)
         }), 500
 
+@app.route('/api/clear-activity-log', methods=['POST'])
+def clear_activity_log():
+    try:
+        # Delete all but the last 50 entries
+        supabase.table('activity_log')\
+            .delete()\
+            .lt('created_at', supabase.table('activity_log')
+                .select('created_at')
+                .order('created_at', desc=True)
+                .limit(1)
+                .offset(50)
+                .execute()
+                .data[0]['created_at']
+            )\
+            .execute()
+            
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+def log_activity(action, details, status):
+    """Log an activity with validated status"""
+    # Ensure status is one of the allowed values
+    valid_statuses = ['success', 'warning', 'error', 'debug']
+    
+    # Normalize status to lowercase and validate
+    status = status.lower() if status else 'info'
+    if status not in valid_statuses:
+        status = 'info'  # Default to info if invalid
+    
+    try:
+        supabase.table('activity_log').insert({
+            'action': action,
+            'details': details,
+            'status': status,
+            'created_at': datetime.now().isoformat()
+        }).execute()
+    except Exception as e:
+        print(f"❌ Logging error: {str(e)}")
+
 if __name__ == '__main__':
     app.run(debug=True) 
