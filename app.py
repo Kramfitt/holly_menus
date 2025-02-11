@@ -717,28 +717,21 @@ def menu_management():
             
         all_menus = menus_response.data if menus_response.data else []
         
-        # Initialize menu structure with 4 weeks per season
+        # Initialize menu structure with empty dictionaries
         menu_structure = {
-            'summer': {
-                'week1': None,
-                'week2': None,
-                'week3': None,
-                'week4': None
-            },
-            'winter': {
-                'week1': None,
-                'week2': None,
-                'week3': None,
-                'week4': None
-            }
+            'summer': {},
+            'winter': {}
         }
         
-        # Process each menu
+        # Process each menu and add to structure
         for menu in all_menus:
-            if menu['name'].startswith(('summer', 'winter')):
-                season, week = menu['name'].split('_')
-                if week.startswith('week'):
-                    menu_structure[season][week] = menu
+            if '_' in menu['name']:  # Check for season_pair format
+                season, pair = menu['name'].split('_')
+                if season in ['summer', 'winter']:
+                    if pair not in menu_structure[season]:
+                        menu_structure[season][pair] = menu
+        
+        print("Menu structure:", menu_structure)  # Debug print
         
         return render_template(
             'menu_management.html',
@@ -752,7 +745,7 @@ def menu_management():
             details=str(e),
             status="error"
         )
-        print(f"Error loading menus: {str(e)}")  # Debug print
+        print(f"Error loading menus: {str(e)}")
         return f"Error loading menus: {str(e)}", 500
 
 @app.route('/api/next-menu')
@@ -1011,23 +1004,30 @@ def clear_activity_log():
 
 def log_activity(action, details, status):
     """Log an activity with validated status"""
-    # Ensure status is one of the allowed values
-    valid_statuses = ['success', 'warning', 'error', 'debug']
-    
-    # Normalize status to lowercase and validate
-    status = status.lower() if status else 'info'
-    if status not in valid_statuses:
-        status = 'info'  # Default to info if invalid
+    # Define valid status values that match Supabase constraint
+    VALID_STATUSES = {
+        'success': 'success',
+        'warning': 'warning',
+        'error': 'error',
+        'info': 'info',
+        'debug': 'debug'
+    }
     
     try:
+        # Normalize and validate status
+        normalized_status = status.lower() if status else 'info'
+        final_status = VALID_STATUSES.get(normalized_status, 'info')
+        
+        # Insert log entry
         supabase.table('activity_log').insert({
             'action': action,
             'details': details,
-            'status': status,
+            'status': final_status,
             'created_at': datetime.now().isoformat()
         }).execute()
+        
     except Exception as e:
-        print(f"❌ Logging error: {str(e)}")
+        print(f"❌ Logging error: {str(e)}")  # Debug print
 
 if __name__ == '__main__':
     app.run(debug=True) 
