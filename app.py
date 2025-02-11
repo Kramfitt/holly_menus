@@ -143,11 +143,14 @@ def index():
                 next_menu['week'] = (weeks_since_start % 4) + 1
         
         # Get recent activity
+        print("Fetching recent activity...")  # Debug log
         activity_response = supabase.table('activity_log')\
             .select('*')\
             .order('created_at', desc=True)\
             .limit(10)\
             .execute()
+            
+        print(f"Activity response: {activity_response.data}")  # Debug log
             
         recent_activity = []
         for activity in activity_response.data or []:
@@ -156,6 +159,8 @@ def index():
                     activity['created_at'].replace('Z', '+00:00')
                 )
             recent_activity.append(activity)
+        
+        print(f"Processed activity: {recent_activity}")  # Debug log
         
         # Get service state
         service_active = redis_client.get('service_state') == b'true'
@@ -1080,7 +1085,7 @@ def clear_activity_log():
         # Delete ALL entries from activity_log table
         supabase.table('activity_log')\
             .delete()\
-            .is_('id', 'not.null')\
+            .filter('id', 'not.is', 'null')\
             .execute()
             
         logger.log_activity(
@@ -1124,6 +1129,19 @@ def log_activity(action, details, status):
         
     except Exception as e:
         print(f"❌ Logging error: {str(e)}")  # Debug print
+
+# Add this near the top with other template filters
+@app.template_filter('datetime')
+def format_datetime(value):
+    """Format a datetime object or ISO string."""
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        except ValueError:
+            return value
+    if isinstance(value, datetime):
+        return value.strftime('%Y-%m-%d %H:%M:%S')
+    return value
 
 if __name__ == '__main__':
     app.run(debug=True) 

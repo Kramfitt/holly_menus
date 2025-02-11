@@ -149,7 +149,8 @@
                 <div class="card-body">
                     <div class="list-group">
                         {% for activity in recent_activity %}
-                        <div class="list-group-item">
+                        <div class="activity-item">
+                            <small class="text-muted">{{ activity.created_at|datetime }}</small>
                             <div class="d-flex w-100 justify-content-between">
                                 <h6 class="mb-1">
                                     {% if activity.status == 'success' %}
@@ -161,13 +162,6 @@
                                     {% endif %}
                                     {{ activity.action }}
                                 </h6>
-                                <small>
-                                    {% if activity.created_at is string %}
-                                        {{ activity.created_at|strftime('%a %d %b %H:%M') }}
-                                    {% else %}
-                                        {{ activity.created_at.strftime('%a %d %b %H:%M') }}
-                                    {% endif %}
-                                </small>
                             </div>
                             <p class="mb-1">{{ activity.details }}</p>
                         </div>
