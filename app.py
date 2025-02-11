@@ -30,6 +30,13 @@ load_dotenv()
 
 app = Flask(__name__)
 
+# Make timedelta available to templates
+@app.context_processor
+def utility_processor():
+    return {
+        'timedelta': timedelta
+    }
+
 # Config from environment variables
 app.config.update(
     SECRET_KEY=os.getenv('SECRET_KEY'),
