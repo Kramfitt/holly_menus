@@ -22,8 +22,6 @@ from utils.logger import ActivityLogger
 from utils.notifications import NotificationManager
 from utils.backup import BackupManager
 from worker import calculate_next_menu
-from utils.supabase_client import get_supabase_client
-import tempfile
 from config import supabase, redis_client, SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
 
 # Load environment variables
@@ -107,7 +105,7 @@ def login():
     if request.method == 'POST':
         if request.form['password'] == app.config['DASHBOARD_PASSWORD']:
             session['logged_in'] = True
-            return redirect(url_for('home'))
+            return redirect(url_for('index'))
         return 'Invalid password'
     return render_template('login.html')
 
@@ -121,15 +119,11 @@ def logout():
 def index():
     try:
         # Get current settings
-        settings = supabase.table('menu_settings')\
-            .select('*')\
-            .order('created_at', desc=True)\
-            .limit(1)\
-            .execute()
-            
+        settings = get_menu_settings()  # Use the helper function
+        
         # Calculate next menu
         next_menu = None
-        if settings.data:
+        if settings:
             next_menu = calculate_next_menu()
             if next_menu:
                 # Ensure next_menu has all required attributes
@@ -137,7 +131,7 @@ def index():
                     next_menu['period_start'] = datetime.strptime(next_menu['period_start'], '%Y-%m-%d').date()
                 
                 # Calculate week number
-                start_date = datetime.strptime(settings.data[0]['start_date'], '%Y-%m-%d').date()
+                start_date = datetime.strptime(settings['start_date'], '%Y-%m-%d').date()
                 weeks_since_start = (next_menu['period_start'] - start_date).days // 7
                 next_menu['week'] = (weeks_since_start % 4) + 1
         
@@ -154,7 +148,7 @@ def index():
         service_active = redis_client.get('service_state') == b'true'
         
         return render_template('index.html',
-                             settings=settings.data[0] if settings.data else None,
+                             settings=settings,
                              next_menu=next_menu,
                              recent_activity=recent_activity,
                              service_active=service_active)
@@ -931,17 +925,17 @@ def force_send():
         }), 500
 
 def get_menu_settings():
+    """Get latest menu settings from database"""
     try:
-        supabase = get_supabase_client()  # Get client instance
-        settings_response = supabase.table('menu_settings')\
+        response = supabase.table('menu_settings')\
             .select('*')\
             .order('created_at', desc=True)\
             .limit(1)\
             .execute()
-        return settings_response.data[0] if settings_response.data else None
+        return response.data[0] if response.data else None
     except Exception as e:
         logger.log_activity(
-            action="Get Settings Failed",
+            action="Settings Error",
             details=str(e),
             status="error"
         )
