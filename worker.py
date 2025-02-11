@@ -8,11 +8,11 @@ import smtplib
 import time
 import redis
 from supabase import create_client
-from app import app
 import logging
 from email.mime.application import MIMEApplication
 from utils.logger import ActivityLogger
 from utils.notifications import NotificationManager
+from config import supabase, redis_client, SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
 
 # Force load from .env file
 load_dotenv(override=True)
@@ -31,6 +31,10 @@ SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
 SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
 SMTP_USERNAME = os.getenv('SMTP_USERNAME', '')
 SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
+
+# Initialize logger and notifications
+logger = ActivityLogger()
+notifications = NotificationManager()
 
 def should_send_emails():
     """Check if email service is active"""
@@ -141,7 +145,6 @@ def get_menu_settings():
 
 def get_menu_template(season, menu_pair):
     """Get the correct menu template from Supabase"""
-    supabase = get_supabase_client()
     response = supabase.table('menus')\
         .select('*')\
         .eq('name', f"{season}_{menu_pair}")\
@@ -185,7 +188,6 @@ def calculate_next_menu():
             
             # Update settings with new season
             settings['season'] = season
-            supabase = get_supabase_client()
             supabase.table('menu_settings').update(settings).eq('id', settings['id']).execute()
     
     return {
@@ -196,14 +198,9 @@ def calculate_next_menu():
         'recipient_emails': settings['recipient_emails']
     }
 
-logger = ActivityLogger()
-
-notifications = NotificationManager()
-
 def send_menu_email(start_date, recipient_list, season, menu_pair):
     """Send menu email to recipients"""
     try:
-        supabase = get_supabase_client()
         # Get menu templates
         menu_response = supabase.table('menus')\
             .select('*')\
@@ -252,10 +249,7 @@ def send_menu_email(start_date, recipient_list, season, menu_pair):
         # Send email
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
-            server.login(
-                SMTP_USERNAME,
-                SMTP_PASSWORD
-            )
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
             server.send_message(msg)
             
         logger.log_activity(
@@ -278,7 +272,6 @@ def send_menu_email(start_date, recipient_list, season, menu_pair):
 def check_and_send():
     """Main worker function"""
     try:
-        supabase = get_supabase_client()
         next_menu = calculate_next_menu()
         today = datetime.now().date()
         
