@@ -728,5 +728,71 @@ def get_menu(menu_id):
         print(f"Get menu error: {str(e)}")  # Debug log
         return jsonify({'error': str(e)}), 500
 
+@app.route('/menus')
+def menu_management():
+    try:
+        menus_response = supabase.table('menus')\
+            .select('*')\
+            .order('name')\
+            .execute()
+            
+        return render_template('menu_management.html', 
+                             menus=menus_response.data)
+                             
+    except Exception as e:
+        return f"Error loading menus: {str(e)}", 500
+
+@app.route('/api/next-menu')
+def get_next_menu():
+    try:
+        # Get settings
+        settings_response = supabase.table('menu_settings')\
+            .select('*')\
+            .order('created_at', desc=True)\
+            .limit(1)\
+            .execute()
+            
+        settings = settings_response.data[0] if settings_response.data else None
+        
+        if not settings:
+            return jsonify({
+                'error': 'Please configure menu settings first'
+            })
+            
+        # Calculate next send date (2 weeks from now)
+        next_date = datetime.now() + timedelta(days=14)
+        
+        # Calculate menu details
+        start_date = datetime.strptime(settings['start_date'], '%Y-%m-%d')
+        weeks_since_start = ((next_date - start_date).days // 7)
+        week_number = (weeks_since_start % 4) + 1
+        
+        # Determine season
+        season = 'Winter'
+        if settings.get('summer_start'):
+            summer_start = datetime.strptime(settings['summer_start'], '%Y-%m-%d')
+            if next_date >= summer_start:
+                season = 'Summer'
+        
+        # Get menu URL
+        menu_name = f"{season}Week{week_number}"
+        menu_response = supabase.table('menus')\
+            .select('*')\
+            .ilike('name', f'{menu_name}%')\
+            .execute()
+            
+        menu_url = menu_response.data[0]['file_url'] if menu_response.data else None
+        
+        return jsonify({
+            'send_date': next_date.strftime('%Y-%m-%d'),
+            'season': season,
+            'week_number': week_number,
+            'menu_pair': f"Week {week_number}{'A' if week_number <= 2 else 'B'}",
+            'menu_url': menu_url
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True) 

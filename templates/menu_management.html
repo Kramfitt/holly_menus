@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Menu Management</h2>
+    
+    <!-- Upload Form -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Upload New Menu</h5>
+            <form id="uploadForm">
+                <div class="mb-3">
+                    <label for="menuFile" class="form-label">Menu Image</label>
+                    <input type="file" class="form-control" id="menuFile" accept="image/*" required>
+                </div>
+                <div class="mb-3">
+                    <label for="menuName" class="form-label">Menu Name</label>
+                    <input type="text" class="form-control" id="menuName" required 
+                           placeholder="e.g., SummerWeek1">
+                    <small class="text-muted">Use format: SeasonWeekNumber (e.g., SummerWeek1, WinterWeek3)</small>
+                </div>
+                <button type="submit" class="btn btn-primary">Upload Menu</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Menu List -->
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">Current Menus</h5>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Preview</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="menuList">
+                        {% for menu in menus %}
+                        <tr>
+                            <td>{{ menu.name }}</td>
+                            <td>
+                                <img src="{{ menu.file_url }}" 
+                                     style="max-height: 50px; cursor: pointer;"
+                                     onclick="showMenuPreview('{{ menu.file_url }}')"
+                                     alt="{{ menu.name }}">
+                            </td>
+                            <td>
+                                <button class="btn btn-danger btn-sm" 
+                                        onclick="deleteMenu('{{ menu.id }}', '{{ menu.name }}')">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Menu Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <img id="modalPreview" src="" style="width: 100%;" alt="Menu Preview">
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Your existing JavaScript for upload/delete/preview
+</script>
+{% endblock %} 
