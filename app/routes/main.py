@@ -30,8 +30,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 import pytz  # Add this import
-from postgrest.constants import desc  # For Supabase order by
 from dotenv import load_dotenv
+import re
 
 # Load environment variables
 load_dotenv()
@@ -121,9 +121,40 @@ def handle_error(e, action="System Error"):
         return f"Error: {error_details}\n\nStack trace:\n{stack_trace}"
     return "An error occurred. Please try again or contact support."
 
+def rate_limit(key, limit=5, period=60):
+    """Basic rate limiting using Redis"""
+    try:
+        current = int(redis_client.get(f"ratelimit:{key}") or 0)
+        if current >= limit:
+            return False
+            
+        pipe = redis_client.pipeline()
+        pipe.incr(f"ratelimit:{key}")
+        pipe.expire(f"ratelimit:{key}", period)
+        pipe.execute()
+        return True
+        
+    except Exception as e:
+        logger.log_activity(
+            action="Rate Limit Error",
+            details=str(e),
+            status="error"
+        )
+        return True  # Allow on error
+
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
     try:
+        # Rate limit by IP
+        if not rate_limit(f"login:{request.remote_addr}", limit=5, period=300):
+            logger.log_activity(
+                action="Login Rate Limited",
+                details=f"IP: {request.remote_addr}",
+                status="warning"
+            )
+            return render_template('login.html', 
+                error="Too many attempts. Please try again later.")
+
         if request.method == 'POST':
             dashboard_password = current_app.config.get('DASHBOARD_PASSWORD')
             submitted_password = request.form.get('password')
@@ -192,8 +223,8 @@ def logout():
 @login_required
 def index():
     try:
-        # Get service state
-        service_active = redis_client.get('service_state') == b'true'
+        # Get service state safely
+        service_active = get_redis_value('service_state', b'false') == b'true'
         
         # Get next menu info
         next_menu = calculate_next_menu()
@@ -208,7 +239,7 @@ def index():
         try:
             activity_response = supabase.table('activity_log')\
                 .select('*')\
-                .order('created_at', desc=True)\
+                .order('created_at', ascending=False)\
                 .limit(10)\
                 .execute()
             recent_activity = activity_response.data
@@ -291,26 +322,65 @@ def api_preview_menu():
         )
         return str(e), 500
 
+def validate_template(file, season, week):
+    """Validate template upload"""
+    errors = []
+    
+    # Check file
+    if not file:
+        errors.append("No file provided")
+    elif not file.filename:
+        errors.append("Invalid filename")
+    else:
+        # Check file type
+        allowed = {'png', 'jpg', 'jpeg', 'pdf'}
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        if ext not in allowed:
+            errors.append(f"File type not allowed. Must be: {', '.join(allowed)}")
+            
+        # Check file size (max 5MB)
+        if len(file.read()) > 5 * 1024 * 1024:
+            errors.append("File too large (max 5MB)")
+        file.seek(0)  # Reset file pointer
+        
+    # Check season
+    if not season or season.lower() not in ['summer', 'winter']:
+        errors.append("Invalid season (must be summer or winter)")
+        
+    # Check week
+    try:
+        week_num = int(week)
+        if week_num < 1 or week_num > 4:
+            errors.append("Week must be between 1 and 4")
+    except (ValueError, TypeError):
+        errors.append("Invalid week number")
+        
+    return errors
+
 @bp.route('/api/template', methods=['POST'])
+@login_required
 def upload_template():
     try:
         if 'template' not in request.files:
-            return jsonify({'status': 'error', 'message': 'No file uploaded'})
+            return jsonify({'error': 'No file provided'}), 400
             
         file = request.files['template']
-        if not file.filename:
-            return jsonify({'status': 'error', 'message': 'No file selected'})
+        season = request.form.get('season')
+        week = request.form.get('week')
+        
+        # Validate template
+        errors = validate_template(file, season, week)
+        if errors:
+            return jsonify({
+                'error': 'Validation failed',
+                'details': errors
+            }), 400
             
         # Secure the filename
         filename = secure_filename(file.filename)
-        file_type = filename.rsplit('.', 1)[1].lower()
+        file_path = f"menus/{season}_{week}_{filename}"
         
-        # Validate file type
-        if file_type not in ['pdf', 'jpg', 'jpeg', 'png']:
-            return jsonify({'status': 'error', 'message': 'Invalid file type'})
-            
         # Upload to Supabase Storage
-        file_path = f"menus/{filename}"
         supabase.storage.from_('menus').upload(
             file_path,
             file.read(),
@@ -321,18 +391,32 @@ def upload_template():
         file_url = supabase.storage.from_('menus').get_public_url(file_path)
         
         # Store in database
-        response = supabase.table('menus').insert({
-            'name': filename,
-            'file_url': file_url,
-            'file_type': file_type
-        }).execute()
+        response = safe_supabase_query(
+            'menu_templates',
+            action="insert",
+            data={
+                'season': season.lower(),
+                'week': int(week),
+                'file_path': file_path,
+                'file_url': file_url,
+                'created_at': datetime.now().isoformat()
+            }
+        )
         
-        print(f"✅ Uploaded: {filename}")
-        return jsonify({'status': 'success', 'data': response.data})
+        if response is None:
+            raise Exception("Failed to save template")
+            
+        logger.log_activity(
+            action="Template Uploaded",
+            details=f"Uploaded template for {season} week {week}",
+            status="success"
+        )
+        
+        return jsonify({'success': True})
         
     except Exception as e:
-        print(f"❌ Upload error: {str(e)}")
-        return jsonify({'status': 'error', 'message': str(e)})
+        error_msg = handle_error(e, "Template Upload Failed")
+        return jsonify({'error': error_msg}), 500
 
 @bp.route('/api/template', methods=['DELETE'])
 @login_required
@@ -386,16 +470,16 @@ def delete_template():
 def system_check():
     try:
         # Get current settings
-        settings = supabase.table('menu_settings')\
+        settings_response = supabase.table('menu_settings')\
             .select('*')\
-            .order('created_at', desc=True)\
+            .order('created_at', ascending=False)\
             .limit(1)\
             .execute()
         
         # Calculate next menu details using worker logic
         next_menu = None
-        if settings.data:
-            current_settings = settings.data[0]
+        if settings_response.data:
+            current_settings = settings_response.data[0]
             start_date = datetime.strptime(current_settings['start_date'], '%Y-%m-%d').date()
             today = datetime.now().date()
             
@@ -421,7 +505,7 @@ def system_check():
         
         return render_template(
             'system-check.html',
-            settings=settings.data[0] if settings.data else None,
+            settings=settings_response.data[0] if settings_response.data else None,
             next_menu=next_menu
         )
         
@@ -510,60 +594,104 @@ def api_send_menu():
         print(f"❌ Send menu error: {str(e)}")
         return f"Failed to send menu: {str(e)}", 500
 
-@bp.route('/api/settings', methods=['GET', 'POST'])
-@login_required
-def api_settings():
-    try:
-        if request.method == 'POST':
-            data = request.get_json()
-            if not data:
-                return jsonify({'error': 'No data provided'}), 400
-                
-            required_fields = ['start_date', 'days_in_advance', 'recipient_emails']
-            if not all(field in data for field in required_fields):
-                return jsonify({'error': 'Missing required fields'}), 400
-                
-            # Validate data
-            try:
-                datetime.strptime(data['start_date'], '%Y-%m-%d')
-                days_advance = int(data['days_in_advance'])
-                if days_advance < 1:
-                    raise ValueError("Days in advance must be positive")
-            except ValueError as ve:
-                return jsonify({'error': f"Invalid data: {str(ve)}"}), 400
-                
-            # Create settings object
-            settings = {
-                'start_date': data['start_date'],
-                'days_in_advance': days_advance,
-                'recipient_emails': data['recipient_emails'],
-                'season': data.get('season', 'summer'),
-                'season_change_date': data.get('season_change_date'),
-                'created_at': datetime.now().isoformat()
-            }
+def validate_email(email):
+    """Basic email validation"""
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return bool(re.match(pattern, email))
+
+def validate_emails(emails):
+    """Validate a list of email addresses"""
+    errors = []
+    valid_emails = []
+    
+    for email in emails:
+        email = email.strip()
+        if not email:
+            continue
             
-            # Insert new settings
-            supabase.table('menu_settings').insert(settings).execute()
-            
-            logger.log_activity(
-                action="Settings Updated",
-                details="Menu settings updated successfully",
-                status="success"
-            )
-            
-            return jsonify({'success': True})
-            
+        if validate_email(email):
+            valid_emails.append(email)
         else:
-            # Get current settings
-            settings_response = supabase.table('menu_settings')\
-                .select('*')\
-                .order('created_at', desc=True)\
-                .limit(1)\
-                .execute()
-                
-            settings = settings_response.data[0] if settings_response.data else {}
-            return jsonify(settings)
+            errors.append(f"Invalid email address: {email}")
             
+    if not valid_emails:
+        errors.append("At least one valid email address is required")
+        
+    return errors, valid_emails
+
+def validate_settings(data):
+    """Validate settings data"""
+    errors = []
+    
+    # Required fields
+    if not data.get('start_date'):
+        errors.append("Start date is required")
+    else:
+        try:
+            datetime.strptime(data['start_date'], '%Y-%m-%d')
+        except ValueError:
+            errors.append("Invalid start date format")
+            
+    # Days in advance
+    try:
+        days = int(data.get('days_in_advance', 0))
+        if days < 1 or days > 14:
+            errors.append("Days in advance must be between 1 and 14")
+    except ValueError:
+        errors.append("Invalid days in advance value")
+        
+    # Email validation
+    email_errors, valid_emails = validate_emails(data.get('recipient_emails', []))
+    errors.extend(email_errors)
+    if valid_emails:
+        data['recipient_emails'] = valid_emails  # Update with validated emails
+        
+    return errors
+
+@bp.route('/api/settings', methods=['POST'])
+@login_required
+def update_settings():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        # Validate settings
+        errors = validate_settings(data)
+        if errors:
+            return jsonify({
+                'error': 'Validation failed',
+                'details': errors
+            }), 400
+            
+        # Create settings object
+        settings = {
+            'start_date': data['start_date'],
+            'days_in_advance': int(data['days_in_advance']),
+            'recipient_emails': data['recipient_emails'],
+            'season': data.get('season', 'summer'),
+            'season_change_date': data.get('season_change_date'),
+            'created_at': datetime.now().isoformat()
+        }
+        
+        # Insert new settings
+        response = safe_supabase_query(
+            'menu_settings',
+            action="insert",
+            data=settings
+        )
+        
+        if response is None:
+            raise Exception("Failed to save settings")
+            
+        logger.log_activity(
+            action="Settings Updated",
+            details="Menu settings updated successfully",
+            status="success"
+        )
+        
+        return jsonify({'success': True})
+        
     except Exception as e:
         error_msg = handle_error(e, "Settings API Error")
         return jsonify({'error': error_msg}), 500
@@ -611,6 +739,30 @@ def toggle_email():
         )
         return jsonify({'error': str(e)}), 500
 
+def send_email_safely(to_email, subject, body):
+    """Send email with error handling"""
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = f"Holly Lea Menus <{os.getenv('SMTP_USERNAME')}>"
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
+        
+        with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
+            server.starttls()
+            server.login(os.getenv('SMTP_USERNAME'), os.getenv('SMTP_PASSWORD'))
+            server.send_message(msg)
+            
+        return True
+        
+    except Exception as e:
+        logger.log_activity(
+            action="Email Error",
+            details=f"Failed to send email to {to_email}: {str(e)}",
+            status="error"
+        )
+        return False
+
 @bp.route('/api/test-email', methods=['POST'])
 def send_test_email():
     try:
@@ -618,34 +770,18 @@ def send_test_email():
         if not email:
             return jsonify({'error': 'Email address required'}), 400
             
-        # Send test email
-        msg = MIMEMultipart()
-        msg['From'] = f"Holly Lea Menus <{os.getenv('SMTP_USERNAME')}>"
-        msg['To'] = email
-        msg['Subject'] = "Test Email from Holly Lea Menu System"
-        
-        body = "This is a test email from the Holly Lea Menu System."
-        msg.attach(MIMEText(body, 'plain'))
-        
-        with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
-            server.starttls()
-            server.login(os.getenv('SMTP_USERNAME'), os.getenv('SMTP_PASSWORD'))
-            server.send_message(msg)
-        
-        logger.log_activity(
-            action="Test Email Sent",
-            details=f"Test email sent to {email}",
-            status="success"
-        )
-        
-        return jsonify({'success': True})
+        if send_email_safely(
+            email,
+            "Test Email from Holly Lea Menu System",
+            "This is a test email from the Holly Lea Menu System."
+        ):
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Failed to send email'}), 500
+            
     except Exception as e:
-        logger.log_activity(
-            action="Test Email Failed",
-            details=str(e),
-            status="error"
-        )
-        return jsonify({'error': str(e)}), 500
+        error_msg = handle_error(e, "Test Email Failed")
+        return jsonify({'error': error_msg}), 500
 
 @bp.route('/api/debug-mode', methods=['GET', 'POST'])
 @login_required
@@ -677,31 +813,42 @@ def debug_mode():
         )
         return jsonify({'error': str(e)}), 500
 
+def validate_force_send():
+    """Validate force send requirements"""
+    errors = []
+    
+    # Check debug mode
+    if redis_client.get('debug_mode') != b'true':
+        errors.append("Debug mode must be enabled")
+        
+    # Check settings exist
+    settings = get_menu_settings()
+    if not settings:
+        errors.append("No menu settings configured")
+    elif not settings.get('recipient_emails'):
+        errors.append("No recipient emails configured")
+        
+    # Check next menu can be calculated
+    next_menu = calculate_next_menu()
+    if not next_menu:
+        errors.append("Could not calculate next menu")
+        
+    return errors, settings, next_menu
+
 @bp.route('/api/force-send', methods=['POST'])
 @login_required
 def force_send():
     try:
-        if redis_client.get('debug_mode') != b'true':
-            return jsonify({
-                'success': False, 
-                'message': 'Debug mode not active'
-            }), 400
-            
-        next_menu = calculate_next_menu()
-        if not next_menu:
+        # Validate requirements
+        errors, settings, next_menu = validate_force_send()
+        if errors:
             return jsonify({
                 'success': False,
-                'message': 'Could not calculate next menu'
+                'message': 'Validation failed',
+                'errors': errors
             }), 400
             
-        # Get recipient emails from settings
-        settings = get_menu_settings()
-        if not settings.get('recipient_emails'):
-            return jsonify({
-                'success': False, 
-                'message': 'No recipient emails configured'
-            }), 400
-            
+        # Send menu
         success = send_menu_email(
             start_date=next_menu['period_start'],
             recipient_list=settings['recipient_emails'],
@@ -713,17 +860,19 @@ def force_send():
         logger.log_activity(
             action="Force Send Menu",
             details=message,
-            status="debug"
+            status="debug" if success else "error"
         )
         
         return jsonify({
             'success': success,
             'message': message
         })
+        
     except Exception as e:
+        error_msg = handle_error(e, "Force Send Failed")
         return jsonify({
             'success': False,
-            'message': f"Error: {str(e)}"
+            'message': error_msg
         }), 500
 
 def get_menu_settings():
@@ -731,7 +880,7 @@ def get_menu_settings():
     try:
         settings_response = supabase.table('menu_settings')\
             .select('*')\
-            .order('created_at', desc=True)\
+            .order('created_at', ascending=False)\
             .limit(1)\
             .execute()
             
@@ -851,12 +1000,17 @@ def log_activity(action, details, status):
 @login_required
 def settings():
     try:
-        # Get current settings
-        settings_response = supabase.table('menu_settings')\
-            .select('*')\
-            .order('created_at', desc=True)\
-            .limit(1)\
-            .execute()
+        # Get current settings safely
+        settings_response = safe_supabase_query(
+            'menu_settings',
+            action="select",
+            order_by='created_at',
+            ascending=False,
+            limit=1
+        )
+        
+        if settings_response is None:
+            raise Exception("Failed to fetch settings")
             
         current_settings = settings_response.data[0] if settings_response.data else {}
         
@@ -974,6 +1128,77 @@ def config_check():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+def get_redis_value(key, default=None, max_retries=3):
+    """Safely get Redis value with retries"""
+    for attempt in range(max_retries):
+        try:
+            value = redis_client.get(key)
+            return value if value is not None else default
+        except Exception as e:
+            if attempt == max_retries - 1:
+                logger.log_activity(
+                    action="Redis Error",
+                    details=f"Error getting {key} after {max_retries} attempts: {str(e)}",
+                    status="error"
+                )
+                return default
+            time.sleep(0.1 * (attempt + 1))  # Exponential backoff
+
+def set_redis_value(key, value, max_retries=3):
+    """Safely set Redis value with retries"""
+    for attempt in range(max_retries):
+        try:
+            redis_client.set(key, value)
+            return True
+        except Exception as e:
+            if attempt == max_retries - 1:
+                logger.log_activity(
+                    action="Redis Error",
+                    details=f"Error setting {key} after {max_retries} attempts: {str(e)}",
+                    status="error"
+                )
+                return False
+            time.sleep(0.1 * (attempt + 1))
+
+def safe_supabase_query(table, action="query", timeout=10, **kwargs):
+    """Execute Supabase queries with timeout"""
+    try:
+        start_time = time.time()
+        query = supabase.table(table)
+        
+        if action == "select":
+            query = query.select(kwargs.get('columns', '*'))
+        elif action == "insert":
+            return query.insert(kwargs.get('data')).execute()
+        elif action == "delete":
+            query = query.delete()
+            
+        if kwargs.get('order_by'):
+            query = query.order(kwargs['order_by'], ascending=kwargs.get('ascending', True))
+            
+        if kwargs.get('limit'):
+            query = query.limit(kwargs['limit'])
+            
+        result = query.execute()
+        
+        # Check if query took too long
+        if time.time() - start_time > timeout:
+            logger.log_activity(
+                action="Slow Query Warning",
+                details=f"Query to {table} took more than {timeout} seconds",
+                status="warning"
+            )
+            
+        return result
+        
+    except Exception as e:
+        logger.log_activity(
+            action=f"Database Error ({action})",
+            details=f"Error in {table}: {str(e)}",
+            status="error"
+        )
+        return None
 
 # Remove this at the bottom
 # if __name__ == '__main__':
