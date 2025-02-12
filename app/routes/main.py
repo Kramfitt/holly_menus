@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for, Blueprint
 from functools import wraps
 import os
 import sys
@@ -32,8 +32,10 @@ load_dotenv()
 
 app = Flask(__name__)
 
+bp = Blueprint('main', __name__)
+
 # Make timedelta available to templates
-@app.context_processor
+@bp.context_processor
 def utility_processor():
     return {
         'timedelta': timedelta
@@ -112,7 +114,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-@app.route('/login', methods=['GET', 'POST'])
+@bp.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         if request.form['password'] == app.config['DASHBOARD_PASSWORD']:
@@ -121,12 +123,12 @@ def login():
         return 'Invalid password'
     return render_template('login.html')
 
-@app.route('/logout')
+@bp.route('/logout')
 def logout():
     session.pop('logged_in', None)
     return redirect(url_for('login'))
 
-@app.route('/')
+@bp.route('/')
 @login_required
 def index():
     try:
@@ -170,7 +172,7 @@ def index():
         print(f"❌ Dashboard error: {str(e)}")  # Add debug print
         return f"Error loading dashboard: {str(e)}", 500
 
-@app.route('/preview')
+@bp.route('/preview')
 @login_required
 def preview():
     # Get current settings with proper season
@@ -199,7 +201,7 @@ def preview():
     )
 
 # Add API endpoint for preview rendering
-@app.route('/api/preview', methods=['GET'])
+@bp.route('/api/preview', methods=['GET'])
 def api_preview_menu():
     try:
         menu_id = request.args.get('menu_id')
@@ -301,7 +303,7 @@ def api_preview_menu():
         print(f"❌ Preview error: {str(e)}")
         return f"Failed to generate preview: {str(e)}", 500
 
-@app.route('/api/template', methods=['POST'])
+@bp.route('/api/template', methods=['POST'])
 def upload_template():
     try:
         if 'template' not in request.files:
@@ -344,7 +346,7 @@ def upload_template():
         print(f"❌ Upload error: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)})
 
-@app.route('/api/template/<id>', methods=['DELETE'])
+@bp.route('/api/template/<id>', methods=['DELETE'])
 def delete_template(id):
     try:
         # Get file info from database
@@ -375,7 +377,7 @@ def delete_template(id):
         print(f"❌ Delete error: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)})
 
-@app.route('/system-check')
+@bp.route('/system-check')
 def system_check():
     try:
         # Get current settings
@@ -485,7 +487,7 @@ def send_menu_email(start_date, recipient_list, season):
         print(f"❌ Email error: {str(e)}")
         return f"Failed to send email: {str(e)}", 500
 
-@app.route('/api/send-menu', methods=['POST'])
+@bp.route('/api/send-menu', methods=['POST'])
 def api_send_menu():
     try:
         data = request.json
@@ -503,7 +505,7 @@ def api_send_menu():
         print(f"❌ Send menu error: {str(e)}")
         return f"Failed to send menu: {str(e)}", 500
 
-@app.route('/api/settings', methods=['POST'])
+@bp.route('/api/settings', methods=['POST'])
 def update_settings():
     try:
         settings = request.json
@@ -533,7 +535,7 @@ def update_settings():
         )
         return str(e), 500
 
-@app.route('/api/notifications/<notification_id>/read', methods=['POST'])
+@bp.route('/api/notifications/<notification_id>/read', methods=['POST'])
 def mark_notification_read(notification_id):
     try:
         notifications.mark_as_read(notification_id)
@@ -541,7 +543,7 @@ def mark_notification_read(notification_id):
     except Exception as e:
         return str(e), 500
 
-@app.route('/api/notifications/read-all', methods=['POST'])
+@bp.route('/api/notifications/read-all', methods=['POST'])
 def mark_all_notifications_read():
     try:
         response = supabase.table('notifications')\
@@ -552,12 +554,12 @@ def mark_all_notifications_read():
     except Exception as e:
         return str(e), 500
 
-@app.route('/backup')
+@bp.route('/backup')
 def backup_page():
     backups = backup_manager.get_backups()
     return render_template('backup.html', backups=backups)
 
-@app.route('/api/backup', methods=['POST'])
+@bp.route('/api/backup', methods=['POST'])
 def create_backup():
     try:
         description = request.json.get('description')
@@ -568,7 +570,7 @@ def create_backup():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/api/backup/<backup_id>/restore', methods=['POST'])
+@bp.route('/api/backup/<backup_id>/restore', methods=['POST'])
 def restore_backup(backup_id):
     try:
         success = backup_manager.restore_from_backup(backup_id)
@@ -578,7 +580,7 @@ def restore_backup(backup_id):
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/health')
+@bp.route('/health')
 def health_check():
     """Health check endpoint for Render"""
     return jsonify({
@@ -586,7 +588,7 @@ def health_check():
         'timestamp': datetime.now().isoformat()
     })
 
-@app.route('/api/menus', methods=['POST'])
+@bp.route('/api/menus', methods=['POST'])
 @login_required
 def upload_menu():
     try:
@@ -705,7 +707,7 @@ def upload_menu():
         print(f"❌ Upload error: {str(e)}")  # Debug print
         return str(e), 500
 
-@app.route('/api/menus/<menu_name>', methods=['DELETE'])
+@bp.route('/api/menus/<menu_name>', methods=['DELETE'])
 def delete_menu(menu_name):
     try:
         # Get the menu record
@@ -744,7 +746,7 @@ def delete_menu(menu_name):
         )
         return str(e), 500
 
-@app.route('/api/menus', methods=['GET'])
+@bp.route('/api/menus', methods=['GET'])
 def get_menus():
     try:
         response = supabase.table('menus')\
@@ -755,7 +757,7 @@ def get_menus():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/menus/<menu_id>')
+@bp.route('/api/menus/<menu_id>')
 def get_menu(menu_id):
     try:
         print(f"Fetching menu {menu_id}")  # Debug log
@@ -777,7 +779,7 @@ def get_menu(menu_id):
         print(f"Get menu error: {str(e)}")  # Debug log
         return jsonify({'error': str(e)}), 500
 
-@app.route('/menus')
+@bp.route('/menus')
 @login_required
 def menu_management():
     try:
@@ -817,7 +819,7 @@ def menu_management():
         print(f"Error loading menus: {str(e)}")
         return f"Error loading menus: {str(e)}", 500
 
-@app.route('/api/next-menu')
+@bp.route('/api/next-menu')
 def get_next_menu():
     try:
         settings_response = supabase.table('menu_settings')\
@@ -866,13 +868,13 @@ def get_next_menu():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.template_filter('strftime')
+@bp.template_filter('strftime')
 def strftime_filter(date, format='%Y-%m-%d'):
     if isinstance(date, str):
         date = datetime.strptime(date, '%Y-%m-%d')
     return date.strftime(format)
 
-@app.route('/api/email-status', methods=['GET'])
+@bp.route('/api/email-status', methods=['GET'])
 def get_email_status():
     try:
         state = redis_client.get('service_state')
@@ -880,7 +882,7 @@ def get_email_status():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/toggle-email', methods=['POST'])
+@bp.route('/api/toggle-email', methods=['POST'])
 def toggle_email():
     try:
         # Get current state from Redis
@@ -915,7 +917,7 @@ def toggle_email():
         )
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/test-email', methods=['POST'])
+@bp.route('/api/test-email', methods=['POST'])
 def send_test_email():
     try:
         email = request.json.get('email')
@@ -951,7 +953,7 @@ def send_test_email():
         )
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/debug-mode', methods=['GET', 'POST'])
+@bp.route('/api/debug-mode', methods=['GET', 'POST'])
 @login_required
 def debug_mode():
     if request.method == 'POST':
@@ -969,7 +971,7 @@ def debug_mode():
         is_debug = redis_client.get('debug_mode') == b'true'
         return jsonify({'active': is_debug})
 
-@app.route('/api/force-send', methods=['POST'])
+@bp.route('/api/force-send', methods=['POST'])
 @login_required
 def force_send():
     try:
@@ -1053,7 +1055,7 @@ def get_menu_settings():
         )
         return None
 
-@app.route('/api/email-health', methods=['GET'])
+@bp.route('/api/email-health', methods=['GET'])
 def check_email_health():
     try:
         # Check if email service is active
@@ -1081,7 +1083,7 @@ def check_email_health():
             'error': str(e)
         }), 500
 
-@app.route('/api/clear-activity-log', methods=['POST'])
+@bp.route('/api/clear-activity-log', methods=['POST'])
 def clear_activity_log():
     try:
         # Delete ALL entries from activity_log table
@@ -1133,7 +1135,7 @@ def log_activity(action, details, status):
         print(f"❌ Logging error: {str(e)}")  # Debug print
 
 # Add this near the top with other template filters
-@app.template_filter('datetime')
+@bp.template_filter('datetime')
 def format_datetime(value):
     """Format a datetime object or ISO string."""
     if isinstance(value, str):
