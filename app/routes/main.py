@@ -179,30 +179,7 @@ def index():
 @bp.route('/preview')
 @login_required
 def preview():
-    # Get current settings with proper season
-    settings = get_menu_settings()  # Use the same function we use elsewhere
-    
-    # Get next menu details
-    next_menu = menu_service.calculate_next_menu()  # This will have the correct season
-    
-    # Get all menus with proper file URLs
-    menus_response = supabase.table('menus')\
-        .select('*')\
-        .execute()
-        
-    all_menus = menus_response.data if menus_response.data else []
-    
-    # Make sure file_url is set for each menu
-    for menu in all_menus:
-        if 'file_path' in menu:
-            menu['file_url'] = supabase.storage.from_('menus').get_public_url(menu['file_path'])
-    
-    return render_template(
-        'preview.html',
-        settings=settings,
-        next_menu=next_menu,
-        menus=all_menus
-    )
+    return render_template('preview.html')
 
 # Add API endpoint for preview rendering
 @bp.route('/api/preview', methods=['GET'])
@@ -785,43 +762,8 @@ def get_menu(menu_id):
 
 @bp.route('/menus')
 @login_required
-def menu_management():
-    try:
-        # Get current settings
-        settings_response = supabase.table('menu_settings')\
-            .select('*')\
-            .order('created_at', desc=True)\
-            .limit(1)\
-            .execute()
-            
-        settings = settings_response.data[0] if settings_response.data else None
-        
-        # Get all menus
-        menus_response = supabase.table('menus')\
-            .select('*')\
-            .execute()
-            
-        # Convert to dictionary with menu_name as key
-        menus = {}
-        for menu in menus_response.data:
-            if 'file_path' in menu:
-                menu['file_url'] = supabase.storage.from_('menus').get_public_url(menu['file_path'])
-            menus[menu['name']] = menu
-        
-        return render_template(
-            'menu_management.html',
-            settings=settings,
-            menus=menus
-        )
-        
-    except Exception as e:
-        logger.log_activity(
-            action="Menu Page Load Failed",
-            details=str(e),
-            status="error"
-        )
-        print(f"Error loading menus: {str(e)}")
-        return f"Error loading menus: {str(e)}", 500
+def menus():
+    return render_template('menus.html')
 
 @bp.route('/api/next-menu')
 def get_next_menu():
