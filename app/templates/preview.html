@@ -25,6 +25,12 @@
             </div>
         </nav>
 
+        {% if error %}
+        <div class="alert alert-danger" role="alert">
+            {{ error }}
+        </div>
+        {% endif %}
+
         <h2>Menu Preview</h2>
         <div class="card">
             <div class="card-body">

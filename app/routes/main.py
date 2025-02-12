@@ -179,7 +179,24 @@ def index():
 @bp.route('/preview')
 @login_required
 def preview():
-    return render_template('preview.html')
+    try:
+        # Get current settings
+        settings = get_menu_settings()
+        
+        # Get next menu details
+        next_menu = menu_service.calculate_next_menu()
+        
+        return render_template('preview.html', 
+                             settings=settings,
+                             next_menu=next_menu)
+                             
+    except Exception as e:
+        logger.log_activity(
+            action="Preview Page Load Failed",
+            details=str(e),
+            status="error"
+        )
+        return render_template('preview.html', error=str(e))
 
 # Add API endpoint for preview rendering
 @bp.route('/api/preview', methods=['GET'])
@@ -763,7 +780,32 @@ def get_menu(menu_id):
 @bp.route('/menus')
 @login_required
 def menus():
-    return render_template('menus.html')
+    try:
+        # Get current settings
+        settings_response = supabase.table('menu_settings')\
+            .select('*')\
+            .order('created_at', desc=True)\
+            .limit(1)\
+            .execute()
+            
+        settings = settings_response.data[0] if settings_response.data else None
+        
+        # Get all menus
+        menus_response = supabase.table('menus')\
+            .select('*')\
+            .execute()
+            
+        menus = menus_response.data if menus_response.data else []
+        
+        return render_template('menus.html', settings=settings, menus=menus)
+        
+    except Exception as e:
+        logger.log_activity(
+            action="Menu Page Load Failed",
+            details=str(e),
+            status="error"
+        )
+        return render_template('menus.html', error=str(e))
 
 @bp.route('/api/next-menu')
 def get_next_menu():

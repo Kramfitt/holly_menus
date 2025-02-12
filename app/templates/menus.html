@@ -25,7 +25,45 @@
             </div>
         </nav>
 
+        {% if error %}
+        <div class="alert alert-danger" role="alert">
+            {{ error }}
+        </div>
+        {% endif %}
+
         <h2>Menu Management</h2>
+        {% if menus %}
+        <div class="card mb-4">
+            <div class="card-header">Current Menus</div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Season</th>
+                                <th>Week</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for menu in menus %}
+                            <tr>
+                                <td>{{ menu.name }}</td>
+                                <td>{{ menu.season }}</td>
+                                <td>{{ menu.week }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-danger delete-menu" data-id="{{ menu.id }}">Delete</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <div class="card">
             <div class="card-body">
                 <form id="uploadForm" enctype="multipart/form-data">
