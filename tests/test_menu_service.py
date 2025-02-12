@@ -1,10 +1,24 @@
 import pytest
 from datetime import datetime, timedelta
 from app.services.menu_service import MenuService
+from unittest.mock import MagicMock
 
 @pytest.fixture
 def menu_service(mock_db, mock_storage):
     return MenuService(db=mock_db, storage=mock_storage)
+
+@pytest.fixture
+def mock_db():
+    """Mock database for testing"""
+    db = MagicMock()
+    db.table().select().order().limit().execute.return_value.data = [{
+        'season': 'summer',
+        'start_date': '2024-01-01',
+        'season_change_date': '2024-06-01',
+        'days_in_advance': 14,
+        'recipient_emails': ['test@example.com']  # Safe example email
+    }]
+    return db
 
 def test_calculate_next_menu(menu_service):
     """Test menu calculation logic"""
@@ -49,4 +63,8 @@ def test_season_change(menu_service, mock_db):
     result = menu_service.calculate_next_menu()
     assert result['data']['season'] == 'winter', (
         f"Should be winter: menu date {menu_date} is after change date {change_date}"
-    ) 
+    )
+
+# Replace any real emails/domains with example ones
+'recipient_emails': ['test@example.com']
+'smtp_server': 'smtp.example.com' 

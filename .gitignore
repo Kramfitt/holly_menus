@@ -1,12 +1,30 @@
 # Environment variables
 .env
 .env.*
+!.env.example
 
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
 *.so
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs and temp files
+*.log
+service_state.txt
+.DS_Store
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# Python
+*$py.class
 .Python
 build/
 develop-eggs/
@@ -24,23 +42,9 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
-venv/
-ENV/
-env/
-
 # IDE
-.idea/
-.vscode/
 *.swp
 *.swo
 
 # Operating System
-.DS_Store
 Thumbs.db
-
-# Temp files
-*.log
-
-# State files
-service_state.txt

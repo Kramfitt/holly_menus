@@ -497,6 +497,11 @@ def test_menu_processing():
         print(f"Test failed: {str(e)}")
         return False
 
+def log_activity(action, details, status):
+    # Sanitize any sensitive data before logging
+    if 'email' in details:
+        details = details.replace(details.split('@')[0], '***')
+
 if __name__ == "__main__":
     logging.info("🚀 Menu worker starting...")
     main()
