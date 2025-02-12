@@ -29,10 +29,10 @@ app.email_service = EmailService(config={
 })
 app.logger = Logger()
 
-# Import and register routes
+# Import and register routes and filters
 from app.routes.main import bp as main_bp, register_filters
 app.register_blueprint(main_bp)
-register_filters(app)
+register_filters(app)  # Register template filters
 
 @app.route('/health')
 def health_check():

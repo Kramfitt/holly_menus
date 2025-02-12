@@ -871,10 +871,20 @@ def get_next_menu():
 def register_filters(app):
     @app.template_filter('strftime')
     def strftime_filter(date, format='%Y-%m-%d'):
-        """Format a datetime object."""
         if isinstance(date, str):
             date = datetime.strptime(date, '%Y-%m-%d')
         return date.strftime(format)
+
+    @app.template_filter('datetime')
+    def format_datetime(value):
+        if isinstance(value, str):
+            try:
+                value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+            except ValueError:
+                return value
+        if isinstance(value, datetime):
+            return value.strftime('%d %b %Y %H:%M')
+        return value
 
 @bp.route('/api/email-status', methods=['GET'])
 def get_email_status():
@@ -1135,20 +1145,6 @@ def log_activity(action, details, status):
         
     except Exception as e:
         print(f"❌ Logging error: {str(e)}")  # Debug print
-
-# Add this near the top with other template filters
-@bp.template_filter('datetime')
-def format_datetime(value):
-    """Format a datetime object or ISO string."""
-    if isinstance(value, str):
-        try:
-            value = datetime.fromisoformat(value.replace('Z', '+00:00'))
-        except ValueError:
-            return value
-    if isinstance(value, datetime):
-        # Make timestamp more readable
-        return value.strftime('%d %b %Y %H:%M')  # e.g., "11 Feb 2025 20:28"
-    return value
 
 if __name__ == '__main__':
     app.run(debug=True) 
