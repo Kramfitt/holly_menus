@@ -6,51 +6,178 @@
 </head>
 <body>
     <div class="container mt-4">
-        <h1>Holly Lea Menu System</h1>
-        
-        <!-- Next Menu Info -->
-        {% if next_menu %}
-        <div class="card mb-4">
-            <div class="card-header">Next Menu</div>
-            <div class="card-body">
-                <p>Send Date: {{ next_menu.send_date|strftime('%d %B %Y') }}</p>
-                <p>Period Start: {{ next_menu.period_start|strftime('%d %B %Y') }}</p>
-                <p>Season: {{ next_menu.season|title }}</p>
-                <p>Week: {{ next_menu.week }}</p>
+        <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/">Holly Lea Menu System</a>
+                <div class="collapse navbar-collapse">
+                    <ul class="navbar-nav me-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/menus">Menu Management</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/preview">Preview</a>
+                        </li>
+                    </ul>
+                    <div class="d-flex">
+                        <a href="/logout" class="btn btn-outline-danger">Logout</a>
+                    </div>
+                </div>
             </div>
-        </div>
-        {% endif %}
+        </nav>
 
-        <!-- Activity Log -->
-        <div class="card">
-            <div class="card-header">Recent Activity</div>
-            <div class="card-body">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Time</th>
-                            <th>Action</th>
-                            <th>Details</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for activity in recent_activity %}
-                        <tr>
-                            <td>{{ activity.created_at|datetime }}</td>
-                            <td>{{ activity.action }}</td>
-                            <td>{{ activity.details }}</td>
-                            <td>
-                                <span class="badge bg-{{ 'success' if activity.status == 'success' else 'warning' if activity.status == 'warning' else 'danger' }}">
-                                    {{ activity.status }}
-                                </span>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+        <div class="row">
+            <div class="col-md-8">
+                <!-- Next Menu Info -->
+                {% if next_menu %}
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Next Menu</span>
+                        <div>
+                            <button class="btn btn-sm btn-primary" id="toggleEmail">
+                                {{ 'Pause' if service_active else 'Resume' }} Email Service
+                            </button>
+                            <button class="btn btn-sm btn-secondary" id="testEmail">
+                                Test Email
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p>Send Date: {{ next_menu.send_date|strftime('%d %B %Y') }}</p>
+                        <p>Period Start: {{ next_menu.period_start|strftime('%d %B %Y') }}</p>
+                        <p>Season: {{ next_menu.season|title }}</p>
+                        <p>Menu Pair: {{ next_menu.menu_pair }}</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Activity Log -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Recent Activity</span>
+                        <button class="btn btn-sm btn-danger" id="clearLog">Clear Log</button>
+                    </div>
+                    <div class="card-body">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Action</th>
+                                    <th>Details</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for activity in recent_activity %}
+                                <tr>
+                                    <td>{{ activity.created_at|datetime }}</td>
+                                    <td>{{ activity.action }}</td>
+                                    <td>{{ activity.details }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if activity.status == 'success' else 'warning' if activity.status == 'warning' else 'danger' }}">
+                                            {{ activity.status }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <!-- Debug Panel -->
+                <div class="card mb-4">
+                    <div class="card-header">Debug Tools</div>
+                    <div class="card-body">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="debugMode">
+                            <label class="form-check-label" for="debugMode">Debug Mode</label>
+                        </div>
+                        <button class="btn btn-warning" id="forceSend" disabled>Force Send Menu</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Toggle Email Service
+            $('#toggleEmail').click(function() {
+                $.post('/api/toggle-email')
+                    .done(function(response) {
+                        location.reload();
+                    })
+                    .fail(function(err) {
+                        alert('Failed to toggle email service: ' + err.responseJSON?.error);
+                    });
+            });
+
+            // Test Email
+            $('#testEmail').click(function() {
+                const email = prompt('Enter email address for test:');
+                if (email) {
+                    $.post('/api/test-email', JSON.stringify({ email: email }), 
+                        function(response) {
+                            alert('Test email sent successfully!');
+                        })
+                        .fail(function(err) {
+                            alert('Failed to send test email: ' + err.responseJSON?.error);
+                        });
+                }
+            });
+
+            // Clear Log
+            $('#clearLog').click(function() {
+                if (confirm('Are you sure you want to clear the activity log?')) {
+                    $.post('/api/clear-activity-log')
+                        .done(function(response) {
+                            location.reload();
+                        })
+                        .fail(function(err) {
+                            alert('Failed to clear log: ' + err.responseJSON?.error);
+                        });
+                }
+            });
+
+            // Debug Mode Toggle
+            $('#debugMode').change(function() {
+                const isChecked = $(this).prop('checked');
+                $('#forceSend').prop('disabled', !isChecked);
+                
+                $.post('/api/debug-mode', 
+                    JSON.stringify({ active: isChecked }))
+                    .fail(function(err) {
+                        alert('Failed to toggle debug mode: ' + err.responseJSON?.error);
+                    });
+            });
+
+            // Force Send
+            $('#forceSend').click(function() {
+                if (confirm('Are you sure you want to force send the next menu?')) {
+                    $.post('/api/force-send')
+                        .done(function(response) {
+                            alert(response.message);
+                            if (response.success) {
+                                location.reload();
+                            }
+                        })
+                        .fail(function(err) {
+                            alert('Failed to force send: ' + err.responseJSON?.message);
+                        });
+                }
+            });
+
+            // Check initial debug mode state
+            $.get('/api/debug-mode')
+                .done(function(response) {
+                    $('#debugMode').prop('checked', response.active);
+                    $('#forceSend').prop('disabled', !response.active);
+                });
+        });
+    </script>
 </body>
 </html> 
