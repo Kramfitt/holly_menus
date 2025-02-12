@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Holly Lea Menu System</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Holly Lea Menu System</h1>
+        
+        <!-- Next Menu Info -->
+        {% if next_menu %}
+        <div class="card mb-4">
+            <div class="card-header">Next Menu</div>
+            <div class="card-body">
+                <p>Send Date: {{ next_menu.send_date|strftime('%d %B %Y') }}</p>
+                <p>Period Start: {{ next_menu.period_start|strftime('%d %B %Y') }}</p>
+                <p>Season: {{ next_menu.season|title }}</p>
+                <p>Week: {{ next_menu.week }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Activity Log -->
+        <div class="card">
+            <div class="card-header">Recent Activity</div>
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Action</th>
+                            <th>Details</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for activity in recent_activity %}
+                        <tr>
+                            <td>{{ activity.created_at|datetime }}</td>
+                            <td>{{ activity.action }}</td>
+                            <td>{{ activity.details }}</td>
+                            <td>
+                                <span class="badge bg-{{ 'success' if activity.status == 'success' else 'warning' if activity.status == 'warning' else 'danger' }}">
+                                    {{ activity.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 
