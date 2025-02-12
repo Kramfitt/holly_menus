@@ -110,23 +110,23 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not session.get('logged_in'):
-            return redirect(url_for('login'))
+            return redirect(url_for('main.login'))
         return f(*args, **kwargs)
     return decorated_function
 
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        if request.form['password'] == app.config['DASHBOARD_PASSWORD']:
+        if request.form['password'] == current_app.config['DASHBOARD_PASSWORD']:
             session['logged_in'] = True
-            return redirect(url_for('index'))
+            return redirect(url_for('main.index'))
         return 'Invalid password'
     return render_template('login.html')
 
 @bp.route('/logout')
 def logout():
     session.pop('logged_in', None)
-    return redirect(url_for('login'))
+    return redirect(url_for('main.login'))
 
 @bp.route('/')
 @login_required

@@ -36,7 +36,7 @@ app.logger = Logger()
 
 # Import and register routes and filters
 from app.routes.main import bp as main_bp, register_filters
-app.register_blueprint(main_bp)
+app.register_blueprint(main_bp, url_prefix='')  # Empty prefix for root URLs
 register_filters(app)  # Register template filters
 
 @app.route('/health')
