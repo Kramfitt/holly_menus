@@ -14,7 +14,8 @@ from supabase import create_client, Client
 from worker import calculate_next_menu, send_menu_email
 from config import (
     supabase, redis_client, SMTP_SERVER, SMTP_PORT, 
-    SMTP_USERNAME, SMTP_PASSWORD, REQUIRED_CONFIG
+    SMTP_USERNAME, SMTP_PASSWORD, SECRET_KEY,
+    DASHBOARD_PASSWORD
 )
 from app.utils.logger import Logger
 from app.services.menu_service import MenuService
