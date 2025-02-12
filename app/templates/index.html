@@ -104,6 +104,9 @@
         </div>
     </div>
 
+    <!-- Add error handling -->
+    <div id="alerts"></div>
+
     <!-- JavaScript -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
@@ -158,6 +161,9 @@
                 
                 $.post('/api/debug-mode', 
                     JSON.stringify({ active: isChecked }))
+                    .done(function(response) {
+                        alert('Debug mode ' + (isChecked ? 'enabled' : 'disabled'));
+                    })
                     .fail(function(err) {
                         alert('Failed to toggle debug mode: ' + err.responseJSON?.error);
                     });
@@ -185,6 +191,29 @@
                     $('#debugMode').prop('checked', response.active);
                     $('#forceSend').prop('disabled', !response.active);
                 });
+
+            // Add error handling
+            function showError(message) {
+                const alert = $('<div class="alert alert-danger alert-dismissible fade show">')
+                    .text(message)
+                    .append('<button type="button" class="btn-close" data-bs-dismiss="alert"></button>');
+                $('#alerts').append(alert);
+                setTimeout(() => alert.alert('close'), 5000);  // Auto-dismiss after 5s
+            }
+
+            // Update AJAX calls with error handling
+            $.ajax({
+                // ... existing options ...
+                beforeSend: function() {
+                    $('#loadingSpinner').removeClass('d-none');
+                },
+                complete: function() {
+                    $('#loadingSpinner').addClass('d-none');
+                },
+                error: function(xhr) {
+                    showError('Error: ' + (xhr.responseJSON?.error || 'Unknown error occurred'));
+                }
+            });
         });
     </script>
 </body>

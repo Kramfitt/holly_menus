@@ -6,6 +6,8 @@
 </head>
 <body>
     <div class="container mt-4">
+        <div id="alerts"></div>
+
         <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
             <div class="container-fluid">
                 <a class="navbar-brand" href="/">Dashboard</a>
@@ -29,8 +31,16 @@
         </nav>
 
         {% if error %}
-        <div class="alert alert-danger">{{ error }}</div>
+        <div class="alert alert-danger">
+            {{ error }}
+        </div>
         {% endif %}
+
+        <div id="loadingSpinner" class="text-center d-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
 
         <div class="row">
             <div class="col-md-6">
@@ -97,6 +107,22 @@
     </div>
 
     <script>
+        function showError(message, type = 'danger') {
+            const alert = $('<div class="alert alert-' + type + ' alert-dismissible fade show">')
+                .text(message)
+                .append('<button type="button" class="btn-close" data-bs-dismiss="alert"></button>');
+            $('#alerts').append(alert);
+            setTimeout(() => alert.alert('close'), 5000);  // Auto-dismiss after 5s
+        }
+
+        function showLoading() {
+            $('#loadingSpinner').removeClass('d-none');
+        }
+
+        function hideLoading() {
+            $('#loadingSpinner').addClass('d-none');
+        }
+
         // Auto-refresh status every 30 seconds
         setInterval(function() {
             $.get('/api/health')
@@ -134,10 +160,10 @@
                 contentType: 'application/json',
                 data: JSON.stringify({ active: isChecked }),
                 success: function(response) {
-                    showAlert('Debug mode ' + (isChecked ? 'enabled' : 'disabled'), 'success');
+                    showError('Debug mode ' + (isChecked ? 'enabled' : 'disabled'), 'success');
                 },
                 error: function(xhr) {
-                    showAlert('Failed to toggle debug mode: ' + (xhr.responseJSON?.error || 'Unknown error'));
+                    showError('Failed to toggle debug mode: ' + (xhr.responseJSON?.error || 'Unknown error'));
                     $(this).prop('checked', !isChecked);
                 }
             });
@@ -153,10 +179,10 @@
                     contentType: 'application/json',
                     data: JSON.stringify({ email: email }),
                     success: function() {
-                        showAlert('Test email sent successfully!', 'success');
+                        showError('Test email sent successfully!', 'success');
                     },
                     error: function(xhr) {
-                        showAlert('Failed to send test email: ' + (xhr.responseJSON?.error || 'Unknown error'));
+                        showError('Failed to send test email: ' + (xhr.responseJSON?.error || 'Unknown error'));
                     }
                 });
             }

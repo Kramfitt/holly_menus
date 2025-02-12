@@ -1,13 +1,24 @@
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for, Blueprint, current_app
+from flask import (
+    Flask, render_template, jsonify, request, session, 
+    redirect, url_for, Blueprint, current_app
+)
 from functools import wraps
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Any
 import os
 import sys
-from datetime import datetime, timedelta
-from dotenv import load_dotenv
 import time
 import redis
-import psycopg2
+import traceback
 from supabase import create_client, Client
+from worker import calculate_next_menu, send_menu_email
+from config import (
+    supabase, redis_client, SMTP_SERVER, SMTP_PORT, 
+    SMTP_USERNAME, SMTP_PASSWORD
+)
+from app.utils.logger import Logger
+from app.services.menu_service import MenuService
+from app.services.email_service import EmailService
 from werkzeug.utils import secure_filename
 from PIL import Image, ImageDraw, ImageFont
 import io
@@ -18,21 +29,14 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
-from app.utils.logger import Logger
-from app.utils.notifications import NotificationManager
-from app.utils.backup import BackupManager
-from worker import calculate_next_menu, send_menu_email
-from config import supabase, redis_client, SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
 import pytz  # Add this import
-from app.services.menu_service import MenuService
-from app.services.email_service import EmailService
-import traceback
+from postgrest.constants import desc  # For Supabase order by
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-app = Flask(__name__)
-
+# Keep only the Blueprint
 bp = Blueprint('main', __name__)
 
 # Make timedelta available to templates
@@ -42,23 +46,6 @@ def utility_processor():
         'timedelta': timedelta,
         'datetime': datetime
     }
-
-# Config from environment variables
-app.config.update(
-    SECRET_KEY=os.getenv('SECRET_KEY'),
-    STATE_FILE=os.getenv('STATE_FILE'),
-    ADMIN_EMAIL=os.getenv('ADMIN_EMAIL'),
-    SMTP_SERVER=os.getenv('SMTP_SERVER'),
-    SMTP_PORT=int(os.getenv('SMTP_PORT')) if os.getenv('SMTP_PORT') else None,
-    SMTP_USERNAME=os.getenv('SMTP_USERNAME'),
-    SMTP_PASSWORD=os.getenv('SMTP_PASSWORD'),
-    RECIPIENT_EMAILS=os.getenv('RECIPIENT_EMAILS', '').split(',') if os.getenv('RECIPIENT_EMAILS') else [],
-    DASHBOARD_PASSWORD=os.getenv('DASHBOARD_PASSWORD'),
-    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
-    SESSION_COOKIE_SECURE=True,  # For HTTPS
-    SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax'
-)
 
 # Near the top with other configs
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
@@ -84,8 +71,6 @@ if hasattr(supabase, '_http_client'):
         delattr(supabase._http_client, 'proxies')
 
 logger = Logger()
-notifications = NotificationManager()
-backup_manager = BackupManager()
 
 # Initialize services
 menu_service = MenuService(db=supabase, storage=supabase.storage)
@@ -97,18 +82,18 @@ email_service = EmailService(config={
 })
 
 def get_service_state():
-    if not os.path.exists(app.config['STATE_FILE']):
+    if not os.path.exists(current_app.config['STATE_FILE']):
         return {"active": True, "last_updated": None}
     
-    with open(app.config['STATE_FILE'], 'r') as f:
+    with open(current_app.config['STATE_FILE'], 'r') as f:
         active = f.read().strip() == 'True'
         return {
             "active": active,
-            "last_updated": datetime.fromtimestamp(os.path.getmtime(app.config['STATE_FILE']))
+            "last_updated": datetime.fromtimestamp(os.path.getmtime(current_app.config['STATE_FILE']))
         }
 
 def save_service_state(active):
-    with open(app.config['STATE_FILE'], 'w') as f:
+    with open(current_app.config['STATE_FILE'], 'w') as f:
         f.write(str(active))
 
 # Login required decorator
@@ -528,397 +513,60 @@ def api_send_menu():
 @bp.route('/api/settings', methods=['GET', 'POST'])
 @login_required
 def api_settings():
-    if request.method == 'POST':
-        try:
-            data = request.json
-            required = ['start_date', 'days_in_advance', 'recipient_emails']
-            if not all(key in data for key in required):
+    try:
+        if request.method == 'POST':
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
+                
+            required_fields = ['start_date', 'days_in_advance', 'recipient_emails']
+            if not all(field in data for field in required_fields):
                 return jsonify({'error': 'Missing required fields'}), 400
-
-            # Insert new settings
+                
+            # Validate data
+            try:
+                datetime.strptime(data['start_date'], '%Y-%m-%d')
+                days_advance = int(data['days_in_advance'])
+                if days_advance < 1:
+                    raise ValueError("Days in advance must be positive")
+            except ValueError as ve:
+                return jsonify({'error': f"Invalid data: {str(ve)}"}), 400
+                
+            # Create settings object
             settings = {
                 'start_date': data['start_date'],
-                'days_in_advance': int(data['days_in_advance']),
+                'days_in_advance': days_advance,
                 'recipient_emails': data['recipient_emails'],
+                'season': data.get('season', 'summer'),
+                'season_change_date': data.get('season_change_date'),
                 'created_at': datetime.now().isoformat()
             }
             
-            response = supabase.table('menu_settings').insert(settings).execute()
+            # Insert new settings
+            supabase.table('menu_settings').insert(settings).execute()
             
             logger.log_activity(
                 action="Settings Updated",
                 details="Menu settings updated successfully",
                 status="success"
             )
+            
             return jsonify({'success': True})
             
-        except Exception as e:
-            logger.log_activity(
-                action="Settings Update Failed",
-                details=str(e),
-                status="error"
-            )
-            return jsonify({'error': str(e)}), 500
-    else:
-        try:
-            settings = get_menu_settings()
-            return jsonify(settings if settings else {})
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
-
-@bp.route('/api/notifications/<notification_id>/read', methods=['POST'])
-def mark_notification_read(notification_id):
-    try:
-        notifications.mark_as_read(notification_id)
-        return "OK"
-    except Exception as e:
-        return str(e), 500
-
-@bp.route('/api/notifications/read-all', methods=['POST'])
-def mark_all_notifications_read():
-    try:
-        response = supabase.table('notifications')\
-            .update({'read': True})\
-            .eq('read', False)\
-            .execute()
-        return "OK"
-    except Exception as e:
-        return str(e), 500
-
-@bp.route('/backup')
-def backup_page():
-    backups = backup_manager.get_backups()
-    return render_template('backup.html', backups=backups)
-
-@bp.route('/api/backup', methods=['POST'])
-def create_backup():
-    try:
-        description = request.json.get('description')
-        backup = backup_manager.create_backup(description)
-        if backup:
-            return jsonify({"status": "success", "backup": backup})
-        return jsonify({"status": "error", "message": "Backup failed"}), 500
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@bp.route('/api/backup/<backup_id>/restore', methods=['POST'])
-def restore_backup(backup_id):
-    try:
-        success = backup_manager.restore_from_backup(backup_id)
-        if success:
-            return jsonify({"status": "success"})
-        return jsonify({"status": "error", "message": "Restore failed"}), 500
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@bp.route('/health')
-def health_check():
-    """Health check endpoint for Render"""
-    return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat()
-    })
-
-@bp.route('/api/menus', methods=['POST'])
-@login_required
-def upload_menu():
-    try:
-        print("Starting file upload...")  # Debug log
-        
-        if 'file' not in request.files:
-            logger.log_activity(
-                action="Menu Upload Failed",
-                details="No file provided in request",
-                status="error"
-            )
-            return "No file provided", 400
-            
-        file = request.files['file']
-        menu_name = request.form.get('name')
-        
-        print(f"Received file upload request for menu: {menu_name}")  # Debug log
-        
-        if not file or not menu_name:
-            logger.log_activity(
-                action="Menu Upload Failed",
-                details="Missing file or menu name",
-                status="error"
-            )
-            return "Missing required fields", 400
-            
-        # Read the file into bytes
-        try:
-            file_bytes = file.stream.read()
-            file_extension = file.filename.split('.')[-1].lower()
-            print(f"File read successfully, size: {len(file_bytes)} bytes")  # Debug log
-        except Exception as e:
-            logger.log_activity(
-                action="Menu Upload Failed",
-                details=f"Error reading file: {str(e)}",
-                status="error"
-            )
-            return f"Error reading file: {str(e)}", 500
-        
-        try:
-            # Handle existing menu
-            print("Checking for existing menu...")  # Debug log
-            existing = supabase.table('menus').select('*').eq('name', menu_name).execute()
-            if existing.data:
-                print(f"Found existing menu: {existing.data[0]}")  # Debug log
-                # Delete old file if it exists
-                supabase.storage.from_('menus').remove([existing.data[0]['file_path']])
-                supabase.table('menus').delete().eq('name', menu_name).execute()
-        except Exception as e:
-            logger.log_activity(
-                action="Menu Upload Failed",
-                details=f"Error handling existing menu: {str(e)}",
-                status="error"
-            )
-            return f"Error handling existing menu: {str(e)}", 500
-        
-        try:
-            # Generate unique filename
-            timestamp = int(datetime.now().timestamp())
-            file_path = f"menus/{menu_name}_{timestamp}.{file_extension}"
-            print(f"Generated file path: {file_path}")  # Debug log
-            
-            # Upload new file
-            print("Uploading file to storage...")  # Debug log
-            upload_response = supabase.storage.from_('menus').upload(
-                path=file_path,
-                file=file_bytes,
-                file_options={"content-type": file.content_type}
-            )
-            print(f"Storage upload response: {upload_response}")  # Debug log
-        except Exception as e:
-            logger.log_activity(
-                action="Menu Upload Failed",
-                details=f"Error uploading to storage: {str(e)}",
-                status="error"
-            )
-            return f"Error uploading to storage: {str(e)}", 500
-        
-        try:
-            # Create database record
-            print("Creating database record...")  # Debug log
-            db_response = supabase.table('menus').insert({
-                'name': menu_name,
-                'file_path': file_path,
-                'uploaded_at': datetime.now().isoformat()
-            }).execute()
-            print(f"Database insert response: {db_response}")  # Debug log
-        except Exception as e:
-            # If database insert fails, try to clean up the uploaded file
-            try:
-                supabase.storage.from_('menus').remove([file_path])
-            except:
-                pass
-            
-            logger.log_activity(
-                action="Menu Upload Failed",
-                details=f"Error creating database record: {str(e)}",
-                status="error"
-            )
-            return f"Error creating database record: {str(e)}", 500
-        
-        logger.log_activity(
-            action="Menu Uploaded",
-            details=f"Menu {menu_name} uploaded successfully",
-            status="success"
-        )
-        
-        return jsonify({'success': True})
-        
-    except Exception as e:
-        logger.log_activity(
-            action="Menu Upload Failed",
-            details=f"Unexpected error: {str(e)}",
-            status="error"
-        )
-        print(f"❌ Upload error: {str(e)}")  # Debug print
-        return str(e), 500
-
-@bp.route('/api/menus/<menu_name>', methods=['DELETE'])
-def delete_menu(menu_name):
-    try:
-        # Get the menu record
-        menu_response = supabase.table('menus')\
-            .select('*')\
-            .eq('name', menu_name)\
-            .execute()
-            
-        if not menu_response.data:
-            return "Menu not found", 404
-            
-        # Delete from storage first
-        menu = menu_response.data[0]
-        storage_path = f"menus/{menu['file_path'].split('/')[-1]}"
-        supabase.storage.from_('menus').remove([storage_path])
-        
-        # Then delete the database record
-        supabase.table('menus')\
-            .delete()\
-            .eq('name', menu_name)\
-            .execute()
-            
-        logger.log_activity(
-            action="Menu Deleted",
-            details=f"Deleted menu: {menu_name}",
-            status="success"
-        )
-        
-        return jsonify({'success': True})
-        
-    except Exception as e:
-        logger.log_activity(
-            action="Menu Delete Failed",
-            details=str(e),
-            status="error"
-        )
-        return str(e), 500
-
-@bp.route('/api/menus', methods=['GET'])
-def get_menus():
-    try:
-        response = supabase.table('menus')\
-            .select('*')\
-            .order('name')\
-            .execute()
-        return jsonify(response.data)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@bp.route('/api/menus/<menu_id>')
-def get_menu(menu_id):
-    try:
-        print(f"Fetching menu {menu_id}")  # Debug log
-        
-        response = supabase.table('menus')\
-            .select('*')\
-            .eq('id', menu_id)\
-            .execute()
-            
-        if not response.data:
-            return jsonify({'error': 'Menu not found'}), 404
-            
-        menu = response.data[0]
-        print(f"Menu found: {menu}")  # Debug log
-        
-        return jsonify(menu)
-        
-    except Exception as e:
-        print(f"Get menu error: {str(e)}")  # Debug log
-        return jsonify({'error': str(e)}), 500
-
-@bp.route('/menus')
-@login_required
-def menus():
-    try:
-        # Get current settings
-        settings_response = supabase.table('menu_settings')\
-            .select('*')\
-            .order('created_at', desc=True)\
-            .limit(1)\
-            .execute()
-            
-        settings = settings_response.data[0] if settings_response.data else None
-        
-        # Get all menus
-        menus_response = supabase.table('menus')\
-            .select('*')\
-            .execute()
-            
-        menus = menus_response.data if menus_response.data else []
-        
-        return render_template('menus.html', settings=settings, menus=menus)
-        
-    except Exception as e:
-        logger.log_activity(
-            action="Menu Page Load Failed",
-            details=str(e),
-            status="error"
-        )
-        return render_template('menus.html', error=str(e))
-
-@bp.route('/api/next-menu')
-def get_next_menu():
-    try:
-        settings_response = supabase.table('menu_settings')\
-            .select('*')\
-            .order('created_at', desc=True)\
-            .limit(1)\
-            .execute()
-            
-        settings = settings_response.data[0] if settings_response.data else None
-        
-        if not settings:
-            return jsonify({'error': 'Please configure menu settings first'})
-            
-        # Calculate next menu using worker logic
-        next_menu = calculate_next_menu()
-        
-        # Get menu names for the period
-        menu_names = []
-        if next_menu['menu_pair'] == "1_2":
-            menu_names = [f"{next_menu['season']}Week1", f"{next_menu['season']}Week2"]
         else:
-            menu_names = [f"{next_menu['season']}Week3", f"{next_menu['season']}Week4"]
-            
-        # Get menu URLs
-        menus = []
-        for name in menu_names:
-            menu_response = supabase.table('menus')\
+            # Get current settings
+            settings_response = supabase.table('menu_settings')\
                 .select('*')\
-                .ilike('name', f'{name}%')\
+                .order('created_at', desc=True)\
+                .limit(1)\
                 .execute()
                 
-            if menu_response.data:
-                menus.append({
-                    'name': menu_response.data[0]['name'],
-                    'url': menu_response.data[0]['file_url']
-                })
-        
-        return jsonify({
-            'send_date': next_menu['send_date'].strftime('%Y-%m-%d'),
-            'period_start': next_menu['period_start'].strftime('%Y-%m-%d'),
-            'season': next_menu['season'].title(),
-            'menu_pair': next_menu['menu_pair'],
-            'menus': menus
-        })
-        
+            settings = settings_response.data[0] if settings_response.data else {}
+            return jsonify(settings)
+            
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-def register_filters(app):
-    @app.template_filter('strftime')
-    def strftime_filter(date, format='%Y-%m-%d'):
-        if isinstance(date, str):
-            date = datetime.strptime(date, '%Y-%m-%d')
-        return date.strftime(format)
-
-    @app.template_filter('datetime')
-    def format_datetime(value):
-        """Format datetime consistently across the app"""
-        if isinstance(value, str):
-            try:
-                value = datetime.fromisoformat(value.replace('Z', '+00:00'))
-            except ValueError:
-                return value
-        if isinstance(value, datetime):
-            return value.strftime('%d %b %Y %H:%M')
-        return value
-
-    @app.template_filter('date')
-    def format_date(value):
-        """Format date consistently across the app"""
-        if isinstance(value, str):
-            try:
-                value = datetime.strptime(value, '%Y-%m-%d').date()
-            except ValueError:
-                return value
-        if isinstance(value, datetime):
-            value = value.date()
-        return value.strftime('%d %B %Y')
+        error_msg = handle_error(e, "Settings API Error")
+        return jsonify({'error': error_msg}), 500
 
 @bp.route('/api/email-status', methods=['GET'])
 def get_email_status():
@@ -1079,35 +727,37 @@ def force_send():
         }), 500
 
 def get_menu_settings():
-    """Get latest menu settings from database"""
+    """Get current menu settings"""
     try:
-        response = supabase.table('menu_settings')\
+        settings_response = supabase.table('menu_settings')\
             .select('*')\
             .order('created_at', desc=True)\
             .limit(1)\
             .execute()
             
-        settings = None
-        if response.data:
-            settings = response.data[0]
-            # Convert ISO format datetime strings to datetime objects
-            if 'created_at' in settings:
-                settings['created_at'] = datetime.fromisoformat(
-                    settings['created_at'].replace('Z', '+00:00')
-                )
-            if 'start_date' in settings:
-                settings['start_date'] = datetime.strptime(
-                    settings['start_date'], '%Y-%m-%d'
-                ).date()
-            if 'season_change_date' in settings:
-                settings['season_change_date'] = datetime.strptime(
-                    settings['season_change_date'], '%Y-%m-%d'
-                ).date()
+        if not settings_response.data:
+            return None
+            
+        settings = settings_response.data[0]
+        
+        # Convert date strings to dates
+        if settings.get('start_date'):
+            settings['start_date'] = datetime.strptime(
+                settings['start_date'], 
+                '%Y-%m-%d'
+            ).date()
+            
+        if settings.get('season_change_date'):
+            settings['season_change_date'] = datetime.strptime(
+                settings['season_change_date'], 
+                '%Y-%m-%d'
+            ).date()
+            
         return settings
         
     except Exception as e:
         logger.log_activity(
-            action="Settings Error",
+            action="Settings Fetch Failed",
             details=str(e),
             status="error"
         )
@@ -1122,10 +772,10 @@ def check_email_health():
         
         # Check SMTP settings exist
         smtp_configured = all([
-            app.config.get('SMTP_SERVER'),
-            app.config.get('SMTP_PORT'),
-            app.config.get('SMTP_USERNAME'),
-            app.config.get('SMTP_PASSWORD')
+            current_app.config.get('SMTP_SERVER'),
+            current_app.config.get('SMTP_PORT'),
+            current_app.config.get('SMTP_USERNAME'),
+            current_app.config.get('SMTP_PASSWORD')
         ])
         
         return jsonify({
@@ -1145,25 +795,30 @@ def check_email_health():
 @login_required
 def clear_activity_log():
     try:
-        # Delete all entries except the clear action itself
-        supabase.table('activity_log').delete().execute()
-        
+        # Delete all records using a filter that's always true
+        supabase.table('activity_log')\
+            .delete()\
+            .gte('id', 0)\
+            .execute()
+            
         # Log the clear action
         logger.log_activity(
             action="Activity Log Cleared",
-            details="Activity log cleared by user",
+            details="Activity log cleared",
             status="success"
         )
         
-        return jsonify({'success': True})
-        
+        return jsonify({
+            'success': True,
+            'message': "Activity log cleared successfully"
+        })
+            
     except Exception as e:
-        logger.log_activity(
-            action="Clear Log Failed",
-            details=str(e),
-            status="error"
-        )
-        return jsonify({'error': str(e)}), 500
+        error_msg = handle_error(e, "Clear Log Failed")
+        return jsonify({
+            'error': str(e),
+            'message': error_msg
+        }), 500
 
 def log_activity(action, details, status):
     """Log an activity with validated status"""
@@ -1203,36 +858,45 @@ def settings():
             .limit(1)\
             .execute()
             
-        settings = settings_response.data[0] if settings_response.data else None
+        current_settings = settings_response.data[0] if settings_response.data else {}
         
-        # Get all menu templates
-        menus_response = supabase.table('menus')\
+        # Get menu templates
+        templates_response = supabase.table('menu_templates')\
             .select('*')\
             .execute()
             
-        menus = menus_response.data if menus_response.data else []
-        
-        # Organize menus by season and week
-        organized_menus = {
-            'summer': {str(i): None for i in range(1, 5)},
-            'winter': {str(i): None for i in range(1, 5)}
+        # Initialize template structure
+        templates = {
+            'summer': {},
+            'winter': {}
         }
         
-        for menu in menus:
-            if menu['season'] and menu['week']:
-                organized_menus[menu['season']][str(menu['week'])] = menu
+        # Organize templates
+        if templates_response.data:
+            for template in templates_response.data:
+                season = template.get('season', '').lower()
+                week = template.get('week')
+                if season in templates:
+                    templates[season][str(week)] = template
         
-        return render_template('settings.html', 
-                             settings=settings,
-                             menus=organized_menus)
-        
-    except Exception as e:
         logger.log_activity(
-            action="Settings Page Load Failed",
-            details=str(e),
-            status="error"
+            action="Settings Page Load",
+            details="Settings page accessed",
+            status="info"
         )
-        return render_template('settings.html', error=str(e))
+        
+        return render_template('settings.html',
+                             settings=current_settings,
+                             templates=templates,
+                             error=None)
+                             
+    except Exception as e:
+        error_msg = handle_error(e, "Settings Page Error")
+        # Return the error template with empty data
+        return render_template('settings.html', 
+                             settings={},
+                             templates={'summer': {}, 'winter': {}},
+                             error=error_msg)
 
 @bp.route('/status')
 @login_required
@@ -1276,7 +940,7 @@ def check_session():
     """Protect against session hijacking and timeout"""
     try:
         if request.endpoint and 'static' not in request.endpoint:
-            if not request.endpoint in ['main.login', 'main.logout']:
+            if request.endpoint not in ['main.login', 'main.logout', 'main.health_check']:
                 if not session.get('logged_in'):
                     return redirect(url_for('main.login'))
                 
@@ -1311,5 +975,6 @@ def config_check():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-if __name__ == '__main__':
-    app.run(debug=True) 
+# Remove this at the bottom
+# if __name__ == '__main__':
+#     bp.run(debug=True)  # Blueprints don't have run() 
