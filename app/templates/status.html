@@ -72,6 +72,12 @@
                                     {{ 'Connected' if redis_status else 'Disconnected' }}
                                 </span>
                             </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                SMTP Server
+                                <span class="badge bg-{{ 'success' if smtp_status else 'danger' }}">
+                                    {{ 'Configured' if smtp_status else 'Not Configured' }}
+                                </span>
+                            </li>
                         </ul>
                     </div>
                 </div>

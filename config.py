@@ -48,4 +48,14 @@ SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
 
 # App settings
 SECRET_KEY = os.getenv('SECRET_KEY', 'dev')
-DASHBOARD_PASSWORD = os.getenv('DASHBOARD_PASSWORD') 
+DASHBOARD_PASSWORD = os.getenv('DASHBOARD_PASSWORD')
+
+# Add this to config.py
+REQUIRED_CONFIG = [
+    'SECRET_KEY',
+    'DASHBOARD_PASSWORD',
+    'SMTP_SERVER',
+    'SMTP_PORT',
+    'SMTP_USERNAME',
+    'SMTP_PASSWORD'
+] 

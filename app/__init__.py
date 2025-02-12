@@ -8,7 +8,8 @@ from config import (
     SMTP_USERNAME, 
     SMTP_PASSWORD,
     SECRET_KEY,
-    DASHBOARD_PASSWORD
+    DASHBOARD_PASSWORD,
+    REQUIRED_CONFIG
 )
 from app.services.menu_service import MenuService
 from app.services.email_service import EmailService
@@ -34,18 +35,8 @@ def create_app():
             SESSION_COOKIE_SAMESITE='Lax'
         )
         
-        # Ensure required config exists
-        required_config = [
-            'SECRET_KEY',
-            'DASHBOARD_PASSWORD',
-            'STATE_FILE',
-            'SMTP_SERVER',
-            'SMTP_PORT',
-            'SMTP_USERNAME',
-            'SMTP_PASSWORD'
-        ]
-        
-        missing_config = [key for key in required_config if not app.config.get(key)]
+        # Use imported list
+        missing_config = [key for key in REQUIRED_CONFIG if not app.config.get(key)]
         if missing_config:
             raise ValueError(f"Missing required configuration: {', '.join(missing_config)}")
             

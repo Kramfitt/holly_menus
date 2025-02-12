@@ -14,7 +14,7 @@ from supabase import create_client, Client
 from worker import calculate_next_menu, send_menu_email
 from config import (
     supabase, redis_client, SMTP_SERVER, SMTP_PORT, 
-    SMTP_USERNAME, SMTP_PASSWORD
+    SMTP_USERNAME, SMTP_PASSWORD, REQUIRED_CONFIG
 )
 from app.utils.logger import Logger
 from app.services.menu_service import MenuService
@@ -32,6 +32,7 @@ from email.mime.image import MIMEImage
 import pytz  # Add this import
 from dotenv import load_dotenv
 import re
+from werkzeug.exceptions import HTTPException
 
 # Load environment variables
 load_dotenv()
@@ -81,20 +82,36 @@ email_service = EmailService(config={
     'SMTP_PASSWORD': SMTP_PASSWORD
 })
 
+# Update get_service_state to handle missing STATE_FILE
 def get_service_state():
-    if not os.path.exists(current_app.config['STATE_FILE']):
-        return {"active": True, "last_updated": None}
-    
-    with open(current_app.config['STATE_FILE'], 'r') as f:
-        active = f.read().strip() == 'True'
+    """Get service state from Redis instead of file"""
+    try:
+        state = redis_client.get('service_state')
         return {
-            "active": active,
-            "last_updated": datetime.fromtimestamp(os.path.getmtime(current_app.config['STATE_FILE']))
+            "active": state == b'true',
+            "last_updated": datetime.now()
         }
+    except Exception as e:
+        logger.log_activity(
+            action="Service State Error",
+            details=str(e),
+            status="error"
+        )
+        return {"active": False, "last_updated": None}
 
+# Update save_service_state to use Redis
 def save_service_state(active):
-    with open(current_app.config['STATE_FILE'], 'w') as f:
-        f.write(str(active))
+    """Save service state to Redis"""
+    try:
+        redis_client.set('service_state', str(active).lower())
+        return True
+    except Exception as e:
+        logger.log_activity(
+            action="Service State Save Error",
+            details=str(e),
+            status="error"
+        )
+        return False
 
 # Login required decorator
 def login_required(f):
@@ -956,30 +973,10 @@ def get_menu_settings():
 @bp.route('/api/email-health', methods=['GET'])
 def check_email_health():
     try:
-        # Check if email service is active
-        service_state = redis_client.get('service_state')
-        is_active = service_state == b'true'
-        
-        # Check SMTP settings exist
-        smtp_configured = all([
-            current_app.config.get('SMTP_SERVER'),
-            current_app.config.get('SMTP_PORT'),
-            current_app.config.get('SMTP_USERNAME'),
-            current_app.config.get('SMTP_PASSWORD')
-        ])
-        
-        return jsonify({
-            'status': 'healthy' if is_active and smtp_configured else 'inactive',
-            'details': {
-                'service_active': is_active,
-                'smtp_configured': smtp_configured
-            }
-        })
+        state = redis_client.get('service_state')
+        return jsonify({'active': state == b'true'})
     except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'error': str(e)
-        }), 500
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/clear-activity-log', methods=['POST'])
 @login_required
@@ -1102,38 +1099,30 @@ def settings():
 @login_required
 def system_status():
     try:
+        # Log system metrics
+        log_system_metrics()
+        
         # Get service states
         email_active = redis_client.get('service_state') == b'true'
         debug_mode = redis_client.get('debug_mode') == b'true'
+        maintenance_mode = check_maintenance_mode()
         
-        # Get database status
-        db_status = False
-        try:
-            supabase.table('menu_settings').select('count').execute()
-            db_status = True
-        except:
-            pass
-            
-        # Get Redis status
-        redis_status = False
-        try:
-            redis_client.ping()
-            redis_status = True
-        except:
-            pass
-            
+        # Get connection status
+        db_status = check_database()
+        redis_status = check_redis()
+        smtp_status = all([SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD])
+        
         return render_template('status.html',
                              email_active=email_active,
                              debug_mode=debug_mode,
+                             maintenance_mode=maintenance_mode,
                              db_status=db_status,
-                             redis_status=redis_status)
+                             redis_status=redis_status,
+                             smtp_status=smtp_status)
+                             
     except Exception as e:
-        logger.log_activity(
-            action="Status Page Load Failed",
-            details=str(e),
-            status="error"
-        )
-        return render_template('status.html', error=str(e))
+        error_msg = handle_error(e, "Status Page Error")
+        return render_template('status.html', error=error_msg)
 
 @bp.before_request
 def check_session():
@@ -1292,28 +1281,33 @@ __all__ = ['bp', 'register_filters']
 def health_check():
     """Basic health check endpoint"""
     try:
-        # Check Redis
-        redis_ok = redis_client.ping()
-        
-        # Check Database
-        db_ok = safe_supabase_query(
-            'menu_settings',
-            action="select",
-            limit=1
-        ) is not None
-        
-        # Check SMTP
+        # Check all services
+        redis_ok = check_redis()
+        db_ok = check_database()
         smtp_ok = all([SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD])
         
         status = "healthy" if all([redis_ok, db_ok, smtp_ok]) else "unhealthy"
         
+        # Get more detailed status
+        details = {
+            'redis': {
+                'status': 'connected' if redis_ok else 'disconnected',
+                'last_check': datetime.now().isoformat()
+            },
+            'database': {
+                'status': 'connected' if db_ok else 'disconnected',
+                'last_check': datetime.now().isoformat()
+            },
+            'smtp': {
+                'status': 'configured' if smtp_ok else 'not_configured',
+                'server': SMTP_SERVER,
+                'port': SMTP_PORT
+            }
+        }
+        
         return jsonify({
             'status': status,
-            'services': {
-                'redis': redis_ok,
-                'database': db_ok,
-                'smtp': smtp_ok
-            },
+            'services': details,
             'timestamp': datetime.now().isoformat()
         })
         
@@ -1382,4 +1376,75 @@ def toggle_maintenance():
         return jsonify({'active': not current})
     except Exception as e:
         error_msg = handle_error(e, "Maintenance Toggle Failed")
-        return jsonify({'error': error_msg}), 500 
+        return jsonify({'error': error_msg}), 500
+
+# Add database connection check
+def check_database():
+    """Check database connection"""
+    try:
+        safe_supabase_query(
+            'menu_settings',
+            action="select",
+            limit=1,
+            timeout=5  # Short timeout for health check
+        )
+        return True
+    except Exception as e:
+        logger.log_activity(
+            action="Database Check Failed",
+            details=str(e),
+            status="error"
+        )
+        return False
+
+# Add Redis connection check
+def check_redis():
+    """Check Redis connection"""
+    try:
+        return redis_client.ping()
+    except Exception as e:
+        logger.log_activity(
+            action="Redis Check Failed",
+            details=str(e),
+            status="error"
+        )
+        return False
+
+# Add system monitoring
+def log_system_metrics():
+    """Log system metrics"""
+    try:
+        # Check service states
+        email_active = redis_client.get('service_state') == b'true'
+        debug_mode = redis_client.get('debug_mode') == b'true'
+        maintenance_mode = check_maintenance_mode()
+        
+        # Check connections
+        redis_ok = check_redis()
+        db_ok = check_database()
+        smtp_ok = all([SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD])
+        
+        # Log metrics
+        logger.log_activity(
+            action="System Metrics",
+            details={
+                'services': {
+                    'email': email_active,
+                    'debug': debug_mode,
+                    'maintenance': maintenance_mode
+                },
+                'connections': {
+                    'redis': redis_ok,
+                    'database': db_ok,
+                    'smtp': smtp_ok
+                }
+            },
+            status="info"
+        )
+        
+    except Exception as e:
+        logger.log_activity(
+            action="Metrics Logging Failed",
+            details=str(e),
+            status="error"
+        ) 
