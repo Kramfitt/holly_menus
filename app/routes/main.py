@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for, Blueprint
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for, Blueprint, current_app
 from functools import wraps
 import os
 import sys
@@ -868,11 +868,13 @@ def get_next_menu():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.template_filter('strftime')
-def strftime_filter(date, format='%Y-%m-%d'):
-    if isinstance(date, str):
-        date = datetime.strptime(date, '%Y-%m-%d')
-    return date.strftime(format)
+def register_filters(app):
+    @app.template_filter('strftime')
+    def strftime_filter(date, format='%Y-%m-%d'):
+        """Format a datetime object."""
+        if isinstance(date, str):
+            date = datetime.strptime(date, '%Y-%m-%d')
+        return date.strftime(format)
 
 @bp.route('/api/email-status', methods=['GET'])
 def get_email_status():
