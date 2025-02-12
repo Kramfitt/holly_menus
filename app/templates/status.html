@@ -81,5 +81,33 @@
             </div>
         </div>
     </div>
+
+    <script>
+        // Auto-refresh status every 30 seconds
+        setInterval(function() {
+            $.get('/api/health')
+                .done(function(response) {
+                    $('#dbStatus')
+                        .text(response.services.database ? 'Connected' : 'Disconnected')
+                        .removeClass('bg-secondary bg-success bg-danger')
+                        .addClass(response.services.database ? 'bg-success' : 'bg-danger');
+                    
+                    $('#redisStatus')
+                        .text(response.services.redis ? 'Connected' : 'Disconnected')
+                        .removeClass('bg-secondary bg-success bg-danger')
+                        .addClass(response.services.redis ? 'bg-success' : 'bg-danger');
+                    
+                    $('#lastUpdated').text(new Date().toLocaleString());
+                });
+            
+            $.get('/api/email-health')
+                .done(function(response) {
+                    $('#emailStatus')
+                        .text(response.status === 'healthy' ? 'Running' : 'Inactive')
+                        .removeClass('bg-secondary bg-success bg-danger')
+                        .addClass(response.status === 'healthy' ? 'bg-success' : 'bg-danger');
+                });
+        }, 30000);
+    </script>
 </body>
 </html> 

@@ -223,6 +223,52 @@
                 });
             });
         });
+
+        // Add error alerts
+        <div id="alertArea"></div>
+
+        function showAlert(message, type = 'danger') {
+            const alert = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            $('#alertArea').html(alert);
+            setTimeout(() => {
+                $('.alert').alert('close');
+            }, 5000);
+        }
+
+        // Update error handling in AJAX calls
+        $.ajax({
+            // ... existing options ...
+            error: function(xhr, status, error) {
+                showAlert('Error: ' + (xhr.responseJSON?.error || error));
+            }
+        });
+
+        // Add loading spinner
+        <div id="loadingSpinner" class="text-center d-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+
+        function showLoading() {
+            $('#loadingSpinner').removeClass('d-none');
+        }
+
+        function hideLoading() {
+            $('#loadingSpinner').addClass('d-none');
+        }
+
+        // Update AJAX calls
+        $.ajax({
+            // ... existing options ...
+            beforeSend: showLoading,
+            complete: hideLoading
+        });
     </script>
 
     <!-- Add preview modal -->

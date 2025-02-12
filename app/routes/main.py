@@ -38,7 +38,8 @@ bp = Blueprint('main', __name__)
 @bp.context_processor
 def utility_processor():
     return {
-        'timedelta': timedelta
+        'timedelta': timedelta,
+        'datetime': datetime
     }
 
 # Config from environment variables
@@ -826,6 +827,7 @@ def register_filters(app):
 
     @app.template_filter('datetime')
     def format_datetime(value):
+        """Format datetime consistently across the app"""
         if isinstance(value, str):
             try:
                 value = datetime.fromisoformat(value.replace('Z', '+00:00'))
@@ -834,6 +836,18 @@ def register_filters(app):
         if isinstance(value, datetime):
             return value.strftime('%d %b %Y %H:%M')
         return value
+
+    @app.template_filter('date')
+    def format_date(value):
+        """Format date consistently across the app"""
+        if isinstance(value, str):
+            try:
+                value = datetime.strptime(value, '%Y-%m-%d').date()
+            except ValueError:
+                return value
+        if isinstance(value, datetime):
+            value = value.date()
+        return value.strftime('%d %B %Y')
 
 @bp.route('/api/email-status', methods=['GET'])
 def get_email_status():
