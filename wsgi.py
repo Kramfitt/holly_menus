@@ -1,8 +1,3 @@
-print("Loading application...")
+# Not currently used - see app.py
 from app import create_app
-
 app = create_app()
-print("Application loaded successfully!")
-
-if __name__ == '__main__':
-    app.run()
