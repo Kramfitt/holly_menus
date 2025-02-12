@@ -281,36 +281,53 @@ def upload_template():
         print(f"❌ Upload error: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)})
 
-@bp.route('/api/template/<id>', methods=['DELETE'])
-def delete_template(id):
+@bp.route('/api/template', methods=['DELETE'])
+@login_required
+def delete_template():
     try:
-        # Get file info from database
-        response = supabase.table('menus')\
-            .select('name')\
-            .eq('id', id)\
-            .single()\
+        data = request.json
+        season = data.get('season')
+        week = data.get('week')
+        
+        if not season or not week:
+            return jsonify({'error': 'Missing season or week'}), 400
+            
+        # Get template
+        template = supabase.table('menus')\
+            .select('*')\
+            .eq('season', season)\
+            .eq('week', week)\
             .execute()
             
-        if response.data:
-            filename = response.data['name']
+        if not template.data:
+            return jsonify({'error': 'Template not found'}), 404
             
-            # Delete from storage
-            supabase.storage.from_('menus').remove([f"menus/{filename}"])
+        # Delete from storage
+        file_path = template.data[0]['file_path']
+        supabase.storage.from_('menus').remove([file_path])
+        
+        # Delete from database
+        supabase.table('menus')\
+            .delete()\
+            .eq('season', season)\
+            .eq('week', week)\
+            .execute()
             
-            # Delete from database
-            supabase.table('menus')\
-                .delete()\
-                .eq('id', id)\
-                .execute()
-            
-            print(f"✅ Deleted: {filename}")
-            return jsonify({'status': 'success'})
-        else:
-            return jsonify({'status': 'error', 'message': 'Template not found'})
-            
+        logger.log_activity(
+            action="Template Deleted",
+            details=f"Deleted {season} week {week} template",
+            status="success"
+        )
+        
+        return jsonify({'success': True})
+        
     except Exception as e:
-        print(f"❌ Delete error: {str(e)}")
-        return jsonify({'status': 'error', 'message': str(e)})
+        logger.log_activity(
+            action="Template Delete Failed",
+            details=str(e),
+            status="error"
+        )
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('/system-check')
 def system_check():
@@ -440,35 +457,42 @@ def api_send_menu():
         print(f"❌ Send menu error: {str(e)}")
         return f"Failed to send menu: {str(e)}", 500
 
-@bp.route('/api/settings', methods=['POST'])
-def update_settings():
-    try:
-        settings = request.json
-        
-        # Validate settings
-        required_fields = ['start_date', 'season', 'days_in_advance', 'recipient_emails']
-        for field in required_fields:
-            if field not in settings:
-                return f"Missing required field: {field}", 400
-                
-        # Save to database
-        response = supabase.table('menu_settings').insert(settings).execute()
-        
-        logger.log_activity(
-            action="Settings Updated",
-            details="Menu settings updated successfully",
-            status="success"
-        )
-        
-        return jsonify(response.data[0])
-        
-    except Exception as e:
-        logger.log_activity(
-            action="Settings Update Failed",
-            details=str(e),
-            status="error"
-        )
-        return str(e), 500
+@bp.route('/api/settings', methods=['GET', 'POST'])
+@login_required
+def api_settings():
+    if request.method == 'POST':
+        try:
+            data = request.json
+            required = ['start_date', 'days_in_advance', 'recipient_emails']
+            if not all(key in data for key in required):
+                return jsonify({'error': 'Missing required fields'}), 400
+
+            # Insert new settings
+            response = supabase.table('menu_settings').insert({
+                'start_date': data['start_date'],
+                'days_in_advance': int(data['days_in_advance']),
+                'recipient_emails': data['recipient_emails'],
+                'created_at': datetime.now().isoformat()
+            }).execute()
+
+            logger.log_activity(
+                action="Settings Updated",
+                details="Menu settings updated successfully",
+                status="success"
+            )
+
+            return jsonify(response.data[0])
+        except Exception as e:
+            logger.log_activity(
+                action="Settings Update Failed",
+                details=str(e),
+                status="error"
+            )
+            return jsonify({'error': str(e)}), 500
+    else:
+        # GET request - return current settings
+        settings = get_menu_settings()
+        return jsonify(settings if settings else {})
 
 @bp.route('/api/notifications/<notification_id>/read', methods=['POST'])
 def mark_notification_read(notification_id):
@@ -1112,6 +1136,43 @@ def settings():
             status="error"
         )
         return render_template('settings.html', error=str(e))
+
+@bp.route('/status')
+@login_required
+def system_status():
+    try:
+        # Get service states
+        email_active = redis_client.get('service_state') == b'true'
+        debug_mode = redis_client.get('debug_mode') == b'true'
+        
+        # Get database status
+        db_status = False
+        try:
+            supabase.table('menu_settings').select('count').execute()
+            db_status = True
+        except:
+            pass
+            
+        # Get Redis status
+        redis_status = False
+        try:
+            redis_client.ping()
+            redis_status = True
+        except:
+            pass
+            
+        return render_template('status.html',
+                             email_active=email_active,
+                             debug_mode=debug_mode,
+                             db_status=db_status,
+                             redis_status=redis_status)
+    except Exception as e:
+        logger.log_activity(
+            action="Status Page Load Failed",
+            details=str(e),
+            status="error"
+        )
+        return render_template('status.html', error=str(e))
 
 if __name__ == '__main__':
     app.run(debug=True) 

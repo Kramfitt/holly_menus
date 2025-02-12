@@ -28,82 +28,58 @@
             </div>
         </nav>
 
-        <h2>System Status</h2>
-        
+        {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
         <div class="row">
             <div class="col-md-6">
                 <div class="card mb-4">
-                    <div class="card-header">Services</div>
+                    <div class="card-header">Service Status</div>
                     <div class="card-body">
-                        <ul class="list-group" id="serviceStatus">
+                        <ul class="list-group">
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Email Service
+                                <span class="badge bg-{{ 'success' if email_active else 'danger' }}">
+                                    {{ 'Active' if email_active else 'Inactive' }}
+                                </span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Debug Mode
+                                <span class="badge bg-{{ 'warning' if debug_mode else 'secondary' }}">
+                                    {{ 'Enabled' if debug_mode else 'Disabled' }}
+                                </span>
+                            </li>
                             <li class="list-group-item d-flex justify-content-between align-items-center">
                                 Database
-                                <span class="badge bg-secondary" id="dbStatus">Checking...</span>
+                                <span class="badge bg-{{ 'success' if db_status else 'danger' }}">
+                                    {{ 'Connected' if db_status else 'Disconnected' }}
+                                </span>
                             </li>
                             <li class="list-group-item d-flex justify-content-between align-items-center">
                                 Redis
-                                <span class="badge bg-secondary" id="redisStatus">Checking...</span>
-                            </li>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                Email Service
-                                <span class="badge bg-secondary" id="emailStatus">Checking...</span>
-                            </li>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                Worker
-                                <span class="badge bg-secondary" id="workerStatus">Checking...</span>
+                                <span class="badge bg-{{ 'success' if redis_status else 'danger' }}">
+                                    {{ 'Connected' if redis_status else 'Disconnected' }}
+                                </span>
                             </li>
                         </ul>
                     </div>
                 </div>
             </div>
-            
+
             <div class="col-md-6">
                 <div class="card mb-4">
-                    <div class="card-header">Environment</div>
+                    <div class="card-header">System Information</div>
                     <div class="card-body">
-                        <ul class="list-group" id="envStatus">
-                            <!-- Populated by JavaScript -->
-                        </ul>
+                        <div class="mb-3">
+                            <strong>Last Updated:</strong>
+                            <span id="lastUpdated">{{ datetime.now().strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                        </div>
+                        <button class="btn btn-primary" onclick="location.reload()">Refresh Status</button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script>
-        function updateStatus() {
-            $.get('/api/health')
-                .done(function(response) {
-                    $('#dbStatus')
-                        .text(response.services.database ? 'Connected' : 'Disconnected')
-                        .removeClass('bg-secondary bg-success bg-danger')
-                        .addClass(response.services.database ? 'bg-success' : 'bg-danger');
-                        
-                    $('#redisStatus')
-                        .text(response.services.redis ? 'Connected' : 'Disconnected')
-                        .removeClass('bg-secondary bg-success bg-danger')
-                        .addClass(response.services.redis ? 'bg-success' : 'bg-danger');
-                        
-                    $('#workerStatus')
-                        .text(response.services.worker ? 'Running' : 'Stopped')
-                        .removeClass('bg-secondary bg-success bg-danger')
-                        .addClass(response.services.worker ? 'bg-success' : 'bg-danger');
-                });
-                
-            $.get('/api/email-health')
-                .done(function(response) {
-                    $('#emailStatus')
-                        .text(response.status === 'healthy' ? 'Running' : 'Inactive')
-                        .removeClass('bg-secondary bg-success bg-danger')
-                        .addClass(response.status === 'healthy' ? 'bg-success' : 'bg-danger');
-                });
-        }
-
-        $(document).ready(function() {
-            updateStatus();
-            setInterval(updateStatus, 30000); // Update every 30 seconds
-        });
-    </script>
 </body>
 </html> 

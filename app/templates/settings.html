@@ -88,9 +88,21 @@
                                                 data-season="summer" data-week="{{ week }}">Upload</button>
                                     </div>
                                     {% if menus.summer[week|string] %}
-                                    <small class="text-success">Template uploaded</small>
+                                    <div class="mt-2">
+                                        <span class="text-success">✓ Template uploaded</span>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary preview-template" 
+                                                    data-url="{{ menus.summer[week|string].file_url }}">
+                                                Preview
+                                            </button>
+                                            <button class="btn btn-outline-danger delete-template"
+                                                    data-season="summer" data-week="{{ week }}">
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
                                     {% else %}
-                                    <small class="text-danger">No template</small>
+                                    <small class="text-danger">No template uploaded</small>
                                     {% endif %}
                                 </div>
                                 {% endfor %}
@@ -181,7 +193,51 @@
                     }
                 });
             });
+
+            // Add preview functionality
+            $('.preview-template').click(function() {
+                const url = $(this).data('url');
+                $('#previewImage').attr('src', url);
+                const previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+                previewModal.show();
+            });
+
+            // Add delete functionality
+            $('.delete-template').click(function() {
+                if (!confirm('Are you sure you want to delete this template?')) return;
+                
+                const season = $(this).data('season');
+                const week = $(this).data('week');
+                
+                $.ajax({
+                    url: '/api/template',
+                    type: 'DELETE',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ season, week }),
+                    success: function() {
+                        location.reload();
+                    },
+                    error: function(xhr) {
+                        alert('Error deleting template: ' + (xhr.responseJSON?.error || 'Unknown error'));
+                    }
+                });
+            });
         });
     </script>
+
+    <!-- Add preview modal -->
+    <div class="modal fade" id="previewModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Template Preview</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="previewImage" src="" class="img-fluid" alt="Template Preview">
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html> 
