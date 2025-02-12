@@ -27,8 +27,19 @@ SMTP_PORT = int(os.getenv('SMTP_PORT')) if os.getenv('SMTP_PORT') else None
 SMTP_USERNAME = os.getenv('SMTP_USERNAME')
 SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
 
-# Other settings
+# Security settings
 SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY must be set in environment")
+
 DASHBOARD_PASSWORD = os.getenv('DASHBOARD_PASSWORD')
 if not DASHBOARD_PASSWORD:
-    print("⚠️ Warning: DASHBOARD_PASSWORD not set in environment")
+    raise ValueError("DASHBOARD_PASSWORD must be set in environment")
+
+# Print configuration status (remove in production)
+print("\nConfiguration Status:")
+print(f"- SUPABASE_URL: {'Set' if os.getenv('SUPABASE_URL') else 'Missing'}")
+print(f"- SUPABASE_KEY: {'Set' if os.getenv('SUPABASE_KEY') else 'Missing'}")
+print(f"- REDIS_URL: {'Set' if os.getenv('REDIS_URL') else 'Using default'}")
+print(f"- SECRET_KEY: {'Set' if SECRET_KEY else 'Missing'}")
+print(f"- DASHBOARD_PASSWORD: {'Set' if DASHBOARD_PASSWORD else 'Missing'}")

@@ -7,7 +7,8 @@ from config import (
     SMTP_PORT, 
     SMTP_USERNAME, 
     SMTP_PASSWORD,
-    SECRET_KEY
+    SECRET_KEY,
+    DASHBOARD_PASSWORD
 )
 from app.services.menu_service import MenuService
 from app.services.email_service import EmailService
@@ -20,16 +21,22 @@ def create_app():
                static_folder='static')
     
     # Basic configuration
-    app.config['DEBUG'] = False  # Set to False for production
-    app.config['SECRET_KEY'] = SECRET_KEY
-    
-    # Session configuration
     app.config.update(
+        DEBUG=False,  # Set to False for production
+        SECRET_KEY=SECRET_KEY,
+        DASHBOARD_PASSWORD=DASHBOARD_PASSWORD,
+        
+        # Session configuration
         PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
         SESSION_COOKIE_SECURE=True,
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE='Lax'
     )
+    
+    # Log configuration status
+    app.logger.info(f"Configuration loaded:")
+    app.logger.info(f"- SECRET_KEY set: {'Yes' if SECRET_KEY else 'No'}")
+    app.logger.info(f"- DASHBOARD_PASSWORD set: {'Yes' if DASHBOARD_PASSWORD else 'No'}")
     
     # Initialize services
     app.menu_service = MenuService(db=supabase, storage=supabase.storage)
@@ -53,7 +60,8 @@ def create_app():
             'status': 'healthy',
             'timestamp': datetime.now().isoformat(),
             'config': {
-                'secret_key_set': bool(app.config.get('SECRET_KEY')),
+                'secret_key_set': bool(SECRET_KEY),
+                'dashboard_password_set': bool(DASHBOARD_PASSWORD),
                 'debug_mode': app.debug
             },
             'services': {
