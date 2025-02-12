@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Navigation -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="d-flex gap-3">
+                <a href="/" class="btn btn-outline-primary active">
+                    <i class="fas fa-home"></i> Dashboard
+                </a>
+                <a href="/menus" class="btn btn-outline-primary">
+                    <i class="fas fa-eye"></i> Settings
+                </a>
+                <a href="/preview" class="btn btn-outline-primary">
+                    <i class="fas fa-eye"></i> Preview
+                </a>
+                <a href="/system-check" class="btn btn-outline-primary">
+                    <i class="fas fa-cog"></i> System Status
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row mb-4">
+        <!-- Next Menu Card -->
+        <div class="col-md-3">
+            <a href="/preview" class="text-decoration-none">
+                <div class="card bg-primary text-white hover-shadow">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-calendar-alt me-2"></i>Next Menu
+                        </h5>
+                        <p class="card-text">
+                            {% if settings and next_menu %}
+                                {{ settings.season|title }} Week {{ next_menu.week }}
+                            {% else %}
+                                No menu scheduled
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Send Date Card -->
+        <div class="col-md-3">
+            <a href="/preview" class="text-decoration-none">
+                <div class="card bg-success text-white hover-shadow">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-clock me-2"></i>Send Date
+                        </h5>
+                        <p class="card-text">
+                            {% if next_menu and next_menu.send_date %}
+                                {{ next_menu.send_date.strftime('%d %B %Y') }}
+                            {% else %}
+                                Not configured
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Period Date Card -->
+        <div class="col-md-3">
+            <a href="/preview" class="text-decoration-none">
+                <div class="card bg-info text-white hover-shadow">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-calendar me-2"></i>Period Date
+                        </h5>
+                        <p class="card-text">
+                            {% if next_menu %}
+                                {{ next_menu.period_start.strftime('%d %B %Y') }}
+                            {% else %}
+                                Not configured
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Email Service Card -->
+        <div class="col-md-3">
+            <a href="/system-check" class="text-decoration-none">
+                <div id="emailStatusCard" class="card hover-shadow">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-envelope me-2"></i>Email Service
+                        </h5>
+                        <p class="card-text" id="emailStatusText">Loading...</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Add some hover effect styles -->
+    <style>
+        .hover-shadow:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            cursor: pointer;
+        }
+    </style>
+
+    <!-- Add this after the Quick Stats section -->
+    {% if unread_notifications %}
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">System Alerts</h5>
+                    <button class="btn btn-sm btn-outline-light" onclick="markAllRead()">
+                        Mark All Read
+                    </button>
+                </div>
+                <div class="card-body">
+                    {% for notification in unread_notifications %}
+                    <div class="alert alert-{{ notification.type }} alert-dismissible fade show" role="alert">
+                        <strong>{{ notification.message }}</strong>
+                        {% if notification.details %}
+                        <p class="mb-0"><small>{{ notification.details }}</small></p>
+                        {% endif %}
+                        <button type="button" class="btn-close" onclick="markAsRead('{{ notification.id }}')" aria-label="Close"></button>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Activity & Next Steps -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Recent Activity</h5>
+                    <button onclick="clearActivityLog()" class="btn btn-sm btn-outline-danger">
+                        <i class="fas fa-trash"></i> Clear Log
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        {% for activity in recent_activity %}
+                        <div class="activity-item">
+                            <small class="text-muted">{{ activity.created_at|datetime }}</small>
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">
+                                    {% if activity.status == 'success' %}
+                                        <i class="fas fa-check-circle text-success"></i>
+                                    {% elif activity.status == 'warning' %}
+                                        <i class="fas fa-exclamation-circle text-warning"></i>
+                                    {% else %}
+                                        <i class="fas fa-times-circle text-danger"></i>
+                                    {% endif %}
+                                    {{ activity.action }}
+                                </h6>
+                            </div>
+                            <p class="mb-1">{{ activity.details }}</p>
+                        </div>
+                        {% else %}
+                        <div class="list-group-item text-muted">
+                            No recent activity
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">System Overview</h5>
+                </div>
+                <div class="card-body">
+                    {% if settings %}
+                    <!-- Season Configuration -->
+                    <h6 class="border-bottom pb-2 mb-3">Season Settings</h6>
+                    <dl class="row mb-4">
+                        <dt class="col-sm-4">Current Season:</dt>
+                        <dd class="col-sm-8">{{ settings.season|title }}</dd>
+                        
+                        <dt class="col-sm-4">Rotation Start:</dt>
+                        <dd class="col-sm-8">{{ settings.start_date|strftime }}</dd>
+                        
+                        <dt class="col-sm-4">Season Change:</dt>
+                        <dd class="col-sm-8">
+                            {% if settings.season_change_date %}
+                                {{ settings.season_change_date|strftime('%A, %d %B %Y') }}
+                            {% else %}
+                                Not scheduled
+                            {% endif %}
+                        </dd>
+                    </dl>
+
+                    <!-- Menu Schedule -->
+                    <h6 class="border-bottom pb-2 mb-3">Next Menu Details</h6>
+                    <dl class="row mb-4">
+                        <dt class="col-sm-4">Send Schedule:</dt>
+                        <dd class="col-sm-8">{{ settings.days_in_advance }} days before period start</dd>
+                        
+                        <dt class="col-sm-4">Next Send Date:</dt>
+                        <dd class="col-sm-8">{{ next_menu.send_date|strftime('%A, %d %B %Y') }}</dd>
+                        
+                        <dt class="col-sm-4">Period Covered:</dt>
+                        <dd class="col-sm-8">
+                            Week {{ next_menu.week }}: {{ next_menu.period_start|strftime('%A, %d %B') }}<br>
+                            Week {{ next_menu.week + 1 }}: {{ (next_menu.period_start + timedelta(days=7))|strftime('%A, %d %B %Y') }}
+                        </dd>
+                    </dl>
+
+                    <!-- System Status -->
+                    <h6 class="border-bottom pb-2 mb-3">Service Status</h6>
+                    <dl class="row">
+                        <dt class="col-sm-4">Recipients:</dt>
+                        <dd class="col-sm-8">{{ settings.recipient_emails|length }} configured</dd>
+                        
+                        <dt class="col-sm-4">Email Service:</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge bg-{{ 'success' if service_active else 'warning' }}">
+                                {{ 'Active' if service_active else 'Paused' }}
+                            </span>
+                        </dd>
+                    </dl>
+                    {% else %}
+                    <p class="text-muted">No settings configured</p>
+                    {% endif %}
+
+                    <h6 class="mt-4">Quick Actions</h6>
+                    <div class="d-grid gap-2">
+                        <a href="/preview" class="btn btn-outline-primary">
+                            <i class="fas fa-upload"></i> Upload New Menu
+                        </a>
+                        <a href="/system-check" class="btn btn-outline-info">
+                            <i class="fas fa-check-circle"></i> Check System Status
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function markAsRead(id) {
+    try {
+        const response = await fetch(`/api/notifications/${id}/read`, {
+            method: 'POST'
+        });
+        if (response.ok) {
+            location.reload();
+        }
+    } catch (error) {
+        console.error('Failed to mark notification as read:', error);
+    }
+}
+
+async function markAllRead() {
+    try {
+        const response = await fetch('/api/notifications/read-all', {
+            method: 'POST'
+        });
+        if (response.ok) {
+            location.reload();
+        }
+    } catch (error) {
+        console.error('Failed to mark all notifications as read:', error);
+    }
+}
+
+async function updateEmailStatus() {
+    try {
+        const response = await fetch('/api/email-status');
+        const data = await response.json();
+        
+        const statusText = document.getElementById('emailStatusText');
+        if (data.active) {
+            statusText.innerHTML = 'Active';
+            statusText.parentElement.parentElement.className = 'card bg-success text-white hover-shadow';
+        } else {
+            statusText.innerHTML = 'Paused';
+            statusText.parentElement.parentElement.className = 'card bg-secondary text-white hover-shadow';
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        const statusText = document.getElementById('emailStatusText');
+        statusText.innerHTML = 'Error';
+        statusText.parentElement.parentElement.className = 'card bg-danger text-white hover-shadow';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    updateEmailStatus();
+    setInterval(updateEmailStatus, 30000); // Update every 30 seconds
+});
+
+function clearActivityLog() {
+    if (confirm('Are you sure you want to clear the activity log?')) {
+        fetch('/api/clear-activity-log', { 
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Reload the page to show updated activity log
+                window.location.reload();
+            } else {
+                alert('Failed to clear log: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error clearing log: ' + error);
+        });
+    }
+}
+</script>
+{% endblock %} 

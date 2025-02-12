@@ -1,0 +1,1 @@
+worker: python menu_scheduler.py 

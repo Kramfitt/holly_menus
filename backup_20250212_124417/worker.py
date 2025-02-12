@@ -390,24 +390,51 @@ def check_and_send():
     """Main worker function"""
     try:
         next_menu = calculate_next_menu()
+        if not next_menu:
+            logger.log_activity(
+                action="Menu Check",
+                details="Could not calculate next menu",
+                status="warning"
+            )
+            return
+            
         today = datetime.now().date()
         
+        # Skip if template is missing unless in debug mode
+        if next_menu.get('template_missing') and redis_client.get('debug_mode') != b'true':
+            logger.log_activity(
+                action="Menu Check",
+                details=f"Menu template missing for {next_menu['season']} week {next_menu['week']}",
+                status="warning"
+            )
+            return
+            
         # TEMPORARY TEST CODE - Remove after testing
-        print("🧪 TEST MODE: Forcing menu send...")
-        success = send_menu_email(next_menu['period_start'], next_menu['recipient_emails'], next_menu['season'], (next_menu['period_start'] - datetime.strptime(get_menu_settings()['start_date'], '%Y-%m-%d').date()).days // 7 + 1)
-        if success:
-            print("✅ Test menu sent successfully!")
-        else:
-            print("❌ Test menu send failed!")
-        return
-        # END TEST CODE
-        
+        if redis_client.get('debug_mode') == b'true':
+            print("🧪 TEST MODE: Forcing menu send...")
+            success = send_menu_email(
+                next_menu['period_start'], 
+                next_menu['recipient_emails'], 
+                next_menu['season'], 
+                next_menu['week']
+            )
+            if success:
+                print("✅ Test menu sent successfully!")
+            else:
+                print("❌ Test menu send failed!")
+            return
+            
         if today == next_menu['send_date']:
             logger.log_activity(
                 action="Menu Send Started",
                 details=f"Sending menu for period starting {next_menu['period_start']}"
             )
-            success = send_menu_email(next_menu['period_start'], next_menu['recipient_emails'], next_menu['season'], (next_menu['period_start'] - datetime.strptime(get_menu_settings()['start_date'], '%Y-%m-%d').date()).days // 7 + 1)
+            success = send_menu_email(
+                next_menu['period_start'], 
+                next_menu['recipient_emails'], 
+                next_menu['season'],
+                next_menu['week']
+            )
             
         else:
             logger.log_activity(

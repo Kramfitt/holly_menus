@@ -1,0 +1,17 @@
+Metadata-Version: 2.2
+Name: holly_menus
+Version: 0.1
+Requires-Dist: Flask>=2.3.3
+Requires-Dist: Pillow
+Requires-Dist: python-dotenv
+Requires-Dist: reportlab
+Requires-Dist: pytest
+Requires-Dist: pytest-mock
+Requires-Dist: supabase
+Requires-Dist: redis
+Requires-Dist: gunicorn
+Requires-Dist: requests
+Requires-Dist: httpx
+Requires-Dist: psycopg2-binary
+Requires-Dist: pytesseract
+Dynamic: requires-dist

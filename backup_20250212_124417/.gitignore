@@ -1,0 +1,24 @@
+# Environment files
+.env
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# VS Code
+.vscode/
+
+# PyCharm
+.idea/
+
+# Temp files
+*.log
+.DS_Store
+
+# State files
+service_state.txt
+service_state.txt

@@ -1,0 +1,36 @@
+# config.yaml
+schedule:
+  send_days_before: 3
+  menu_duration_days: 14
+  send_time: "09:00"  # When to send on scheduled day
+
+seasons:
+  summer:
+    start_date: "2023-12-01"  # December 1st (Southern Hemisphere summer)
+    template_path: "templates/summer"
+  winter:
+    start_date: "2024-06-01"  # June 1st (Southern Hemisphere winter)
+    template_path: "templates/winter"
+
+recipients:
+  primary:
+    email: ""  # Set via RECIPIENT_EMAIL env var
+    name: "Primary Contact"
+  backup:  # Optional backup recipient
+    email: ""  # Set via BACKUP_EMAIL env var if needed
+    name: "Backup Contact"
+
+email:
+  smtp_server: ""  # Set via SMTP_SERVER env var
+  smtp_port: 587  # Set via SMTP_PORT env var
+  sender_email: ""  # Set via SENDER_EMAIL env var
+  sender_name: "Menu System"
+
+paths:
+  output: "output"  # Where to save generated menus
+  logs: "logs"      # Where to save log files
+
+# Optional preview settings
+preview:
+  enabled: false
+  preview_email: ""  # Set via PREVIEW_EMAIL env var if needed

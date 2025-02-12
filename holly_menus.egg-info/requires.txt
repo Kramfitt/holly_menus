@@ -1,0 +1,13 @@
+Flask>=2.3.3
+Pillow
+python-dotenv
+reportlab
+pytest
+pytest-mock
+supabase
+redis
+gunicorn
+requests
+httpx
+psycopg2-binary
+pytesseract

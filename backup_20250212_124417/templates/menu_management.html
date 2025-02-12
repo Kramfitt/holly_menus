@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <div class="d-flex gap-3">
+                <a href="/" class="btn btn-outline-primary">
+                    <i class="fas fa-home"></i> Dashboard
+                </a>
+                <a href="/menus" class="btn btn-outline-primary active">
+                    <i class="fas fa-eye"></i> Settings
+                </a>
+                <a href="/preview" class="btn btn-outline-primary">
+                    <i class="fas fa-eye"></i> Preview
+                </a>
+                <a href="/system-check" class="btn btn-outline-primary">
+                    <i class="fas fa-cog"></i> System Status
+                </a>
+            </div>
+        </div>
+    </div>
+    <h2>Settings & File Management</h2>
+    
+    <!-- Menu Settings -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Menu Settings</h5>
+            <form id="settingsForm">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="startDate" class="form-label">Rotation Start Date</label>
+                            <input type="date" class="form-control" id="startDate" 
+                                   value="{{ settings.start_date if settings else '' }}">
+                            <small class="text-muted" id="startDatePreview">
+                                {% if settings and settings.start_date %}
+                                    {{ settings.start_date|strftime('%A, %d %B %Y') }}
+                                {% endif %}
+                            </small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="season" class="form-label">Current Season</label>
+                            <select class="form-control" id="season" required>
+                                <option value="summer" {% if settings and settings.season == 'summer' %}selected{% endif %}>Summer</option>
+                                <option value="winter" {% if settings and settings.season == 'winter' %}selected{% endif %}>Winter</option>
+                            </select>
+                            <small class="text-muted">
+                                Will automatically switch when Season Change Date is reached
+                            </small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="seasonChangeDate" class="form-label">Season Change Date</label>
+                            <input type="date" class="form-control" id="seasonChangeDate" 
+                                   value="{{ settings.season_change_date if settings else '' }}">
+                            <small class="text-muted" id="seasonChangeDatePreview">
+                                {% if settings and settings.season_change_date %}
+                                    {{ settings.season_change_date|strftime('%A, %d %B %Y') }}
+                                {% endif %}
+                            </small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="daysInAdvance" class="form-label">Days in Advance</label>
+                            <input type="number" class="form-control" id="daysInAdvance" 
+                                   value="{{ settings.days_in_advance if settings else 14 }}" min="1" max="30">
+                            <small class="text-muted">How many days before period start to send menu</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="recipients" class="form-label">Email Recipients</label>
+                    <textarea class="form-control" id="recipients" rows="2" 
+                              placeholder="Enter email addresses, separated by commas">{{ settings.recipient_emails|join(', ') if settings and settings.recipient_emails else '' }}</textarea>
+                    <small class="text-muted">Who should receive the menu emails</small>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Save Settings</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Menu Files Section -->
+    <div class="row">
+        {% for season in ['summer', 'winter'] %}
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>{{ season|title }} Menus</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        {% for week in range(1, 5) %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">Week {{ week }}</h6>
+                                    {% set menu_name = season + '_' + week|string %}
+                                    {% if menus[menu_name] %}
+                                        <small class="text-muted">Last updated: {{ menus[menu_name].uploaded_at|datetime }}</small>
+                                        <div class="mt-2">
+                                            {% if menus[menu_name].file_url %}
+                                            <a href="{{ menus[menu_name].file_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteMenu('{{ menu_name }}')">
+                                                <i class="fas fa-trash"></i> Delete
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    {% else %}
+                                        <small class="text-muted">No menu uploaded</small>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <button class="btn btn-primary btn-sm" onclick="openFileUpload('{{ season }}_{{ week }}')">
+                                        <i class="fas fa-upload"></i> Upload
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Hidden file input -->
+    <input type="file" 
+        class="form-control" 
+        id="menuFileInput" 
+        accept="image/jpeg,image/png"
+        style="display: none;">
+</div>
+
+<!-- Update the JavaScript -->
+<script>
+function showMenu(url, name) {
+    document.getElementById('menuListView').style.display = 'none';
+    document.getElementById('menuPreviewView').style.display = 'block';
+    document.getElementById('previewTitle').textContent = `Viewing: ${name}`;
+    document.getElementById('menuPreviewImage').src = url;
+    
+    // Scroll to the preview
+    document.getElementById('menuPreviewView').scrollIntoView({ behavior: 'smooth' });
+}
+
+function showMenuList() {
+    document.getElementById('menuPreviewView').style.display = 'none';
+    document.getElementById('menuListView').style.display = 'block';
+}
+
+// Settings form submission
+document.getElementById('settingsForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const settings = {
+        start_date: document.getElementById('startDate').value,
+        season: document.getElementById('season').value,
+        season_change_date: document.getElementById('seasonChangeDate').value,
+        days_in_advance: parseInt(document.getElementById('daysInAdvance').value),
+        recipient_emails: document.getElementById('recipients').value.split(',').map(email => email.trim())
+    };
+    
+    try {
+        const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(settings)
+        });
+        
+        if (response.ok) {
+            alert('Settings saved successfully!');
+        } else {
+            const error = await response.text();
+            alert(`Failed to save settings: ${error}`);
+        }
+    } catch (error) {
+        alert(`Error saving settings: ${error}`);
+    }
+});
+
+function openFileUpload(menuName) {
+    const input = document.getElementById('menuFileInput');
+    input.setAttribute('data-menu-name', menuName);
+    input.click();
+}
+
+function deleteMenu(menuName) {
+    if (!confirm(`Are you sure you want to delete ${menuName}?`)) {
+        return;
+    }
+    
+    fetch('/api/menus/' + menuName, {
+        method: 'DELETE'
+    })
+    .then(response => {
+        if (response.ok) {
+            alert('Menu deleted successfully');
+            location.reload();
+        } else {
+            response.text().then(error => {
+                alert(`Failed to delete menu: ${error}`);
+            });
+        }
+    })
+    .catch(error => {
+        alert(`Error deleting menu: ${error}`);
+    });
+}
+
+// File upload handler
+document.getElementById('menuFileInput').addEventListener('change', async function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // Validate file type
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+        alert('Please upload a JPG or PNG image');
+        this.value = ''; // Clear the input
+        return;
+    }
+    
+    const menuName = this.getAttribute('data-menu-name');
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('name', menuName);
+    
+    try {
+        const response = await fetch('/api/menus', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            alert('Menu uploaded successfully');
+            location.reload();
+        } else {
+            const error = await response.text();
+            alert(`Failed to upload menu: ${error}`);
+        }
+    } catch (error) {
+        alert(`Error uploading menu: ${error}`);
+    }
+});
+
+// Add this to your existing JavaScript
+function updateDatePreview(inputId, previewId) {
+    const input = document.getElementById(inputId);
+    const preview = document.getElementById(previewId);
+    
+    // Show initial preview
+    if (input.value) {
+        const date = new Date(input.value);
+        preview.textContent = date.toLocaleDateString('en-NZ', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+    }
+    
+    // Update on change
+    input.addEventListener('change', function() {
+        if (this.value) {
+            const date = new Date(this.value);
+            preview.textContent = date.toLocaleDateString('en-NZ', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+        } else {
+            preview.textContent = '';
+        }
+    });
+}
+
+// Initialize date previews when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    updateDatePreview('startDate', 'startDatePreview');
+    updateDatePreview('seasonChangeDate', 'seasonChangeDatePreview');
+});
+</script>
+{% endblock %} 
