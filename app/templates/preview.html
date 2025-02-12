@@ -1,21 +1,24 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Menu Preview - Holly Lea Menu System</title>
+    <title>Preview - Dashboard</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
 </head>
 <body>
     <div class="container mt-4">
         <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
             <div class="container-fluid">
-                <a class="navbar-brand" href="/">Holly Lea Menu System</a>
+                <a class="navbar-brand" href="/">Dashboard</a>
                 <div class="collapse navbar-collapse">
                     <ul class="navbar-nav me-auto">
                         <li class="nav-item">
-                            <a class="nav-link" href="/menus">Menu Management</a>
+                            <a class="nav-link" href="/settings">Settings</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link active" href="/preview">Preview</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/status">System Status</a>
                         </li>
                     </ul>
                     <div class="d-flex">
@@ -25,20 +28,112 @@
             </div>
         </nav>
 
-        {% if error %}
-        <div class="alert alert-danger" role="alert">
-            {{ error }}
-        </div>
-        {% endif %}
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Menu Preview</span>
+                        <button class="btn btn-sm btn-secondary" id="downloadPreview" disabled>Download</button>
+                    </div>
+                    <div class="card-body">
+                        <form id="previewForm" class="mb-4">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Season</label>
+                                        <select class="form-control" name="season">
+                                            <option value="summer">Summer</option>
+                                            <option value="winter">Winter</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Week</label>
+                                        <select class="form-control" name="week">
+                                            <option value="1">Week 1</option>
+                                            <option value="2">Week 2</option>
+                                            <option value="3">Week 3</option>
+                                            <option value="4">Week 4</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Start Date</label>
+                                        <input type="date" class="form-control" name="start_date" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Generate Preview</button>
+                        </form>
+                        <div id="previewArea" class="text-center">
+                            <p class="text-muted">Select options and click Generate Preview</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-        <h2>Menu Preview</h2>
-        <div class="card">
-            <div class="card-body">
-                <div id="previewArea">
-                    <p class="text-muted">Select a menu and date to preview</p>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">Preview History</div>
+                    <div class="card-body">
+                        <div id="previewHistory">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            let currentPreviewUrl = null;
+
+            $('#previewForm').on('submit', function(e) {
+                e.preventDefault();
+                const season = $('select[name="season"]').val();
+                const week = $('select[name="week"]').val();
+                const date = $('input[name="start_date"]').val();
+                
+                $('#previewArea').html('<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>');
+                $('#downloadPreview').prop('disabled', true);
+                
+                $.get(`/api/preview?season=${season}&week=${week}&date=${date}`)
+                    .done(function(response) {
+                        $('#previewArea').html(response);
+                        $('#downloadPreview').prop('disabled', false);
+                        currentPreviewUrl = response.url;
+                        
+                        // Add to history
+                        const historyItem = `
+                            <div class="mb-2">
+                                <small class="text-muted">${new Date().toLocaleTimeString()}</small>
+                                <br>
+                                ${season} Week ${week} - ${date}
+                            </div>
+                        `;
+                        $('#previewHistory').prepend(historyItem);
+                    })
+                    .fail(function(err) {
+                        $('#previewArea').html(`<div class="alert alert-danger">${err.responseText || 'Failed to generate preview'}</div>`);
+                    });
+            });
+
+            $('#downloadPreview').click(function() {
+                if (currentPreviewUrl) {
+                    window.open(currentPreviewUrl, '_blank');
+                }
+            });
+
+            // Set default date to next Monday
+            const today = new Date();
+            const nextMonday = new Date(today);
+            nextMonday.setDate(today.getDate() + (1 + 7 - today.getDay()) % 7);
+            $('input[name="start_date"]').val(nextMonday.toISOString().split('T')[0]);
+        });
+    </script>
 </body>
 </html> 

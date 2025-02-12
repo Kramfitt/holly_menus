@@ -202,104 +202,41 @@ def preview():
 @bp.route('/api/preview', methods=['GET'])
 def api_preview_menu():
     try:
-        menu_id = request.args.get('menu_id')
-        preview_date = request.args.get('date')
-        date_obj = datetime.strptime(preview_date, '%Y-%m-%d')
+        season = request.args.get('season')
+        week = request.args.get('week')
+        start_date = request.args.get('date')
         
-        # Get menu data
-        response = supabase.table('menus')\
+        if not all([season, week, start_date]):
+            return "Missing required parameters", 400
+            
+        # Get menu template
+        menu_response = supabase.table('menus')\
             .select('*')\
-            .eq('id', menu_id)\
-            .single()\
+            .eq('season', season)\
+            .eq('week', week)\
             .execute()
             
-        if not response.data:
-            return "Menu not found", 404
+        if not menu_response.data:
+            return f"No template found for {season} week {week}", 404
             
-        menu = response.data
+        menu = menu_response.data[0]
+        date_obj = datetime.strptime(start_date, '%Y-%m-%d')
         
-        # For PDFs, just return the viewer
-        if menu['file_type'] == 'pdf':
-            return f'<embed src="{menu["file_url"]}" type="application/pdf" width="100%" height="600px">'
-            
-        # Download and process image
-        img_response = requests.get(menu['file_url'])
-        img = Image.open(io.BytesIO(img_response.content))
-        draw = ImageDraw.Draw(img)
+        # Generate preview
+        preview_url = menu_service.generate_preview(menu, date_obj)
         
-        # Create font
-        try:
-            font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 25)
-        except:
-            try:
-                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 25)
-            except:
-                try:
-                    font = ImageFont.truetype("/Library/Fonts/Arial Bold.ttf", 25)
-                except:
-                    font = ImageFont.load_default()
-        
-        # Position settings from successful test
-        x_start = 320
-        y_start = 200
-        x_spacing = 280
-        
-        # Add dates
-        for day in range(7):
-            x = x_start + (x_spacing * day)
-            y = y_start
-            current_date = date_obj + timedelta(days=day)
-            date_text = current_date.strftime('%a %d\n%b')
-            
-            # Get text size for background
-            bbox = draw.textbbox((x, y), date_text, font=font)
-            padding_x = 20
-            padding_y = 15
-            
-            # Calculate box dimensions
-            box_width = bbox[2] - bbox[0] + (padding_x * 2)
-            box_height = (bbox[3] - bbox[1] + (padding_y * 2)) * 0.8
-            
-            # Draw background
-            draw.rectangle([
-                bbox[0] - padding_x,
-                bbox[1] - padding_y,
-                bbox[0] + box_width - padding_x,
-                bbox[1] + box_height - padding_y
-            ], fill='white')
-            
-            # Draw text
-            draw.text((x, y), date_text, fill='black', font=font)
-        
-        # Convert to bytes
-        img_byte_arr = io.BytesIO()
-        img.save(img_byte_arr, format=img.format)
-        img_byte_arr = img_byte_arr.getvalue()
-        
-        # Generate preview path
-        preview_path = f"previews/preview_{menu_id}_{preview_date}.{menu['file_type']}"
-        
-        try:
-            # Try to delete existing preview
-            supabase.storage.from_('menus').remove([preview_path])
-        except:
-            pass  # Ignore if file doesn't exist
-        
-        # Upload new preview
-        supabase.storage.from_('menus').upload(
-            preview_path,
-            img_byte_arr,
-            {'content-type': f"image/{menu['file_type']}"}
-        )
-        
-        # Get preview URL
-        preview_url = supabase.storage.from_('menus').get_public_url(preview_path)
-        
-        return f'<img src="{preview_url}?t={datetime.now().timestamp()}" class="img-fluid" alt="Menu Preview">'
-            
+        return f'<div class="preview-container">' \
+               f'<img src="{preview_url}" class="img-fluid" alt="Menu Preview">' \
+               f'<div class="mt-2 text-muted">Preview generated for {season.title()} Week {week}</div>' \
+               f'</div>'
+               
     except Exception as e:
-        print(f"❌ Preview error: {str(e)}")
-        return f"Failed to generate preview: {str(e)}", 500
+        logger.log_activity(
+            action="Preview Generation Failed",
+            details=str(e),
+            status="error"
+        )
+        return str(e), 500
 
 @bp.route('/api/template', methods=['POST'])
 def upload_template():
