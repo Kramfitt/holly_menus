@@ -132,19 +132,24 @@ def logout():
 @login_required
 def index():
     try:
+        # Debug prints
+        print("Starting index route...")
+        
         # Use the menu service to get data
+        print("Calculating next menu...")
         next_menu = menu_service.calculate_next_menu()
+        print(f"Next menu: {next_menu}")
         
         # Get recent activity
-        print("Fetching recent activity...")  # Debug log
+        print("Fetching recent activity...")
         activity_response = supabase.table('activity_log')\
             .select('*')\
             .order('created_at', desc=True)\
             .limit(10)\
             .execute()
             
-        print(f"Activity response: {activity_response.data}")  # Debug log
-            
+        print(f"Activity response: {activity_response.data}")
+        
         recent_activity = []
         for activity in activity_response.data or []:
             if 'created_at' in activity:
@@ -153,23 +158,22 @@ def index():
                 )
             recent_activity.append(activity)
         
-        print(f"Processed activity: {recent_activity}")  # Debug log
+        print(f"Processed activity: {recent_activity}")
         
         # Get service state
         service_active = redis_client.get('service_state') == b'true'
+        print(f"Service active: {service_active}")
         
+        # Try rendering with minimal data first
         return render_template('index.html',
                              next_menu=next_menu,
                              recent_activity=recent_activity,
                              service_active=service_active)
                              
     except Exception as e:
-        logger.log_activity(
-            action="Dashboard Error",
-            details=str(e),
-            status="error"
-        )
-        print(f"❌ Dashboard error: {str(e)}")  # Add debug print
+        import traceback
+        print(f"❌ Dashboard error details:")
+        print(traceback.format_exc())
         return f"Error loading dashboard: {str(e)}", 500
 
 @bp.route('/preview')
