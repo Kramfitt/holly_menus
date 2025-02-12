@@ -29,6 +29,19 @@ class Logger:
             
         except Exception as e:
             print(f"Logging failed: {str(e)}")
+            
+    # Flask logger compatibility methods
+    def error(self, msg):
+        self.log("Error", str(msg), status="error", level="error")
+        
+    def warning(self, msg):
+        self.log("Warning", str(msg), status="warning", level="warning")
+        
+    def info(self, msg):
+        self.log("Info", str(msg), status="info", level="info")
+        
+    def debug(self, msg):
+        self.log("Debug", str(msg), status="debug", level="debug")
 
     # Alias for backward compatibility
     log_activity = log
