@@ -18,12 +18,11 @@ class Logger:
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             print(f"[{timestamp}] [{level.upper()}] {action}: {details}")
             
-            # Database logging
+            # Database logging - remove level field
             self.db.table('activity_log').insert({
                 'action': action,
                 'details': details,
                 'status': status,
-                'level': level,
                 'created_at': datetime.now().isoformat()
             }).execute()
             

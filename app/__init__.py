@@ -14,7 +14,9 @@ import os
 from datetime import datetime
 
 # Create the Flask application
-app = Flask(__name__)
+app = Flask(__name__,
+           template_folder='templates',  # Make sure this exists
+           static_folder='static')       # And this for static files
 
 # Add secret key
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev')
