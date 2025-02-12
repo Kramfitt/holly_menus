@@ -70,6 +70,54 @@ Required in Render "Menu Scheduler" Environment Group:
   1. menu_dashboard (Web)
   2. menu_worker (Worker)
 
+## Deployment Notes
+
+### Render Setup
+1. Services Required:
+   - Web Service (Python)
+   - Background Worker
+
+2. Environment Variables:
+   All variables must be set in Render dashboard:
+   ```
+   SUPABASE_URL=
+   SUPABASE_KEY=
+   REDIS_URL=
+   SMTP_SERVER=
+   SMTP_PORT=
+   SMTP_USERNAME=
+   SMTP_PASSWORD=
+   SECRET_KEY=
+   DASHBOARD_PASSWORD=
+   ```
+
+3. Build Settings:
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `gunicorn wsgi:app`
+
+4. Key Files:
+   - wsgi.py (Flask app entry point)
+   - Procfile (Render service definitions)
+   - requirements.txt (Python dependencies)
+
+### Monitoring
+1. Render Dashboard:
+   - View logs: Services → holly-menus → Logs
+   - Check Events tab for build/deploy status
+   - Monitor Resource usage
+
+2. Common Issues:
+   - Check gunicorn logs for app startup issues
+   - Verify environment variables are set
+   - Monitor Redis connection
+   - Check Supabase connectivity
+
+3. Health Checks:
+   - /health endpoint should return 200
+   - Worker service logs should show activity
+   - Redis connection status
+   - Email service status
+
 ## Development History
 - Started with basic menu sending system
 - Added web interface
@@ -82,4 +130,14 @@ Required in Render "Menu Scheduler" Environment Group:
 - Enhanced email templates
 - More detailed reporting
 - Additional backup options
-- Extended monitoring capabilities 
+- Extended monitoring capabilities
+
+## Recent Updates
+- Reorganized code using Flask Blueprint and App Factory pattern
+- Implemented proper service classes (MenuService, EmailService)
+- Added centralized configuration in config module
+- Set up basic testing framework with pytest
+- Fixed season calculation bug
+- Improved error handling and logging
+
+## Project Structure 
