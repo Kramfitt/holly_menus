@@ -469,20 +469,22 @@ def api_settings():
                 return jsonify({'error': 'Missing required fields'}), 400
 
             # Insert new settings
-            response = supabase.table('menu_settings').insert({
+            settings = {
                 'start_date': data['start_date'],
                 'days_in_advance': int(data['days_in_advance']),
                 'recipient_emails': data['recipient_emails'],
                 'created_at': datetime.now().isoformat()
-            }).execute()
-
+            }
+            
+            response = supabase.table('menu_settings').insert(settings).execute()
+            
             logger.log_activity(
                 action="Settings Updated",
                 details="Menu settings updated successfully",
                 status="success"
             )
-
-            return jsonify(response.data[0])
+            return jsonify({'success': True})
+            
         except Exception as e:
             logger.log_activity(
                 action="Settings Update Failed",
@@ -491,9 +493,11 @@ def api_settings():
             )
             return jsonify({'error': str(e)}), 500
     else:
-        # GET request - return current settings
-        settings = get_menu_settings()
-        return jsonify(settings if settings else {})
+        try:
+            settings = get_menu_settings()
+            return jsonify(settings if settings else {})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/notifications/<notification_id>/read', methods=['POST'])
 def mark_notification_read(notification_id):
@@ -931,20 +935,27 @@ def send_test_email():
 @bp.route('/api/debug-mode', methods=['GET', 'POST'])
 @login_required
 def debug_mode():
-    if request.method == 'POST':
-        active = request.json.get('active', False)
-        redis_client.set('debug_mode', str(active).lower())
-        
-        logger.log_activity(
-            action="Debug Mode",
-            details=f"Debug mode {'enabled' if active else 'disabled'}",
-            status="debug"
-        )
-        
-        return jsonify({'active': active})
-    else:
-        is_debug = redis_client.get('debug_mode') == b'true'
-        return jsonify({'active': is_debug})
+    try:
+        if request.method == 'POST':
+            data = request.json
+            if 'active' not in data:
+                return jsonify({'error': 'Missing active state'}), 400
+                
+            redis_client.set('debug_mode', str(data['active']).lower())
+            
+            logger.log_activity(
+                action="Debug Mode",
+                details=f"Debug mode {'enabled' if data['active'] else 'disabled'}",
+                status="info"
+            )
+            
+            return jsonify({'success': True, 'active': data['active']})
+        else:
+            is_active = redis_client.get('debug_mode') == b'true'
+            return jsonify({'active': is_active})
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/force-send', methods=['POST'])
 @login_required
@@ -1059,14 +1070,15 @@ def check_email_health():
         }), 500
 
 @bp.route('/api/clear-activity-log', methods=['POST'])
+@login_required
 def clear_activity_log():
     try:
         # Delete ALL entries from activity_log table
         supabase.table('activity_log')\
             .delete()\
-            .filter('id', 'not.is', 'null')\
             .execute()
             
+        # Log the clear action itself
         logger.log_activity(
             action="Activity Log Cleared",
             details="All activity log entries were cleared",
@@ -1074,13 +1086,14 @@ def clear_activity_log():
         )
         
         return jsonify({'success': True})
+        
     except Exception as e:
         logger.log_activity(
             action="Clear Log Failed",
             details=str(e),
             status="error"
         )
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
 def log_activity(action, details, status):
     """Log an activity with validated status"""
