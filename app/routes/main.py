@@ -145,6 +145,13 @@ def rate_limit(key, limit=5, period=60):
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
     try:
+        # Add debug logging
+        logger.log_activity(
+            action="Login Page Access",
+            details=f"Method: {request.method}, IP: {request.remote_addr}",
+            status="info"
+        )
+
         # Rate limit by IP
         if not rate_limit(f"login:{request.remote_addr}", limit=5, period=300):
             logger.log_activity(
@@ -158,10 +165,6 @@ def login():
         if request.method == 'POST':
             dashboard_password = current_app.config.get('DASHBOARD_PASSWORD')
             submitted_password = request.form.get('password')
-            
-            # Debug logging (remove in production)
-            print(f"Login attempt - Password configured: {'Yes' if dashboard_password else 'No'}")
-            print(f"Submitted password length: {len(submitted_password) if submitted_password else 0}")
             
             # Check configuration
             if not dashboard_password:
@@ -192,8 +195,6 @@ def login():
                     status="success"
                 )
                 
-                # Debug logging
-                print("Login successful - redirecting to index")
                 return redirect(url_for('main.index'))
             
             # Failed login attempt
@@ -203,15 +204,28 @@ def login():
                 status="warning"
             )
             return render_template('login.html', 
-                error="Invalid password", 
-                show_error=True)
+                error="Invalid password")
                 
     except Exception as e:
-        error_msg = handle_error(e, "Login System Error")
+        # Add detailed error logging
+        error_details = str(e)
+        stack_trace = traceback.format_exc()
+        logger.log_activity(
+            action="Login System Error",
+            details=f"Error: {error_details}\nStack trace: {stack_trace}",
+            status="error"
+        )
+        
+        # In debug mode, show full error
+        if current_app.debug:
+            return render_template('login.html', 
+                error=f"Error: {error_details}\n\nStack trace:\n{stack_trace}")
+        
+        # In production, show generic error
         return render_template('login.html', 
-            error=error_msg,
-            show_error=True)
+            error="An error occurred. Please try again or contact support.")
             
+    # GET request - show login form
     return render_template('login.html')
 
 @bp.route('/logout')
@@ -1239,7 +1253,6 @@ def safe_supabase_query(table, action="query", timeout=10, **kwargs):
         )
         return None
 
-# Add near the top with other utility functions
 def register_filters(app):
     """Register custom template filters"""
     
@@ -1255,42 +1268,7 @@ def register_filters(app):
                 dt = value
             return dt.strftime('%Y-%m-%d %H:%M:%S')
         except Exception:
-            return value
-
-    @app.template_filter('timedelta')
-    def format_timedelta(value):
-        """Format timedelta to readable string"""
-        if not value:
-            return ''
-        try:
-            if isinstance(value, str):
-                # Parse ISO duration format
-                days = hours = mins = 0
-                if 'D' in value:
-                    days = int(value.split('D')[0].replace('P', ''))
-                if 'H' in value:
-                    hours = int(value.split('H')[0].split('T')[-1])
-                if 'M' in value:
-                    mins = int(value.split('M')[0].split('H')[-1])
-                td = timedelta(days=days, hours=hours, minutes=mins)
-            else:
-                td = value
-            
-            days = td.days
-            hours = td.seconds // 3600
-            minutes = (td.seconds % 3600) // 60
-            
-            parts = []
-            if days:
-                parts.append(f"{days}d")
-            if hours:
-                parts.append(f"{hours}h")
-            if minutes:
-                parts.append(f"{minutes}m")
-            return ' '.join(parts) if parts else '0m'
-            
-        except Exception:
-            return value
+            return str(value)
 
     @app.template_filter('status_color')
     def status_color(status):
@@ -1304,17 +1282,11 @@ def register_filters(app):
         }
         return colors.get(status.lower() if status else '', 'secondary')
 
-    return app  # Return the app after registering filters
+    # Don't return app, just register the filters
+    return None
 
-# At the top of the file with other exports
+# Export both bp and register_filters at the top
 __all__ = ['bp', 'register_filters']
-
-# Or add to the bottom of the file
-bp.register_filters = register_filters  # Alternative approach
-
-# Remove this at the bottom
-# if __name__ == '__main__':
-#     bp.run(debug=True)  # Blueprints don't have run() 
 
 @bp.route('/health')
 def health_check():
@@ -1351,4 +1323,63 @@ def health_check():
             'status': 'error',
             'error': error_msg,
             'timestamp': datetime.now().isoformat()
-        }), 500 
+        }), 500
+
+@bp.app_errorhandler(404)
+def page_not_found(e):
+    return render_template('error.html', 
+        error="The requested page was not found."), 404
+
+@bp.app_errorhandler(500)
+def internal_error(e):
+    return render_template('error.html',
+        error="An internal server error occurred."), 500
+
+@bp.app_errorhandler(403)
+def forbidden_error(e):
+    return render_template('error.html',
+        error="You don't have permission to access this page."), 403
+
+@bp.app_errorhandler(405)
+def method_not_allowed(e):
+    return render_template('error.html',
+        error="This method is not allowed for this endpoint."), 405
+
+@bp.app_errorhandler(429)
+def too_many_requests(e):
+    return render_template('error.html',
+        error="Too many requests. Please try again later."), 429
+
+def check_maintenance_mode():
+    """Check if system is in maintenance mode"""
+    try:
+        return redis_client.get('maintenance_mode') == b'true'
+    except:
+        return False
+
+@bp.before_request
+def handle_maintenance():
+    """Handle maintenance mode"""
+    if check_maintenance_mode():
+        # Allow health check endpoint
+        if request.endpoint != 'main.health_check':
+            return render_template('maintenance.html'), 503
+
+@bp.route('/api/maintenance', methods=['POST'])
+@login_required
+def toggle_maintenance():
+    """Toggle maintenance mode"""
+    try:
+        current = check_maintenance_mode()
+        redis_client.set('maintenance_mode', str(not current).lower())
+        
+        logger.log_activity(
+            action="Maintenance Mode",
+            details=f"Maintenance mode {'disabled' if current else 'enabled'}",
+            status="info"
+        )
+        
+        return jsonify({'active': not current})
+    except Exception as e:
+        error_msg = handle_error(e, "Maintenance Toggle Failed")
+        return jsonify({'error': error_msg}), 500 

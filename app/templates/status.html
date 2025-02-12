@@ -102,6 +102,16 @@
                         <button class="btn btn-warning" id="forceSend" disabled>Force Send Menu</button>
                     </div>
                 </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">System Tools</div>
+                    <div class="card-body">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="maintenanceMode">
+                            <label class="form-check-label" for="maintenanceMode">Maintenance Mode</label>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -186,6 +196,24 @@
                     }
                 });
             }
+        });
+
+        // Maintenance mode toggle
+        $('#maintenanceMode').change(function() {
+            const isChecked = $(this).prop('checked');
+            $.ajax({
+                url: '/api/maintenance',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ active: isChecked }),
+                success: function() {
+                    showError('Maintenance mode ' + (isChecked ? 'enabled' : 'disabled'), 'success');
+                },
+                error: function(xhr) {
+                    showError('Failed to toggle maintenance mode: ' + (xhr.responseJSON?.error || 'Unknown error'));
+                    $(this).prop('checked', !isChecked);
+                }
+            });
         });
     </script>
 </body>
