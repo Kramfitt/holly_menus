@@ -1,5 +1,5 @@
 # Empty file to make worker a package
-from worker.worker import calculate_next_menu, send_menu_email
+from worker.worker import main
 
 # Export these functions
-__all__ = ['calculate_next_menu', 'send_menu_email']
+__all__ = ['main']

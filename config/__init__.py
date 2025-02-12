@@ -30,3 +30,5 @@ SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
 # Other settings
 SECRET_KEY = os.getenv('SECRET_KEY')
 DASHBOARD_PASSWORD = os.getenv('DASHBOARD_PASSWORD')
+if not DASHBOARD_PASSWORD:
+    print("⚠️ Warning: DASHBOARD_PASSWORD not set in environment")

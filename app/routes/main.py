@@ -119,17 +119,43 @@ def login_required(f):
 def login():
     if request.method == 'POST':
         try:
-            if request.form['password'] == current_app.config['DASHBOARD_PASSWORD']:
+            dashboard_password = current_app.config.get('DASHBOARD_PASSWORD')
+            if not dashboard_password:
+                logger.log_activity(
+                    action="Login Configuration Error",
+                    details="DASHBOARD_PASSWORD not set in configuration",
+                    status="error"
+                )
+                return render_template('login.html', error='System configuration error')
+
+            submitted_password = request.form.get('password')
+            if not submitted_password:
+                return render_template('login.html', error='Password required')
+
+            if submitted_password == dashboard_password:
                 session['logged_in'] = True
+                logger.log_activity(
+                    action="Login Success",
+                    details="User logged in successfully",
+                    status="success"
+                )
                 return redirect(url_for('main.index'))
-            return render_template('login.html', error='Invalid password')
-        except Exception as e:
+            
             logger.log_activity(
                 action="Login Failed",
-                details=str(e),
+                details="Invalid password attempt",
+                status="warning"
+            )
+            return render_template('login.html', error='Invalid password')
+            
+        except Exception as e:
+            logger.log_activity(
+                action="Login Error",
+                details=f"Error during login: {str(e)}",
                 status="error"
             )
             return render_template('login.html', error='Login error occurred')
+            
     return render_template('login.html')
 
 @bp.route('/logout')
