@@ -31,16 +31,16 @@ class Logger:
             print(f"Logging failed: {str(e)}")
             
     # Flask logger compatibility methods
-    def error(self, msg):
+    def error(self, msg, *args, **kwargs):
         self.log("Error", str(msg), status="error", level="error")
         
-    def warning(self, msg):
+    def warning(self, msg, *args, **kwargs):
         self.log("Warning", str(msg), status="warning", level="warning")
         
-    def info(self, msg):
+    def info(self, msg, *args, **kwargs):
         self.log("Info", str(msg), status="info", level="info")
         
-    def debug(self, msg):
+    def debug(self, msg, *args, **kwargs):
         self.log("Debug", str(msg), status="debug", level="debug")
 
     # Alias for backward compatibility
