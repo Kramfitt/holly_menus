@@ -739,22 +739,30 @@ def toggle_email():
         )
         return jsonify({'error': str(e)}), 500
 
-def send_email_safely(to_email, subject, body):
-    """Send email with error handling"""
+def send_email_safely(to_email, subject, body, timeout=30):
+    """Send email with timeout and error handling"""
     try:
         msg = MIMEMultipart()
-        msg['From'] = f"Holly Lea Menus <{os.getenv('SMTP_USERNAME')}>"
+        msg['From'] = f"Holly Lea Menus <{SMTP_USERNAME}>"
         msg['To'] = to_email
         msg['Subject'] = subject
         msg.attach(MIMEText(body, 'plain'))
         
-        with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
+        # Set timeout for SMTP operations
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=timeout) as server:
             server.starttls()
-            server.login(os.getenv('SMTP_USERNAME'), os.getenv('SMTP_PASSWORD'))
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
             server.send_message(msg)
             
         return True
         
+    except smtplib.SMTPException as e:
+        logger.log_activity(
+            action="SMTP Error",
+            details=f"Failed to send email to {to_email}: {str(e)}",
+            status="error"
+        )
+        return False
     except Exception as e:
         logger.log_activity(
             action="Email Error",
@@ -764,21 +772,40 @@ def send_email_safely(to_email, subject, body):
         return False
 
 @bp.route('/api/test-email', methods=['POST'])
+@login_required
 def send_test_email():
     try:
         email = request.json.get('email')
         if not email:
             return jsonify({'error': 'Email address required'}), 400
             
-        if send_email_safely(
+        # Validate email format
+        if not validate_email(email):
+            return jsonify({'error': 'Invalid email address format'}), 400
+            
+        # Check SMTP settings
+        if not all([SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD]):
+            return jsonify({'error': 'SMTP settings not configured'}), 500
+            
+        # Send test email with timeout
+        success = send_email_safely(
             email,
             "Test Email from Holly Lea Menu System",
-            "This is a test email from the Holly Lea Menu System."
-        ):
-            return jsonify({'success': True})
-        else:
+            "This is a test email from the Holly Lea Menu System.",
+            timeout=10
+        )
+        
+        if not success:
             return jsonify({'error': 'Failed to send email'}), 500
             
+        logger.log_activity(
+            action="Test Email Sent",
+            details=f"Test email sent to {email}",
+            status="success"
+        )
+        
+        return jsonify({'success': True})
+        
     except Exception as e:
         error_msg = handle_error(e, "Test Email Failed")
         return jsonify({'error': error_msg}), 500
@@ -945,12 +972,17 @@ def check_email_health():
 def clear_activity_log():
     try:
         # Delete all records using a filter that's always true
-        supabase.table('activity_log')\
-            .delete()\
-            .gte('id', 0)\
-            .execute()
+        response = safe_supabase_query(
+            'activity_log',
+            action="delete",
+            filter_column='id',
+            filter_value=0,
+            filter_operator='gte'  # Greater than or equal to 0 (all records)
+        )
+        
+        if response is None:
+            raise Exception("Failed to clear activity log")
             
-        # Log the clear action
         logger.log_activity(
             action="Activity Log Cleared",
             details="Activity log cleared",
@@ -965,8 +997,8 @@ def clear_activity_log():
     except Exception as e:
         error_msg = handle_error(e, "Clear Log Failed")
         return jsonify({
-            'error': str(e),
-            'message': error_msg
+            'error': error_msg,
+            'message': "Failed to clear activity log"
         }), 500
 
 def log_activity(action, details, status):
@@ -1173,6 +1205,13 @@ def safe_supabase_query(table, action="query", timeout=10, **kwargs):
             return query.insert(kwargs.get('data')).execute()
         elif action == "delete":
             query = query.delete()
+            # Add filter for delete
+            if kwargs.get('filter_column'):
+                query = query.filter(
+                    kwargs['filter_column'],
+                    kwargs.get('filter_operator', 'eq'),
+                    kwargs['filter_value']
+                )
             
         if kwargs.get('order_by'):
             query = query.order(kwargs['order_by'], ascending=kwargs.get('ascending', True))
@@ -1200,6 +1239,116 @@ def safe_supabase_query(table, action="query", timeout=10, **kwargs):
         )
         return None
 
+# Add near the top with other utility functions
+def register_filters(app):
+    """Register custom template filters"""
+    
+    @app.template_filter('datetime')
+    def format_datetime(value):
+        """Format datetime to readable string"""
+        if not value:
+            return ''
+        try:
+            if isinstance(value, str):
+                dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+            else:
+                dt = value
+            return dt.strftime('%Y-%m-%d %H:%M:%S')
+        except Exception:
+            return value
+
+    @app.template_filter('timedelta')
+    def format_timedelta(value):
+        """Format timedelta to readable string"""
+        if not value:
+            return ''
+        try:
+            if isinstance(value, str):
+                # Parse ISO duration format
+                days = hours = mins = 0
+                if 'D' in value:
+                    days = int(value.split('D')[0].replace('P', ''))
+                if 'H' in value:
+                    hours = int(value.split('H')[0].split('T')[-1])
+                if 'M' in value:
+                    mins = int(value.split('M')[0].split('H')[-1])
+                td = timedelta(days=days, hours=hours, minutes=mins)
+            else:
+                td = value
+            
+            days = td.days
+            hours = td.seconds // 3600
+            minutes = (td.seconds % 3600) // 60
+            
+            parts = []
+            if days:
+                parts.append(f"{days}d")
+            if hours:
+                parts.append(f"{hours}h")
+            if minutes:
+                parts.append(f"{minutes}m")
+            return ' '.join(parts) if parts else '0m'
+            
+        except Exception:
+            return value
+
+    @app.template_filter('status_color')
+    def status_color(status):
+        """Convert status to Bootstrap color class"""
+        colors = {
+            'success': 'success',
+            'warning': 'warning',
+            'error': 'danger',
+            'info': 'info',
+            'debug': 'secondary'
+        }
+        return colors.get(status.lower() if status else '', 'secondary')
+
+    return app  # Return the app after registering filters
+
+# At the top of the file with other exports
+__all__ = ['bp', 'register_filters']
+
+# Or add to the bottom of the file
+bp.register_filters = register_filters  # Alternative approach
+
 # Remove this at the bottom
 # if __name__ == '__main__':
 #     bp.run(debug=True)  # Blueprints don't have run() 
+
+@bp.route('/health')
+def health_check():
+    """Basic health check endpoint"""
+    try:
+        # Check Redis
+        redis_ok = redis_client.ping()
+        
+        # Check Database
+        db_ok = safe_supabase_query(
+            'menu_settings',
+            action="select",
+            limit=1
+        ) is not None
+        
+        # Check SMTP
+        smtp_ok = all([SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD])
+        
+        status = "healthy" if all([redis_ok, db_ok, smtp_ok]) else "unhealthy"
+        
+        return jsonify({
+            'status': status,
+            'services': {
+                'redis': redis_ok,
+                'database': db_ok,
+                'smtp': smtp_ok
+            },
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        error_msg = handle_error(e, "Health Check Failed")
+        return jsonify({
+            'status': 'error',
+            'error': error_msg,
+            'timestamp': datetime.now().isoformat()
+        }), 500 
