@@ -6,41 +6,51 @@ class MenuService:
         self.db = db
         self.storage = storage
         
-    def calculate_next_menu(self) -> Dict[str, Any]:
+    def calculate_next_menu(self):
         """Calculate which menu should be sent next"""
         try:
-            settings = self.get_settings()
-            if not settings:
-                return self._create_response(None, "No menu settings found")
-                
+            # Get current settings
+            settings_response = self.db.table('menu_settings')\
+                .select('*')\
+                .order('created_at', desc=True)\
+                .limit(1)\
+                .execute()
+
+            if not settings_response.data:
+                print("No menu settings found")
+                return None
+
+            settings = settings_response.data[0]
+            start_date = datetime.strptime(settings['start_date'], '%Y-%m-%d').date()
             today = datetime.now().date()
+
+            # Calculate next menu period
+            days_since_start = (today - start_date).days
+            weeks_since_start = days_since_start // 7
+            current_period = weeks_since_start // 2
             
-            # Calculate next menu start date (2 weeks from now)
-            next_date = today + timedelta(days=14)
-            
-            # Determine season
-            season = self._determine_season(next_date, settings)
-            
-            # Calculate week number (1-4)
-            weeks_since_start = ((next_date - settings['start_date']).days // 14)
-            week_number = (weeks_since_start % 4) + 1
-            
+            # Calculate next period start
+            next_period_start = start_date + timedelta(weeks=current_period * 2)
+            if today >= next_period_start:
+                next_period_start += timedelta(weeks=2)
+
             # Calculate send date
-            send_date = next_date - timedelta(days=settings['days_in_advance'])
-            
-            menu_details = {
+            send_date = next_period_start - timedelta(days=settings['days_in_advance'])
+
+            # Determine season and week
+            season = settings['season']
+            week_pair = "1_2" if (current_period % 2 == 0) else "3_4"
+
+            return {
                 'send_date': send_date,
-                'period_start': next_date,
+                'period_start': next_period_start,
                 'season': season,
-                'week': week_number,
-                'menu_pair': f"{week_number}_" + str(week_number + 1 if week_number % 2 == 1 else week_number - 1),
-                'recipient_emails': settings['recipient_emails']
+                'menu_pair': week_pair
             }
-            
-            return self._create_response(menu_details)
-            
+
         except Exception as e:
-            return self._create_response(None, str(e))
+            print(f"Error calculating next menu: {str(e)}")
+            return None
     
     def get_settings(self) -> Optional[Dict[str, Any]]:
         """Get current menu settings"""
