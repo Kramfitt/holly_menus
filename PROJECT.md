@@ -140,4 +140,25 @@ Required in Render "Menu Scheduler" Environment Group:
 - Fixed season calculation bug
 - Improved error handling and logging
 
-## Project Structure 
+## Project Structure
+
+### Worker Service Structure
+1. Files:
+   ```
+   worker/
+   ├── __init__.py        # Package marker
+   ├── worker.py          # Main worker process
+   ├── scheduler.py       # Menu scheduling logic
+   └── main.py           # Entry point (future use)
+   ```
+
+2. Key Components:
+   - worker.py: Main worker process that runs on Render
+   - scheduler.py: Handles menu timing and rotation
+   - MenuService: Calculates next menu to send
+   - EmailService: Handles email composition and sending
+
+3. Configuration:
+   - Procfile points to worker.py
+   - Uses same env vars as web service
+   - Shares services with web app 

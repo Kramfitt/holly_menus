@@ -454,6 +454,7 @@ def check_and_send():
         )
 
 def main():
+    print("Worker starting...")
     # Initialize services
     logger = Logger()
     menu_service = MenuService(db=supabase, storage=supabase.storage)
