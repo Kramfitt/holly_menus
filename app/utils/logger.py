@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from typing import Literal, Optional
 from config import supabase
@@ -28,6 +29,9 @@ class Logger:
             
         except Exception as e:
             print(f"Logging failed: {str(e)}")
+
+    # Alias for backward compatibility
+    log_activity = log
 
     def get_recent_activity(self, limit=10):
         """Get recent activity logs"""

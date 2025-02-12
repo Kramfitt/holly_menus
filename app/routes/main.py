@@ -18,7 +18,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
-from app.utils.logger import ActivityLogger
+from app.utils.logger import Logger
 from app.utils.notifications import NotificationManager
 from app.utils.backup import BackupManager
 from worker import calculate_next_menu, send_menu_email
@@ -77,7 +77,7 @@ if hasattr(supabase, '_http_client'):
     if hasattr(supabase._http_client, 'proxies'):
         delattr(supabase._http_client, 'proxies')
 
-logger = ActivityLogger()
+logger = Logger()
 notifications = NotificationManager()
 backup_manager = BackupManager()
 
