@@ -11,7 +11,7 @@ from app.services.menu_service import MenuService
 from app.services.email_service import EmailService
 from app.utils.logger import Logger
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Create the Flask application
 app = Flask(__name__,
@@ -23,6 +23,14 @@ app.config['DEBUG'] = True
 
 # Add secret key
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev')
+
+# Session configuration
+app.config.update(
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+    SESSION_COOKIE_SECURE=True,  # For HTTPS
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax'
+)
 
 # Initialize services
 app.menu_service = MenuService(db=supabase, storage=supabase.storage)
@@ -50,3 +58,18 @@ def health_check():
             'worker': True
         }
     })
+
+def create_app():
+    app = Flask(__name__)
+    
+    # Session configuration
+    app.config.update(
+        PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+        SESSION_COOKIE_SECURE=True,  # For HTTPS
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE='Lax'
+    )
+    
+    # ... rest of app configuration ...
+    
+    return app

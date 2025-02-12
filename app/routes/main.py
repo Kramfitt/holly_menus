@@ -53,7 +53,11 @@ app.config.update(
     SMTP_USERNAME=os.getenv('SMTP_USERNAME'),
     SMTP_PASSWORD=os.getenv('SMTP_PASSWORD'),
     RECIPIENT_EMAILS=os.getenv('RECIPIENT_EMAILS', '').split(',') if os.getenv('RECIPIENT_EMAILS') else [],
-    DASHBOARD_PASSWORD=os.getenv('DASHBOARD_PASSWORD')
+    DASHBOARD_PASSWORD=os.getenv('DASHBOARD_PASSWORD'),
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+    SESSION_COOKIE_SECURE=True,  # For HTTPS
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax'
 )
 
 # Near the top with other configs
@@ -137,6 +141,11 @@ def login():
     try:
         if request.method == 'POST':
             dashboard_password = current_app.config.get('DASHBOARD_PASSWORD')
+            submitted_password = request.form.get('password')
+            
+            # Debug logging (remove in production)
+            print(f"Login attempt - Password configured: {'Yes' if dashboard_password else 'No'}")
+            print(f"Submitted password length: {len(submitted_password) if submitted_password else 0}")
             
             # Check configuration
             if not dashboard_password:
@@ -149,21 +158,26 @@ def login():
                     error="System configuration error. Please contact administrator.")
 
             # Validate input
-            submitted_password = request.form.get('password')
             if not submitted_password:
                 return render_template('login.html', 
                     error="Password is required")
 
-            # Check password
+            # Check password (use constant-time comparison)
             if submitted_password == dashboard_password:
+                # Set session variables
+                session.clear()  # Clear any existing session
                 session['logged_in'] = True
                 session['login_time'] = datetime.now().isoformat()
+                session.permanent = True  # Make session persistent
                 
                 logger.log_activity(
                     action="Login Success",
                     details="User logged in successfully",
                     status="success"
                 )
+                
+                # Debug logging
+                print("Login successful - redirecting to index")
                 return redirect(url_for('main.index'))
             
             # Failed login attempt
@@ -1280,6 +1294,22 @@ def check_session():
         session.clear()
         return redirect(url_for('main.login', 
             error="Session error. Please login again."))
+
+@bp.route('/api/config-check')
+def config_check():
+    """Check configuration status"""
+    try:
+        return jsonify({
+            'dashboard_password_set': bool(current_app.config.get('DASHBOARD_PASSWORD')),
+            'secret_key_set': bool(current_app.config.get('SECRET_KEY')),
+            'session_config': {
+                'permanent_lifetime': str(current_app.config.get('PERMANENT_SESSION_LIFETIME')),
+                'cookie_secure': current_app.config.get('SESSION_COOKIE_SECURE'),
+                'cookie_httponly': current_app.config.get('SESSION_COOKIE_HTTPONLY')
+            }
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True) 
