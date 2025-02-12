@@ -118,10 +118,18 @@ def login_required(f):
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        if request.form['password'] == current_app.config['DASHBOARD_PASSWORD']:
-            session['logged_in'] = True
-            return redirect(url_for('main.index'))
-        return 'Invalid password'
+        try:
+            if request.form['password'] == current_app.config['DASHBOARD_PASSWORD']:
+                session['logged_in'] = True
+                return redirect(url_for('main.index'))
+            return render_template('login.html', error='Invalid password')
+        except Exception as e:
+            logger.log_activity(
+                action="Login Failed",
+                details=str(e),
+                status="error"
+            )
+            return render_template('login.html', error='Login error occurred')
     return render_template('login.html')
 
 @bp.route('/logout')
@@ -937,8 +945,8 @@ def send_test_email():
 def debug_mode():
     try:
         if request.method == 'POST':
-            data = request.json
-            if 'active' not in data:
+            data = request.get_json()
+            if data is None or 'active' not in data:
                 return jsonify({'error': 'Missing active state'}), 400
                 
             redis_client.set('debug_mode', str(data['active']).lower())
@@ -955,6 +963,11 @@ def debug_mode():
             return jsonify({'active': is_active})
             
     except Exception as e:
+        logger.log_activity(
+            action="Debug Mode Error",
+            details=str(e),
+            status="error"
+        )
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/force-send', methods=['POST'])
@@ -1073,15 +1086,13 @@ def check_email_health():
 @login_required
 def clear_activity_log():
     try:
-        # Delete ALL entries from activity_log table
-        supabase.table('activity_log')\
-            .delete()\
-            .execute()
-            
-        # Log the clear action itself
+        # Delete all entries except the clear action itself
+        supabase.table('activity_log').delete().execute()
+        
+        # Log the clear action
         logger.log_activity(
             action="Activity Log Cleared",
-            details="All activity log entries were cleared",
+            details="Activity log cleared by user",
             status="success"
         )
         
