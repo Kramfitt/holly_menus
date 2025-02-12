@@ -18,6 +18,52 @@ from config import (
 # Force load from .env file
 load_dotenv(override=True)
 
+def calculate_next_menu():
+    """Calculate which menu should be sent next"""
+    try:
+        menu_service = MenuService(db=supabase, storage=supabase.storage)
+        return menu_service.calculate_next_menu()
+    except Exception as e:
+        logger = Logger()
+        logger.log_activity(
+            action="Menu Calculation Error",
+            details=str(e),
+            status="error"
+        )
+        return None
+
+def send_menu_email(start_date, recipient_list, season, week_number):
+    """Send menu email"""
+    try:
+        email_service = EmailService(config={
+            'SMTP_SERVER': SMTP_SERVER,
+            'SMTP_PORT': SMTP_PORT,
+            'SMTP_USERNAME': SMTP_USERNAME,
+            'SMTP_PASSWORD': SMTP_PASSWORD
+        })
+        
+        menu_service = MenuService(db=supabase, storage=supabase.storage)
+        menu_data = menu_service.get_menu_template(season, week_number)
+        
+        if not menu_data:
+            raise Exception(f"No template found for {season} week {week_number}")
+            
+        return email_service.send_menu(
+            menu_data=menu_data,
+            recipients=recipient_list,
+            start_date=start_date,
+            menu_type=f"{season} Week {week_number}"
+        )
+        
+    except Exception as e:
+        logger = Logger()
+        logger.log_activity(
+            action="Menu Send Error",
+            details=str(e),
+            status="error"
+        )
+        return False
+
 def main():
     """Main worker process"""
     print("\n🚀 Worker service starting...")

@@ -26,6 +26,7 @@ from config import supabase, redis_client, SMTP_SERVER, SMTP_PORT, SMTP_USERNAME
 import pytz  # Add this import
 from app.services.menu_service import MenuService
 from app.services.email_service import EmailService
+import traceback
 
 # Load environment variables
 load_dotenv()
@@ -115,25 +116,49 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def handle_error(e, action="System Error"):
+    """Centralized error handling"""
+    error_details = str(e)
+    stack_trace = traceback.format_exc()
+    
+    # Log the error
+    logger.log_activity(
+        action=action,
+        details=f"Error: {error_details}\nStack trace: {stack_trace}",
+        status="error"
+    )
+    
+    if current_app.debug:
+        return f"Error: {error_details}\n\nStack trace:\n{stack_trace}"
+    return "An error occurred. Please try again or contact support."
+
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
-        try:
+    try:
+        if request.method == 'POST':
             dashboard_password = current_app.config.get('DASHBOARD_PASSWORD')
+            
+            # Check configuration
             if not dashboard_password:
                 logger.log_activity(
-                    action="Login Configuration Error",
-                    details="DASHBOARD_PASSWORD not set in configuration",
+                    action="Login Error",
+                    details="DASHBOARD_PASSWORD not configured",
                     status="error"
                 )
-                return render_template('login.html', error='System configuration error')
+                return render_template('login.html', 
+                    error="System configuration error. Please contact administrator.")
 
+            # Validate input
             submitted_password = request.form.get('password')
             if not submitted_password:
-                return render_template('login.html', error='Password required')
+                return render_template('login.html', 
+                    error="Password is required")
 
+            # Check password
             if submitted_password == dashboard_password:
                 session['logged_in'] = True
+                session['login_time'] = datetime.now().isoformat()
+                
                 logger.log_activity(
                     action="Login Success",
                     details="User logged in successfully",
@@ -141,20 +166,21 @@ def login():
                 )
                 return redirect(url_for('main.index'))
             
+            # Failed login attempt
             logger.log_activity(
                 action="Login Failed",
                 details="Invalid password attempt",
                 status="warning"
             )
-            return render_template('login.html', error='Invalid password')
-            
-        except Exception as e:
-            logger.log_activity(
-                action="Login Error",
-                details=f"Error during login: {str(e)}",
-                status="error"
-            )
-            return render_template('login.html', error='Login error occurred')
+            return render_template('login.html', 
+                error="Invalid password", 
+                show_error=True)
+                
+    except Exception as e:
+        error_msg = handle_error(e, "Login System Error")
+        return render_template('login.html', 
+            error=error_msg,
+            show_error=True)
             
     return render_template('login.html')
 
@@ -167,49 +193,42 @@ def logout():
 @login_required
 def index():
     try:
-        # Debug prints
-        print("Starting index route...")
-        
-        # Use the menu service to get data
-        print("Calculating next menu...")
-        next_menu = menu_service.calculate_next_menu()
-        print(f"Next menu: {next_menu}")
-        
-        # Get recent activity
-        print("Fetching recent activity...")
-        activity_response = supabase.table('activity_log')\
-            .select('*')\
-            .order('created_at', desc=True)\
-            .limit(10)\
-            .execute()
-            
-        print(f"Activity response: {activity_response.data}")
-        
-        recent_activity = []
-        for activity in activity_response.data or []:
-            if 'created_at' in activity:
-                activity['created_at'] = datetime.fromisoformat(
-                    activity['created_at'].replace('Z', '+00:00')
-                )
-            recent_activity.append(activity)
-        
-        print(f"Processed activity: {recent_activity}")
-        
         # Get service state
         service_active = redis_client.get('service_state') == b'true'
-        print(f"Service active: {service_active}")
         
-        # Try rendering with minimal data first
+        # Get next menu info
+        next_menu = calculate_next_menu()
+        if not next_menu:
+            logger.log_activity(
+                action="Menu Calculation",
+                details="Could not calculate next menu",
+                status="warning"
+            )
+        
+        # Get recent activity
+        try:
+            activity_response = supabase.table('activity_log')\
+                .select('*')\
+                .order('created_at', desc=True)\
+                .limit(10)\
+                .execute()
+            recent_activity = activity_response.data
+        except Exception as e:
+            logger.log_activity(
+                action="Activity Log Error",
+                details=str(e),
+                status="error"
+            )
+            recent_activity = []
+        
         return render_template('index.html',
+                             service_active=service_active,
                              next_menu=next_menu,
-                             recent_activity=recent_activity,
-                             service_active=service_active)
+                             recent_activity=recent_activity)
                              
     except Exception as e:
-        import traceback
-        print(f"❌ Dashboard error details:")
-        print(traceback.format_exc())
-        return f"Error loading dashboard: {str(e)}", 500
+        error_msg = handle_error(e, "Dashboard Error")
+        return render_template('error.html', error=error_msg)
 
 @bp.route('/preview')
 @login_required
@@ -822,7 +841,7 @@ def get_next_menu():
             return jsonify({'error': 'Please configure menu settings first'})
             
         # Calculate next menu using worker logic
-        next_menu = menu_service.calculate_next_menu()
+        next_menu = calculate_next_menu()
         
         # Get menu names for the period
         menu_names = []
@@ -1006,7 +1025,7 @@ def force_send():
                 'message': 'Debug mode not active'
             }), 400
             
-        next_menu = menu_service.calculate_next_menu()
+        next_menu = calculate_next_menu()
         if not next_menu:
             return jsonify({
                 'success': False,
@@ -1237,6 +1256,30 @@ def system_status():
             status="error"
         )
         return render_template('status.html', error=str(e))
+
+@bp.before_request
+def check_session():
+    """Protect against session hijacking and timeout"""
+    try:
+        if request.endpoint and 'static' not in request.endpoint:
+            if not request.endpoint in ['main.login', 'main.logout']:
+                if not session.get('logged_in'):
+                    return redirect(url_for('main.login'))
+                
+                # Check session age
+                login_time = session.get('login_time')
+                if login_time:
+                    login_datetime = datetime.fromisoformat(login_time)
+                    if datetime.now() - login_datetime > timedelta(hours=8):
+                        session.clear()
+                        return redirect(url_for('main.login', 
+                            error="Session expired. Please login again."))
+                        
+    except Exception as e:
+        handle_error(e, "Session Check Error")
+        session.clear()
+        return redirect(url_for('main.login', 
+            error="Session error. Please login again."))
 
 if __name__ == '__main__':
     app.run(debug=True) 
