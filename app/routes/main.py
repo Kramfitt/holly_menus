@@ -1134,5 +1134,47 @@ def log_activity(action, details, status):
     except Exception as e:
         print(f"❌ Logging error: {str(e)}")  # Debug print
 
+@bp.route('/settings')
+@login_required
+def settings():
+    try:
+        # Get current settings
+        settings_response = supabase.table('menu_settings')\
+            .select('*')\
+            .order('created_at', desc=True)\
+            .limit(1)\
+            .execute()
+            
+        settings = settings_response.data[0] if settings_response.data else None
+        
+        # Get all menu templates
+        menus_response = supabase.table('menus')\
+            .select('*')\
+            .execute()
+            
+        menus = menus_response.data if menus_response.data else []
+        
+        # Organize menus by season and week
+        organized_menus = {
+            'summer': {str(i): None for i in range(1, 5)},
+            'winter': {str(i): None for i in range(1, 5)}
+        }
+        
+        for menu in menus:
+            if menu['season'] and menu['week']:
+                organized_menus[menu['season']][str(menu['week'])] = menu
+        
+        return render_template('settings.html', 
+                             settings=settings,
+                             menus=organized_menus)
+        
+    except Exception as e:
+        logger.log_activity(
+            action="Settings Page Load Failed",
+            details=str(e),
+            status="error"
+        )
+        return render_template('settings.html', error=str(e))
+
 if __name__ == '__main__':
     app.run(debug=True) 

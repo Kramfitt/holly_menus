@@ -120,13 +120,18 @@
             $('#testEmail').click(function() {
                 const email = prompt('Enter email address for test:');
                 if (email) {
-                    $.post('/api/test-email', JSON.stringify({ email: email }), 
-                        function(response) {
+                    $.ajax({
+                        url: '/api/test-email',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ email: email }),
+                        success: function(response) {
                             alert('Test email sent successfully!');
-                        })
-                        .fail(function(err) {
-                            alert('Failed to send test email: ' + err.responseJSON?.error);
-                        });
+                        },
+                        error: function(err) {
+                            alert('Failed to send test email: ' + (err.responseJSON?.error || 'Unknown error'));
+                        }
+                    });
                 }
             });
 

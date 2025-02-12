@@ -48,3 +48,7 @@ wheels/
 
 # Operating System
 Thumbs.db
+
+# New additions
+development.env
+.venv/
