@@ -1,4 +1,3 @@
-# Not currently used - see app.py
 from flask import Flask, jsonify
 from config import (
     supabase, 

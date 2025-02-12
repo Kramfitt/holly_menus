@@ -3,6 +3,12 @@
 ## Overview
 Automated system for managing and sending periodic menus to residents.
 
+## Repository
+Public repository: https://github.com/Kramfitt/holly_menus
+
+Note: This is a public repository. All sensitive data (passwords, keys, etc.) 
+must be stored in environment variables, never committed to the repository.
+
 ## Core Components
 1. Web Dashboard (menu_dashboard)
    - Menu preview and management
@@ -162,3 +168,13 @@ Required in Render "Menu Scheduler" Environment Group:
    - Procfile points to worker.py
    - Uses same env vars as web service
    - Shares services with web app 
+
+### Deployment Status
+1. Web Service (menu_dashboard)
+   - URL: https://holly-menus.onrender.com
+   - Health Check: /health endpoint
+   - Monitor: Render Dashboard → Services → holly-menus → Logs
+
+2. Worker Service (menu_worker)
+   - Monitor: Render Dashboard → Services → holly-menus-worker → Logs
+   - Status: Check Redis connection and activity logs 
