@@ -12,9 +12,21 @@ supabase = create_client(
     supabase_key=os.getenv('SUPABASE_KEY')
 )
 
-# Initialize Redis client
-redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-redis_client = redis.from_url(redis_url)
+# Initialize Redis client with fallback
+try:
+    redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+    redis_client = redis.from_url(redis_url)
+    print("✅ Redis connected")
+except redis.ConnectionError:
+    print("⚠️ Redis not available, using mock for local development")
+    class MockRedis:
+        def __init__(self):
+            self._data = {}
+        def get(self, key):
+            return self._data.get(key, b'false')
+        def set(self, key, value):
+            self._data[key] = value.encode() if isinstance(value, str) else value
+    redis_client = MockRedis()
 
 # Email settings
 SMTP_SERVER = os.getenv('SMTP_SERVER')

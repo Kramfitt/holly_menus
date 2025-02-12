@@ -10,8 +10,8 @@ import redis
 from supabase import create_client
 import logging
 from email.mime.application import MIMEApplication
-from utils.logger import ActivityLogger
-from utils.notifications import NotificationManager
+from app.utils.logger import Logger
+from app.utils.notifications import NotificationManager
 from config import supabase, redis_client, SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
 from PIL import Image, ImageDraw, ImageFont
 import io
@@ -30,7 +30,7 @@ if redis_client.get('service_state') is None:
     redis_client.set('service_state', 'false')  # Start paused
 
 # Initialize logger and notifications
-logger = ActivityLogger()
+logger = Logger()
 notifications = NotificationManager()
 
 def should_send_emails():

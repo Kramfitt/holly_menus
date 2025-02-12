@@ -1,2 +1,2 @@
-web: cd /opt/render/project/src && gunicorn --log-level debug wsgi:app
+web: gunicorn "app:app"
 worker: python -u worker/worker.py 
