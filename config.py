@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
-from supabase import create_client
 import redis
+from supabase import create_client
 
 # Load environment variables
 load_dotenv()
@@ -16,8 +16,12 @@ supabase = create_client(
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
 redis_client = redis.from_url(redis_url)
 
-# SMTP settings
-SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
-SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
-SMTP_USERNAME = os.getenv('SMTP_USERNAME', '')
-SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '') 
+# Email settings
+SMTP_SERVER = os.getenv('SMTP_SERVER')
+SMTP_PORT = int(os.getenv('SMTP_PORT')) if os.getenv('SMTP_PORT') else None
+SMTP_USERNAME = os.getenv('SMTP_USERNAME')
+SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
+
+# App settings
+SECRET_KEY = os.getenv('SECRET_KEY', 'dev')
+DASHBOARD_PASSWORD = os.getenv('DASHBOARD_PASSWORD') 
