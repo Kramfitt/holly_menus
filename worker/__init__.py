@@ -10,12 +10,15 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s'
 )
 
-# Update logger initialization
-try:
-    logger = current_app.activity_logger
-except (ImportError, RuntimeError):
-    # Fallback for when running outside app context or Flask not available
-    logger = Logger()
+# Initialize logger
+logger = Logger()  # Always use standalone logger in worker
+
+def get_app_logger():
+    """Get app logger if available"""
+    try:
+        return current_app.activity_logger
+    except (ImportError, RuntimeError):
+        return logger
 
 # Export these functions
 __all__ = ['main', 'calculate_next_menu', 'send_menu_email']

@@ -72,7 +72,17 @@ if hasattr(supabase, '_http_client'):
     if hasattr(supabase._http_client, 'proxies'):
         delattr(supabase._http_client, 'proxies')
 
-logger = current_app.activity_logger
+logger = None
+
+def get_logger():
+    """Get logger instance safely"""
+    global logger
+    if logger is None:
+        try:
+            logger = current_app.activity_logger
+        except (RuntimeError, AttributeError):
+            logger = Logger()
+    return logger
 
 # Initialize services
 menu_service = MenuService(db=supabase, storage=supabase.storage)
@@ -93,7 +103,7 @@ def get_service_state():
             "last_updated": datetime.now()
         }
     except Exception as e:
-        logger.log_activity(
+        get_logger().log_activity(
             action="Service State Error",
             details=str(e),
             status="error"
@@ -107,7 +117,7 @@ def save_service_state(active):
         redis_client.set('service_state', str(active).lower())
         return True
     except Exception as e:
-        logger.log_activity(
+        get_logger().log_activity(
             action="Service State Save Error",
             details=str(e),
             status="error"
@@ -129,7 +139,7 @@ def handle_error(e, action="System Error"):
     stack_trace = traceback.format_exc()
     
     # Log the error
-    logger.log_activity(
+    get_logger().log_activity(
         action=action,
         details=f"Error: {error_details}\nStack trace: {stack_trace}",
         status="error"
@@ -153,7 +163,7 @@ def rate_limit(key, limit=5, period=60):
         return True
         
     except Exception as e:
-        logger.log_activity(
+        get_logger().log_activity(
             action="Rate Limit Error",
             details=str(e),
             status="error"
@@ -164,7 +174,7 @@ def rate_limit(key, limit=5, period=60):
 def login():
     try:
         # Add debug logging
-        logger.log_activity(
+        get_logger().log_activity(
             action="Login Page Access",
             details=f"Method: {request.method}, IP: {request.remote_addr}",
             status="info"
@@ -172,7 +182,7 @@ def login():
 
         # Rate limit by IP
         if not rate_limit(f"login:{request.remote_addr}", limit=5, period=300):
-            logger.log_activity(
+            get_logger().log_activity(
                 action="Login Rate Limited",
                 details=f"IP: {request.remote_addr}",
                 status="warning"
@@ -186,7 +196,7 @@ def login():
             
             # Check configuration
             if not dashboard_password:
-                logger.log_activity(
+                get_logger().log_activity(
                     action="Login Error",
                     details="DASHBOARD_PASSWORD not configured",
                     status="error"
@@ -207,7 +217,7 @@ def login():
                 session['login_time'] = datetime.now().isoformat()
                 session.permanent = True  # Make session persistent
                 
-                logger.log_activity(
+                get_logger().log_activity(
                     action="Login Success",
                     details="User logged in successfully",
                     status="success"
@@ -216,7 +226,7 @@ def login():
                 return redirect(url_for('main.index'))
             
             # Failed login attempt
-            logger.log_activity(
+            get_logger().log_activity(
                 action="Login Failed",
                 details="Invalid password attempt",
                 status="warning"
@@ -228,7 +238,7 @@ def login():
         # Add detailed error logging
         error_details = str(e)
         stack_trace = traceback.format_exc()
-        logger.log_activity(
+        get_logger().log_activity(
             action="Login System Error",
             details=f"Error: {error_details}\nStack trace: {stack_trace}",
             status="error"
@@ -261,7 +271,7 @@ def index():
         # Get next menu info
         next_menu = calculate_next_menu()
         if not next_menu:
-            logger.log_activity(
+            get_logger().log_activity(
                 action="Menu Calculation",
                 details="Could not calculate next menu",
                 status="warning"
@@ -276,7 +286,7 @@ def index():
                 .execute()
             recent_activity = activity_response.data
         except Exception as e:
-            logger.log_activity(
+            get_logger().log_activity(
                 action="Activity Log Error",
                 details=str(e),
                 status="error"
@@ -307,7 +317,7 @@ def preview():
                              next_menu=next_menu)
                              
     except Exception as e:
-        logger.log_activity(
+        get_logger().log_activity(
             action="Preview Page Load Failed",
             details=str(e),
             status="error"
@@ -347,7 +357,7 @@ def api_preview_menu():
                f'</div>'
                
     except Exception as e:
-        logger.log_activity(
+        get_logger().log_activity(
             action="Preview Generation Failed",
             details=str(e),
             status="error"
@@ -438,7 +448,7 @@ def upload_template():
         if response is None:
             raise Exception("Failed to save template")
             
-        logger.log_activity(
+        get_logger().log_activity(
             action="Template Uploaded",
             details=f"Uploaded template for {season} week {week}",
             status="success"
@@ -482,7 +492,7 @@ def delete_template():
             .eq('week', week)\
             .execute()
             
-        logger.log_activity(
+        get_logger().log_activity(
             action="Template Deleted",
             details=f"Deleted {season} week {week} template",
             status="success"
@@ -491,7 +501,7 @@ def delete_template():
         return jsonify({'success': True})
         
     except Exception as e:
-        logger.log_activity(
+        get_logger().log_activity(
             action="Template Delete Failed",
             details=str(e),
             status="error"
@@ -716,7 +726,7 @@ def update_settings():
         if response is None:
             raise Exception("Failed to save settings")
             
-        logger.log_activity(
+        get_logger().log_activity(
             action="Settings Updated",
             details="Menu settings updated successfully",
             status="success"
@@ -753,7 +763,7 @@ def toggle_email():
         redis_client.set('service_state', new_state)
         
         # Log the change
-        logger.log_activity(
+        get_logger().log_activity(
             action="Email Service Toggled",
             details=f"Email service {'activated' if new_state == 'true' else 'deactivated'}",
             status="success"
@@ -764,7 +774,7 @@ def toggle_email():
         return jsonify({'active': new_state == 'true'})
     except Exception as e:
         print(f"Toggle error: {str(e)}")  # Debug log
-        logger.log_activity(
+        get_logger().log_activity(
             action="Email Service Toggle Failed",
             details=str(e),
             status="error"
@@ -789,14 +799,14 @@ def send_email_safely(to_email, subject, body, timeout=30):
         return True
         
     except smtplib.SMTPException as e:
-        logger.log_activity(
+        get_logger().log_activity(
             action="SMTP Error",
             details=f"Failed to send email to {to_email}: {str(e)}",
             status="error"
         )
         return False
     except Exception as e:
-        logger.log_activity(
+        get_logger().log_activity(
             action="Email Error",
             details=f"Failed to send email to {to_email}: {str(e)}",
             status="error"
@@ -830,7 +840,7 @@ def send_test_email():
         if not success:
             return jsonify({'error': 'Failed to send email'}), 500
             
-        logger.log_activity(
+        get_logger().log_activity(
             action="Test Email Sent",
             details=f"Test email sent to {email}",
             status="success"
@@ -853,7 +863,7 @@ def debug_mode():
                 
             redis_client.set('debug_mode', str(data['active']).lower())
             
-            logger.log_activity(
+            get_logger().log_activity(
                 action="Debug Mode",
                 details=f"Debug mode {'enabled' if data['active'] else 'disabled'}",
                 status="info"
@@ -865,7 +875,7 @@ def debug_mode():
             return jsonify({'active': is_active})
             
     except Exception as e:
-        logger.log_activity(
+        get_logger().log_activity(
             action="Debug Mode Error",
             details=str(e),
             status="error"
@@ -916,7 +926,7 @@ def force_send():
         )
         
         message = "Test menu sent successfully!" if success else "Failed to send test menu"
-        logger.log_activity(
+        get_logger().log_activity(
             action="Force Send Menu",
             details=message,
             status="debug" if success else "error"
@@ -964,7 +974,7 @@ def get_menu_settings():
         return settings
         
     except Exception as e:
-        logger.log_activity(
+        get_logger().log_activity(
             action="Settings Fetch Failed",
             details=str(e),
             status="error"
@@ -995,7 +1005,7 @@ def clear_activity_log():
         if response is None:
             raise Exception("Failed to clear activity log")
             
-        logger.log_activity(
+        get_logger().log_activity(
             action="Activity Log Cleared",
             details="Activity log cleared",
             status="success"
@@ -1077,7 +1087,7 @@ def settings():
                 if season in templates:
                     templates[season][str(week)] = template
         
-        logger.log_activity(
+        get_logger().log_activity(
             action="Settings Page Load",
             details="Settings page accessed",
             status="info"
@@ -1174,7 +1184,7 @@ def get_redis_value(key, default=None, max_retries=3):
             return value if value is not None else default
         except Exception as e:
             if attempt == max_retries - 1:
-                logger.log_activity(
+                get_logger().log_activity(
                     action="Redis Error",
                     details=f"Error getting {key} after {max_retries} attempts: {str(e)}",
                     status="error"
@@ -1190,7 +1200,7 @@ def set_redis_value(key, value, max_retries=3):
             return True
         except Exception as e:
             if attempt == max_retries - 1:
-                logger.log_activity(
+                get_logger().log_activity(
                     action="Redis Error",
                     details=f"Error setting {key} after {max_retries} attempts: {str(e)}",
                     status="error"
@@ -1228,7 +1238,7 @@ def safe_supabase_query(table, action="query", timeout=10, **kwargs):
         
         # Check if query took too long
         if time.time() - start_time > timeout:
-            logger.log_activity(
+            get_logger().log_activity(
                 action="Slow Query Warning",
                 details=f"Query to {table} took more than {timeout} seconds",
                 status="warning"
@@ -1237,7 +1247,7 @@ def safe_supabase_query(table, action="query", timeout=10, **kwargs):
         return result
         
     except Exception as e:
-        logger.log_activity(
+        get_logger().log_activity(
             action=f"Database Error ({action})",
             details=f"Error in {table}: {str(e)}",
             status="error"
@@ -1369,7 +1379,7 @@ def toggle_maintenance():
         current = check_maintenance_mode()
         redis_client.set('maintenance_mode', str(not current).lower())
         
-        logger.log_activity(
+        get_logger().log_activity(
             action="Maintenance Mode",
             details=f"Maintenance mode {'disabled' if current else 'enabled'}",
             status="info"
@@ -1392,7 +1402,7 @@ def check_database():
         )
         return True
     except Exception as e:
-        logger.log_activity(
+        get_logger().log_activity(
             action="Database Check Failed",
             details=str(e),
             status="error"
@@ -1405,7 +1415,7 @@ def check_redis():
     try:
         return redis_client.ping()
     except Exception as e:
-        logger.log_activity(
+        get_logger().log_activity(
             action="Redis Check Failed",
             details=str(e),
             status="error"
@@ -1427,7 +1437,7 @@ def log_system_metrics():
         smtp_ok = all([SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD])
         
         # Log metrics
-        logger.log_activity(
+        get_logger().log_activity(
             action="System Metrics",
             details={
                 'services': {
@@ -1445,7 +1455,7 @@ def log_system_metrics():
         )
         
     except Exception as e:
-        logger.log_activity(
+        get_logger().log_activity(
             action="Metrics Logging Failed",
             details=str(e),
             status="error"

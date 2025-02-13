@@ -22,6 +22,8 @@ import smtplib
 
 def create_app():
     """Create and configure the Flask application"""
+    error_info = None  # Store error info for error app
+    
     try:
         app = Flask(__name__)
         
@@ -74,6 +76,7 @@ def create_app():
         # Log the error
         print(f"Error creating app: {str(e)}")
         traceback.print_exc()
+        error_info = e  # Store error for error app
         
         # Create minimal error app with better error handling
         error_app = Flask(__name__)
@@ -81,12 +84,12 @@ def create_app():
         @error_app.route('/')
         @error_app.route('/<path:path>')
         def error_page(path=None):
-            if isinstance(e, ValueError):
+            if isinstance(error_info, ValueError):
                 # Show config errors directly
-                error_msg = str(e)
-            elif isinstance(e, RuntimeError):
+                error_msg = str(error_info)
+            elif isinstance(error_info, RuntimeError):
                 # Show service initialization errors
-                error_msg = f"Application initialization error: {str(e)}"
+                error_msg = f"Application initialization error: {str(error_info)}"
             else:
                 # Generic error for everything else
                 error_msg = "Application configuration error. Please contact administrator."
