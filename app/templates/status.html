@@ -118,22 +118,70 @@ input:checked + .toggle-slider:before {
 input:checked + .toggle-slider::after {
     content: '🟢';
 }
+
+.info-tooltip {
+    display: inline-block;
+    margin-left: 0.5rem;
+    color: #6b7280;
+    cursor: help;
+}
+
+.connection-info {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-top: 0.5rem;
+}
+
+.service-description {
+    background: #f8fafc;
+    border-radius: 10px;
+    padding: 1rem;
+    margin: 1rem 0;
+    border-left: 4px solid #8b5cf6;
+}
+
+.service-tip {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-top: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
 {% endblock %}
 
 {% block content %}
 <div class="row">
-    <!-- Service Status -->
+    <!-- Email Service Card -->
     <div class="col-md-6 mb-4">
         <div class="card status-card">
             <div class="card-body text-center">
                 <div class="status-indicator">
                     {{ '🟢' if email_active else '🔴' }}
                 </div>
-                <h5 class="card-title">Email Service</h5>
+                <h5 class="card-title">
+                    Email Service
+                    <span class="info-tooltip" data-bs-toggle="tooltip" title="Manages automatic menu distribution">ℹ️</span>
+                </h5>
                 <div class="status-value">
                     {{ 'Active' if email_active else 'Inactive' }}
                 </div>
-                <label class="toggle-switch mt-3">
+                <div class="service-description">
+                    <p class="text-muted mb-2">
+                        <small>
+                            Controls automatic menu email sending.
+                            When active, menus will be sent {{ settings.days_in_advance if settings else '4' }} days 
+                            before the menu period starts.
+                        </small>
+                    </p>
+                    <div class="service-tip">
+                        <span class="nav-icon">💡</span>
+                        <small>
+                            {{ 'Currently sending menus to ' + (settings.recipient_emails|length|string if settings and settings.recipient_emails else '0') + ' recipients' }}
+                        </small>
+                    </div>
+                </div>
+                <label class="toggle-switch mt-2">
                     <input type="checkbox" id="serviceToggle" {{ 'checked' if email_active else '' }}>
                     <span class="toggle-slider"></span>
                 </label>
@@ -141,18 +189,35 @@ input:checked + .toggle-slider::after {
         </div>
     </div>
 
-    <!-- Debug Mode -->
+    <!-- Debug Mode Card -->
     <div class="col-md-6 mb-4">
         <div class="card status-card">
             <div class="card-body text-center">
                 <div class="status-indicator">
                     {{ '🐛' if debug_mode else '🚀' }}
                 </div>
-                <h5 class="card-title">Debug Mode</h5>
+                <h5 class="card-title">
+                    Debug Mode
+                    <span class="info-tooltip" data-bs-toggle="tooltip" title="Enhanced error reporting and logging">ℹ️</span>
+                </h5>
                 <div class="status-value">
                     {{ 'Enabled' if debug_mode else 'Disabled' }}
                 </div>
-                <label class="toggle-switch mt-3">
+                <div class="service-description">
+                    <p class="text-muted mb-2">
+                        <small>
+                            When enabled, shows detailed error messages and logs additional information.
+                            Useful for troubleshooting but should be disabled in production.
+                        </small>
+                    </p>
+                    <div class="service-tip">
+                        <span class="nav-icon">{{ '⚠️' if debug_mode else '✅' }}</span>
+                        <small>
+                            {{ 'Debug mode should be disabled in production for security' if debug_mode else 'System is running in production mode' }}
+                        </small>
+                    </div>
+                </div>
+                <label class="toggle-switch mt-2">
                     <input type="checkbox" id="debugToggle" {{ 'checked' if debug_mode else '' }}>
                     <span class="toggle-slider"></span>
                 </label>
@@ -164,7 +229,8 @@ input:checked + .toggle-slider::after {
     <div class="col-md-12 mb-4">
         <div class="card status-card">
             <div class="card-header">
-                <span class="nav-icon">🔌</span> Connections
+                <span class="nav-icon">🔌</span> System Connections
+                <span class="info-tooltip" data-bs-toggle="tooltip" title="Status of system dependencies">ℹ️</span>
             </div>
             <div class="card-body">
                 <div class="row text-center">
@@ -173,17 +239,26 @@ input:checked + .toggle-slider::after {
                             <span class="nav-icon">{{ '✅' if db_status else '❌' }}</span>
                             Database
                         </div>
+                        <div class="connection-info">
+                            {{ 'Connected to Supabase' if db_status else 'Database connection failed' }}
+                        </div>
                     </div>
                     <div class="col-md-4 mb-3">
                         <div class="status-badge {{ 'connected' if redis_status else 'disconnected' }}">
                             <span class="nav-icon">{{ '✅' if redis_status else '❌' }}</span>
-                            Redis
+                            Redis Cache
+                        </div>
+                        <div class="connection-info">
+                            {{ 'Cache system active' if redis_status else 'Cache system offline' }}
                         </div>
                     </div>
                     <div class="col-md-4 mb-3">
                         <div class="status-badge {{ 'connected' if smtp_status else 'disconnected' }}">
                             <span class="nav-icon">{{ '✅' if smtp_status else '❌' }}</span>
-                            SMTP
+                            Email (SMTP)
+                        </div>
+                        <div class="connection-info">
+                            {{ 'Email service ready' if smtp_status else 'Email service not configured' }}
                         </div>
                     </div>
                 </div>

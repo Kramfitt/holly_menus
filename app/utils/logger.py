@@ -48,7 +48,7 @@ class Logger:
             print(f"Failed log entry: {action} - {details}")
             print(traceback.format_exc())
             return False
-            
+
     def get_recent_activity(self, limit=10):
         """Get recent activity logs"""
         try:
@@ -68,43 +68,22 @@ class Logger:
             print(f"Failed to get activity logs: {str(e)}")
             return []
 
-# Global logger instance
-_logger = None
-
-def get_logger() -> Logger:
-    """Get or create the global logger instance"""
-    global _logger
-    if _logger is None:
-        _logger = Logger()
-    return _logger
-
     # Flask logger compatibility methods
     def error(self, msg, *args, **kwargs):
-        self.log("Error", str(msg), status="error", level="error")
+        self.log_activity("Error", str(msg), status="error")
         
     def warning(self, msg, *args, **kwargs):
-        self.log("Warning", str(msg), status="warning", level="warning")
+        self.log_activity("Warning", str(msg), status="warning")
         
     def info(self, msg, *args, **kwargs):
-        self.log("Info", str(msg), status="info", level="info")
+        self.log_activity("Info", str(msg), status="info")
         
     def debug(self, msg, *args, **kwargs):
-        self.log("Debug", str(msg), status="debug", level="debug")
+        self.log_activity("Debug", str(msg), status="debug")
 
-    # Alias for backward compatibility
-    log_activity = log
+# Create global logger instance
+_logger = Logger()
 
-    def get_recent_activity(self, limit=10):
-        """Get recent activity logs"""
-        try:
-            response = self.db.table('activity_log')\
-                .select('*')\
-                .order('created_at', desc=True)\
-                .limit(limit)\
-                .execute()
-                
-            return response.data
-            
-        except Exception as e:
-            print(f"Failed to get activity logs: {str(e)}")
-            return [] 
+def get_logger():
+    """Get the global logger instance"""
+    return _logger 

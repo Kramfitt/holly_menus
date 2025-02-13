@@ -12,7 +12,34 @@ class MenuService:
         self.db = db
         self.storage = storage
         self.bucket = 'menu-templates'
+        self._ensure_bucket_exists()
         
+    def _ensure_bucket_exists(self):
+        """Ensure the storage bucket exists"""
+        try:
+            # Try to get bucket info
+            buckets = self.storage.list_buckets()
+            bucket_exists = any(b['name'] == self.bucket for b in buckets)
+            
+            if not bucket_exists:
+                # Create the bucket if it doesn't exist
+                self.storage.create_bucket(
+                    self.bucket,
+                    {'public': True}  # Make it publicly accessible
+                )
+                get_logger().log_activity(
+                    action="Bucket Created",
+                    details=f"Created storage bucket: {self.bucket}",
+                    status="info"
+                )
+        except Exception as e:
+            get_logger().log_activity(
+                action="Bucket Creation Failed",
+                details=str(e),
+                status="error"
+            )
+            raise ValueError(f"Failed to ensure bucket exists: {str(e)}")
+    
     def calculate_next_menu(self):
         """Calculate which menu should be sent next"""
         try:
@@ -121,6 +148,9 @@ class MenuService:
     def save_template(self, file, season, week):
         """Save menu template to storage and database"""
         try:
+            # Ensure bucket exists first
+            self._ensure_bucket_exists()
+            
             # Generate unique filename
             filename = secure_filename(f"{season.lower()}_week{week}_{int(time.time())}{os.path.splitext(file.filename)[1]}")
             
@@ -131,12 +161,24 @@ class MenuService:
             file_content = file.read()
             file.seek(0)  # Reset file pointer
             
-            # Upload to Supabase storage
-            self.storage.from_(self.bucket).upload(
-                file_path,
-                file_content,
-                {'content-type': file.content_type}
-            )
+            try:
+                # Upload to Supabase storage
+                self.storage.from_(self.bucket).upload(
+                    file_path,
+                    file_content,
+                    {'content-type': file.content_type}
+                )
+            except Exception as e:
+                if 'Bucket not found' in str(e):
+                    # Try to create bucket and retry upload
+                    self._ensure_bucket_exists()
+                    self.storage.from_(self.bucket).upload(
+                        file_path,
+                        file_content,
+                        {'content-type': file.content_type}
+                    )
+                else:
+                    raise
             
             # Get public URL
             file_url = self.storage.from_(self.bucket).get_public_url(file_path)
