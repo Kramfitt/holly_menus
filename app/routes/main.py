@@ -72,7 +72,7 @@ if hasattr(supabase, '_http_client'):
     if hasattr(supabase._http_client, 'proxies'):
         delattr(supabase._http_client, 'proxies')
 
-logger = Logger()
+logger = current_app.activity_logger
 
 # Initialize services
 menu_service = MenuService(db=supabase, storage=supabase.storage)

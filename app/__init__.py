@@ -41,6 +41,9 @@ def create_app():
             SESSION_COOKIE_SAMESITE='Lax'
         )
         
+        # Configure logging first
+        configure_logging(app)
+        
         # Initialize services only after config check
         try:
             app.menu_service = MenuService(db=supabase, storage=supabase.storage)
@@ -50,7 +53,7 @@ def create_app():
                 'SMTP_USERNAME': SMTP_USERNAME,
                 'SMTP_PASSWORD': SMTP_PASSWORD
             })
-            app.logger = Logger()
+            app.activity_logger = Logger()  # Rename to avoid conflict with Flask logger
         except Exception as service_error:
             raise RuntimeError(f"Failed to initialize services: {str(service_error)}")
         
@@ -58,9 +61,6 @@ def create_app():
         from app.routes.main import bp as main_bp, register_filters
         app.register_blueprint(main_bp)
         register_filters(app)
-        
-        # Configure logging last
-        configure_logging(app)
         
         # Add service health checks
         check_services(app)
@@ -109,9 +109,9 @@ def configure_logging(app):
         '%(asctime)s %(levelname)s: %(message)s'
     ))
     file_handler.setLevel(logging.INFO)
-    app.logger.addHandler(file_handler)
-    app.logger.setLevel(logging.INFO)
-    app.logger.info('Menu Dashboard startup')
+    app.activity_logger.addHandler(file_handler)
+    app.activity_logger.setLevel(logging.INFO)
+    app.activity_logger.info('Menu Dashboard startup')
 
 def check_services(app):
     """Verify all services are working"""
@@ -146,10 +146,10 @@ def verify_app_setup(app):
         raise RuntimeError("Flask secret key not set")
         
     if not app.config.get('SESSION_COOKIE_SECURE'):
-        app.logger.warning("Session cookies not set to secure")
+        app.activity_logger.warning("Session cookies not set to secure")
         
     if not app.config.get('SESSION_COOKIE_HTTPONLY'):
-        app.logger.warning("Session cookies not set to httponly")
+        app.activity_logger.warning("Session cookies not set to httponly")
         
     if not os.access('logs', os.W_OK):
         raise RuntimeError("Logs directory not writable")
