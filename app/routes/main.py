@@ -328,45 +328,120 @@ def preview():
 @bp.route('/api/preview', methods=['GET'])
 def api_preview_menu():
     try:
+        # Get and validate parameters
         season = request.args.get('season', '').lower()
         week = request.args.get('week')
         start_date = request.args.get('date')
         
-        if not all([season, week, start_date]):
+        # Detailed validation with recovery suggestions
+        errors = {}
+        suggestions = {}
+        
+        if not season:
+            errors['season'] = '🌞/❄️ Season is required'
+            suggestions['season'] = 'Please select either Summer or Winter'
+        elif season not in ['summer', 'winter']:
+            errors['season'] = '❌ Invalid season'
+            suggestions['season'] = 'Season must be either "summer" or "winter"'
+            
+        if not week:
+            errors['week'] = '📅 Week is required'
+            suggestions['week'] = 'Please select a week number (1-4)'
+        else:
+            try:
+                week_num = int(week)
+                if week_num < 1 or week_num > 4:
+                    errors['week'] = '❌ Week must be between 1 and 4'
+                    suggestions['week'] = 'Please select a valid week number'
+            except ValueError:
+                errors['week'] = '❌ Invalid week number'
+                suggestions['week'] = 'Week must be a number between 1 and 4'
+                
+        if not start_date:
+            errors['date'] = '📆 Start date is required'
+            suggestions['date'] = 'Please select a start date'
+        else:
+            try:
+                start_date = datetime.strptime(start_date, '%Y-%m-%d')
+                if start_date.date() < datetime.now().date():
+                    errors['date'] = '❌ Start date cannot be in the past'
+                    suggestions['date'] = 'Please select a future date'
+            except ValueError:
+                errors['date'] = '❌ Invalid date format'
+                suggestions['date'] = 'Date must be in YYYY-MM-DD format'
+                
+        if errors:
             return jsonify({
-                'error': 'Missing parameters',
-                'details': {
-                    'season': '🌞/❄️ Select season' if not season else None,
-                    'week': '📅 Select week' if not week else None,
-                    'date': '📆 Select start date' if not start_date else None
-                }
+                'error': 'Validation failed',
+                'details': errors,
+                'suggestions': suggestions,
+                'help': 'Please correct the errors and try again'
             }), 400
             
-        # Get menu template
+        # Get template with error handling
         template = current_app.menu_service.get_template(season, week)
         if not template:
             return jsonify({
                 'error': 'Template not found',
-                'details': f'No template found for {season.title()} Week {week}'
+                'details': {
+                    'message': f'No template found for {season.title()} Week {week}',
+                    'suggestion': 'Please upload a template first',
+                    'help': 'Go to Settings > Menu Templates to upload a template'
+                }
             }), 404
             
-        # Generate preview
-        preview_data = current_app.menu_service.generate_preview(
-            template, 
-            start_date=datetime.strptime(start_date, '%Y-%m-%d')
-        )
-        
-        return jsonify(preview_data)
-        
+        # Generate preview with error handling
+        try:
+            preview_data = current_app.menu_service.generate_preview(
+                template, 
+                start_date
+            )
+            return jsonify(preview_data)
+            
+        except ValueError as e:
+            return jsonify({
+                'error': 'Preview generation failed',
+                'details': {
+                    'message': str(e),
+                    'type': 'validation_error',
+                    'suggestion': 'Please check your input values',
+                    'help': 'Make sure all required fields are filled correctly'
+                }
+            }), 400
+            
+        except Exception as e:
+            get_logger().log_activity(
+                action="Preview Generation Error",
+                details={
+                    'error': str(e),
+                    'traceback': traceback.format_exc()
+                },
+                status="error"
+            )
+            return jsonify({
+                'error': 'Internal server error',
+                'details': {
+                    'message': 'An unexpected error occurred',
+                    'type': 'server_error',
+                    'suggestion': 'Please try again later',
+                    'help': 'If the problem persists, contact support'
+                }
+            }), 500
+            
     except Exception as e:
         get_logger().log_activity(
-            action="Preview Generation Failed",
+            action="Preview API Error",
             details=str(e),
             status="error"
         )
         return jsonify({
-            'error': 'Preview generation failed',
-            'details': str(e)
+            'error': 'System error',
+            'details': {
+                'message': 'A system error occurred',
+                'type': 'system_error',
+                'suggestion': 'Please refresh the page and try again',
+                'help': 'If the problem persists, try clearing your browser cache'
+            }
         }), 500
 
 def validate_template(file, season, week):
@@ -415,19 +490,21 @@ def upload_template():
         season = request.form.get('season')
         week = request.form.get('week')
         
-        # Validate template
-        errors = validate_template(file, season, week)
-        if errors:
-            return jsonify({
-                'error': 'Validation failed',
-                'details': errors
-            }), 400
+        if not file or not file.filename:
+            return jsonify({'error': '📁 No file selected'}), 400
+            
+        if not season or not week:
+            return jsonify({'error': '❌ Missing season or week'}), 400
+            
+        # Basic validation
+        if not file.filename.lower().endswith(('.pdf', '.jpg', '.jpeg', '.png')):
+            return jsonify({'error': '❌ Only PDF and images allowed'}), 400
             
         # Save using menu service
         result = current_app.menu_service.save_template(file, season, week)
         
         if result.get('error'):
-            raise Exception(result['error'])
+            return jsonify({'error': result['error']}), 400
             
         get_logger().log_activity(
             action="Template Uploaded",
@@ -438,8 +515,12 @@ def upload_template():
         return jsonify({'success': True, 'url': result['url']})
         
     except Exception as e:
-        error_msg = handle_error(e, "Template Upload Failed")
-        return jsonify({'error': error_msg}), 500
+        get_logger().log_activity(
+            action="Template Upload Failed",
+            details=str(e),
+            status="error"
+        )
+        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
 @bp.route('/api/template', methods=['DELETE'])
 @login_required
@@ -678,7 +759,7 @@ def save_settings():
         data = request.get_json()
         
         # Validate required fields
-        required = ['start_date', 'days_in_advance', 'recipient_emails']
+        required = ['start_date', 'days_in_advance', 'recipient_emails', 'season']
         missing = [f for f in required if not data.get(f)]
         if missing:
             return jsonify({
@@ -686,17 +767,25 @@ def save_settings():
                 'details': missing
             }), 400
             
+        # Validate season
+        if data['season'] not in ['summer', 'winter']:
+            return jsonify({
+                'error': 'Invalid season',
+                'details': 'Season must be summer or winter'
+            }), 400
+            
         # Save to database
         result = supabase.table('menu_settings').insert({
             'start_date': data['start_date'],
             'days_in_advance': data['days_in_advance'],
             'recipient_emails': data['recipient_emails'],
+            'season': data['season'].lower(),  # Ensure lowercase
             'created_at': datetime.now().isoformat()
         }).execute()
         
         get_logger().log_activity(
             action="Settings Updated",
-            details="Menu settings updated successfully",
+            details=f"Menu settings updated for {data['season']} season",
             status="success"
         )
         
@@ -824,35 +913,44 @@ def send_test_email():
         error_msg = handle_error(e, "Test Email Failed")
         return jsonify({'error': error_msg}), 500
 
-@bp.route('/api/debug-mode', methods=['GET', 'POST'])
+@bp.route('/api/debug-mode', methods=['POST'])
 @login_required
 def debug_mode():
     try:
-        if request.method == 'POST':
-            data = request.get_json()
-            if data is None or 'active' not in data:
-                return jsonify({'error': 'Missing active state'}), 400
-                
-            redis_client.set('debug_mode', str(data['active']).lower())
+        data = request.get_json()
+        if data is None:
+            data = request.form  # Try form data if JSON fails
             
-            get_logger().log_activity(
-                action="Debug Mode",
-                details=f"Debug mode {'enabled' if data['active'] else 'disabled'}",
-                status="info"
-            )
+        active = data.get('active')
+        if active is None:
+            return jsonify({'error': 'Missing active state'}), 400
             
-            return jsonify({'success': True, 'active': data['active']})
-        else:
-            is_active = redis_client.get('debug_mode') == b'true'
-            return jsonify({'active': is_active})
-            
+        # Convert to boolean and then string
+        active_bool = str(active).lower() in ['true', '1', 'yes', 'on']
+        redis_client.set('debug_mode', str(active_bool).lower())
+        
+        get_logger().log_activity(
+            action="Debug Mode",
+            details=f"Debug mode {'enabled' if active_bool else 'disabled'}",
+            status="info"
+        )
+        
+        return jsonify({
+            'success': True,
+            'active': active_bool,
+            'message': f"Debug mode {'enabled' if active_bool else 'disabled'}"
+        })
+        
     except Exception as e:
         get_logger().log_activity(
             action="Debug Mode Error",
             details=str(e),
             status="error"
         )
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'error': f'Failed to toggle debug mode: {str(e)}',
+            'details': traceback.format_exc()
+        }), 500
 
 def validate_force_send():
     """Validate force send requirements"""

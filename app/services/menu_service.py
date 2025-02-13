@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import time
+import os
+from werkzeug.utils import secure_filename
+import traceback
 
 class MenuService:
     def __init__(self, db, storage):
@@ -117,11 +120,21 @@ class MenuService:
         """Save menu template to storage and database"""
         try:
             # Generate unique filename
-            filename = f"{season.lower()}_week{week}_{int(time.time())}.pdf"
+            filename = secure_filename(f"{season.lower()}_week{week}_{int(time.time())}{os.path.splitext(file.filename)[1]}")
             
             # Upload to storage
             file_path = f"{season}/{filename}"
-            self.storage.from_(self.bucket).upload(file_path, file)
+            
+            # Read file content
+            file_content = file.read()
+            file.seek(0)  # Reset file pointer
+            
+            # Upload to Supabase storage
+            self.storage.from_(self.bucket).upload(
+                file_path,
+                file_content,
+                {'content-type': file.content_type}
+            )
             
             # Get public URL
             file_url = self.storage.from_(self.bucket).get_public_url(file_path)
@@ -130,13 +143,15 @@ class MenuService:
             self.db.table('menu_templates').upsert({
                 'season': season.lower(),
                 'week': int(week),
-                'template_url': file_url,
+                'file_path': file_path,
+                'file_url': file_url,
                 'updated_at': datetime.now().isoformat()
             }).execute()
             
             return {'success': True, 'url': file_url}
             
         except Exception as e:
+            logger.error(f"Template upload failed: {str(e)}")
             return {'error': str(e)}
 
     def get_templates(self):
@@ -156,4 +171,101 @@ class MenuService:
             return templates
         except Exception as e:
             logger.error(f"Error fetching templates: {str(e)}")
-            return {'summer': {}, 'winter': {}} 
+            return {'summer': {}, 'winter': {}}
+
+    def get_template(self, season, week):
+        """Get a specific template"""
+        try:
+            response = self.db.table('menu_templates')\
+                .select('*')\
+                .eq('season', season.lower())\
+                .eq('week', int(week))\
+                .execute()
+                
+            if not response.data:
+                return None
+                
+            return response.data[0]
+            
+        except Exception as e:
+            logger.error(f"Error fetching template: {str(e)}")
+            return None
+
+    def generate_preview(self, template, start_date):
+        """Generate a preview of the menu template"""
+        try:
+            # Input validation
+            if not template:
+                raise ValueError("Template is required")
+            
+            if not start_date:
+                raise ValueError("Start date is required")
+            
+            if not isinstance(start_date, datetime):
+                raise ValueError("Invalid start date format")
+            
+            # Required template fields
+            required_fields = ['season', 'week', 'file_url']
+            missing = [f for f in required_fields if not template.get(f)]
+            if missing:
+                raise ValueError(f"Missing template fields: {', '.join(missing)}")
+            
+            # Validate URL
+            file_url = template.get('file_url')
+            if not file_url or not file_url.startswith('http'):
+                raise ValueError("Invalid template URL")
+            
+            # Format dates
+            try:
+                period_end = start_date + timedelta(days=13)  # 2 weeks
+                date_range = f"{start_date.strftime('%d %b')} - {period_end.strftime('%d %b %Y')}"
+            except Exception as e:
+                raise ValueError(f"Error formatting dates: {str(e)}")
+            
+            # Create preview data
+            preview_data = {
+                'success': True,
+                'template': {
+                    'url': file_url,
+                    'season': template['season'].title(),
+                    'week': template['week'],
+                    'date_range': date_range,
+                    'period_start': start_date.strftime('%Y-%m-%d'),
+                    'period_end': period_end.strftime('%Y-%m-%d')
+                }
+            }
+            
+            # Log success
+            get_logger().log_activity(
+                action="Preview Generated",
+                details={
+                    'season': template['season'],
+                    'week': template['week'],
+                    'start_date': start_date.strftime('%Y-%m-%d'),
+                    'success': True
+                },
+                status="success"
+            )
+            
+            return preview_data
+            
+        except ValueError as e:
+            # Log validation errors
+            get_logger().log_activity(
+                action="Preview Validation Failed",
+                details=str(e),
+                status="warning"
+            )
+            raise
+            
+        except Exception as e:
+            # Log unexpected errors
+            get_logger().log_activity(
+                action="Preview Generation Failed",
+                details={
+                    'error': str(e),
+                    'traceback': traceback.format_exc()
+                },
+                status="error"
+            )
+            raise ValueError(f"Failed to generate preview: {str(e)}") 

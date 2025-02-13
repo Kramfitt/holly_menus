@@ -213,18 +213,22 @@ $(document).ready(function() {
 
     // Debug toggle
     $('#debugToggle').change(function() {
-        $.post('/api/debug-mode', {
-            active: $(this).prop('checked')
-        }, function(response) {
-            if (response.active) {
-                showAlert('success', '🐛 Debug mode enabled');
-            } else {
-                showAlert('info', '🚀 Debug mode disabled');
+        const button = $(this);
+        const isActive = button.prop('checked');
+        
+        $.ajax({
+            url: '/api/debug-mode',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ active: isActive }),
+            success: function(response) {
+                showAlert('success', response.message || '🐛 Debug mode updated');
+            },
+            error: function(xhr) {
+                showAlert('danger', '😅 ' + (xhr.responseJSON?.error || 'Failed to toggle debug mode'));
+                // Reset toggle to previous state
+                button.prop('checked', !isActive);
             }
-        }).fail(function(xhr) {
-            showAlert('danger', '😅 Failed to toggle debug mode');
-            // Reset toggle
-            $(this).prop('checked', !$(this).prop('checked'));
         });
     });
 });

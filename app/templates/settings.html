@@ -108,6 +108,13 @@
                         >{{ settings.recipient_emails|join('\n') if settings and settings.recipient_emails else '' }}</textarea>
                         <small class="text-muted">One email per line</small>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Season</label>
+                        <select class="form-control" name="season" required>
+                            <option value="summer" {{ 'selected' if settings and settings.season == 'summer' else '' }}>Summer</option>
+                            <option value="winter" {{ 'selected' if settings and settings.season == 'winter' else '' }}>Winter</option>
+                        </select>
+                    </div>
                     <button type="submit" class="btn btn-primary">
                         <span class="settings-icon">💾</span> Save Settings
                     </button>
@@ -219,7 +226,8 @@ $(document).ready(function() {
         const formData = {
             start_date: $('input[name="start_date"]').val(),
             days_in_advance: parseInt($('input[name="days_in_advance"]').val()),
-            recipient_emails: $('textarea[name="recipient_emails"]').val().split('\n').filter(Boolean)
+            recipient_emails: $('textarea[name="recipient_emails"]').val().split('\n').filter(Boolean),
+            season: $('select[name="season"]').val()
         };
         
         $.ajax({
