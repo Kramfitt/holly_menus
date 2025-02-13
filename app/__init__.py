@@ -109,9 +109,14 @@ def configure_logging(app):
         '%(asctime)s %(levelname)s: %(message)s'
     ))
     file_handler.setLevel(logging.INFO)
-    app.activity_logger.addHandler(file_handler)
-    app.activity_logger.setLevel(logging.INFO)
-    app.activity_logger.info('Menu Dashboard startup')
+    
+    # Use Flask's logger instead of our custom logger for system logging
+    app.logger.addHandler(file_handler)
+    app.logger.setLevel(logging.INFO)
+    app.logger.info('Menu Dashboard startup')
+    
+    # Initialize our custom activity logger
+    app.activity_logger = Logger()
 
 def check_services(app):
     """Verify all services are working"""
@@ -146,10 +151,10 @@ def verify_app_setup(app):
         raise RuntimeError("Flask secret key not set")
         
     if not app.config.get('SESSION_COOKIE_SECURE'):
-        app.activity_logger.warning("Session cookies not set to secure")
+        app.logger.warning("Session cookies not set to secure")
         
     if not app.config.get('SESSION_COOKIE_HTTPONLY'):
-        app.activity_logger.warning("Session cookies not set to httponly")
+        app.logger.warning("Session cookies not set to httponly")
         
     if not os.access('logs', os.W_OK):
         raise RuntimeError("Logs directory not writable")

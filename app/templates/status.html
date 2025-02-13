@@ -78,6 +78,12 @@
                                     {{ 'Configured' if smtp_status else 'Not Configured' }}
                                 </span>
                             </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Logging
+                                <span class="badge bg-{{ 'success' if os.access('logs', os.W_OK) else 'danger' }}">
+                                    {{ 'Active' if os.access('logs', os.W_OK) else 'Error' }}
+                                </span>
+                            </li>
                         </ul>
                     </div>
                 </div>

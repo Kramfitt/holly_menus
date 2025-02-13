@@ -1119,7 +1119,8 @@ def system_status():
                              maintenance_mode=maintenance_mode,
                              db_status=db_status,
                              redis_status=redis_status,
-                             smtp_status=smtp_status)
+                             smtp_status=smtp_status,
+                             os=os)
                              
     except Exception as e:
         error_msg = handle_error(e, "Status Page Error")
