@@ -1,232 +1,232 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>System Status - Dashboard</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
-</head>
-<body>
-    <div class="container mt-4">
-        <div id="alerts"></div>
+{% extends "base.html" %}
 
-        <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
-            <div class="container-fluid">
-                <a class="navbar-brand" href="/">Dashboard</a>
-                <div class="collapse navbar-collapse">
-                    <ul class="navbar-nav me-auto">
-                        <li class="nav-item">
-                            <a class="nav-link" href="/settings">Settings</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/preview">Preview</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="/status">System Status</a>
-                        </li>
-                    </ul>
-                    <div class="d-flex">
-                        <a href="/logout" class="btn btn-outline-danger">Logout</a>
-                    </div>
+{% block title %}System Status - Menu System{% endblock %}
+
+{% block styles %}
+/* Status-specific styles */
+.status-indicator {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    animation: float 3s ease-in-out infinite;
+}
+
+.status-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.status-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    background: linear-gradient(90deg, #8b5cf6, #6d28d9);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.status-card:hover::before {
+    opacity: 1;
+}
+
+.status-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 1rem 0;
+}
+
+.status-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.status-badge:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.status-badge.connected {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+.status-badge.disconnected {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+/* Service toggle button */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ef4444;
+    transition: .4s;
+    border-radius: 34px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: #10b981;
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(26px);
+}
+
+.toggle-slider::after {
+    content: '🔴';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 12px;
+    transition: .4s;
+}
+
+input:checked + .toggle-slider::after {
+    content: '🟢';
+}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Service Status -->
+    <div class="col-md-6 mb-4">
+        <div class="card status-card">
+            <div class="card-body text-center">
+                <div class="status-indicator">
+                    {{ '🟢' if email_active else '🔴' }}
                 </div>
+                <h5 class="card-title">Email Service</h5>
+                <div class="status-value">
+                    {{ 'Active' if email_active else 'Inactive' }}
+                </div>
+                <label class="toggle-switch mt-3">
+                    <input type="checkbox" id="serviceToggle" {{ 'checked' if email_active else '' }}>
+                    <span class="toggle-slider"></span>
+                </label>
             </div>
-        </nav>
-
-        {% if error %}
-        <div class="alert alert-danger">
-            {{ error }}
         </div>
-        {% endif %}
+    </div>
 
-        <div id="loadingSpinner" class="text-center d-none">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
+    <!-- Debug Mode -->
+    <div class="col-md-6 mb-4">
+        <div class="card status-card">
+            <div class="card-body text-center">
+                <div class="status-indicator">
+                    {{ '🐛' if debug_mode else '🚀' }}
+                </div>
+                <h5 class="card-title">Debug Mode</h5>
+                <div class="status-value">
+                    {{ 'Enabled' if debug_mode else 'Disabled' }}
+                </div>
+                <label class="toggle-switch mt-3">
+                    <input type="checkbox" id="debugToggle" {{ 'checked' if debug_mode else '' }}>
+                    <span class="toggle-slider"></span>
+                </label>
             </div>
         </div>
+    </div>
 
-        <div class="row">
-            <div class="col-md-6">
-                <div class="card mb-4">
-                    <div class="card-header">Service Status</div>
-                    <div class="card-body">
-                        <ul class="list-group">
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                Email Service
-                                <span class="badge bg-{{ 'success' if email_active else 'danger' }}">
-                                    {{ 'Active' if email_active else 'Inactive' }}
-                                </span>
-                            </li>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                Debug Mode
-                                <span class="badge bg-{{ 'warning' if debug_mode else 'secondary' }}">
-                                    {{ 'Enabled' if debug_mode else 'Disabled' }}
-                                </span>
-                            </li>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                Database
-                                <span class="badge bg-{{ 'success' if db_status else 'danger' }}">
-                                    {{ 'Connected' if db_status else 'Disconnected' }}
-                                </span>
-                            </li>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                Redis
-                                <span class="badge bg-{{ 'success' if redis_status else 'danger' }}">
-                                    {{ 'Connected' if redis_status else 'Disconnected' }}
-                                </span>
-                            </li>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                SMTP Server
-                                <span class="badge bg-{{ 'success' if smtp_status else 'danger' }}">
-                                    {{ 'Configured' if smtp_status else 'Not Configured' }}
-                                </span>
-                            </li>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                Logging
-                                <span class="badge bg-{{ 'success' if os.access('logs', os.W_OK) else 'danger' }}">
-                                    {{ 'Active' if os.access('logs', os.W_OK) else 'Error' }}
-                                </span>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
+    <!-- Connection Status -->
+    <div class="col-md-12 mb-4">
+        <div class="card status-card">
+            <div class="card-header">
+                <span class="nav-icon">🔌</span> Connections
             </div>
-
-            <div class="col-md-6">
-                <div class="card mb-4">
-                    <div class="card-header">System Information</div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <strong>Last Updated:</strong>
-                            <span id="lastUpdated">{{ datetime.now().strftime('%Y-%m-%d %H:%M:%S') }}</span>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-4 mb-3">
+                        <div class="status-badge {{ 'connected' if db_status else 'disconnected' }}">
+                            <span class="nav-icon">{{ '✅' if db_status else '❌' }}</span>
+                            Database
                         </div>
-                        <button class="btn btn-primary" onclick="location.reload()">Refresh Status</button>
                     </div>
-                </div>
-
-                <div class="card mb-4">
-                    <div class="card-header">Debug Tools</div>
-                    <div class="card-body">
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="debugMode">
-                            <label class="form-check-label" for="debugMode">Debug Mode</label>
+                    <div class="col-md-4 mb-3">
+                        <div class="status-badge {{ 'connected' if redis_status else 'disconnected' }}">
+                            <span class="nav-icon">{{ '✅' if redis_status else '❌' }}</span>
+                            Redis
                         </div>
-                        <div class="mb-3">
-                            <button class="btn btn-secondary" id="testEmail">Test Email</button>
-                        </div>
-                        <button class="btn btn-warning" id="forceSend" disabled>Force Send Menu</button>
                     </div>
-                </div>
-
-                <div class="card mb-4">
-                    <div class="card-header">System Tools</div>
-                    <div class="card-body">
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="maintenanceMode">
-                            <label class="form-check-label" for="maintenanceMode">Maintenance Mode</label>
+                    <div class="col-md-4 mb-3">
+                        <div class="status-badge {{ 'connected' if smtp_status else 'disconnected' }}">
+                            <span class="nav-icon">{{ '✅' if smtp_status else '❌' }}</span>
+                            SMTP
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
+{% endblock %}
 
-    <script>
-        function showError(message, type = 'danger') {
-            const alert = $('<div class="alert alert-' + type + ' alert-dismissible fade show">')
-                .text(message)
-                .append('<button type="button" class="btn-close" data-bs-dismiss="alert"></button>');
-            $('#alerts').append(alert);
-            setTimeout(() => alert.alert('close'), 5000);  // Auto-dismiss after 5s
-        }
-
-        function showLoading() {
-            $('#loadingSpinner').removeClass('d-none');
-        }
-
-        function hideLoading() {
-            $('#loadingSpinner').addClass('d-none');
-        }
-
-        // Auto-refresh status every 30 seconds
-        setInterval(function() {
-            $.get('/api/health')
-                .done(function(response) {
-                    $('#dbStatus')
-                        .text(response.services.database ? 'Connected' : 'Disconnected')
-                        .removeClass('bg-secondary bg-success bg-danger')
-                        .addClass(response.services.database ? 'bg-success' : 'bg-danger');
-                    
-                    $('#redisStatus')
-                        .text(response.services.redis ? 'Connected' : 'Disconnected')
-                        .removeClass('bg-secondary bg-success bg-danger')
-                        .addClass(response.services.redis ? 'bg-success' : 'bg-danger');
-                    
-                    $('#lastUpdated').text(new Date().toLocaleString());
-                });
-            
-            $.get('/api/email-health')
-                .done(function(response) {
-                    $('#emailStatus')
-                        .text(response.status === 'healthy' ? 'Running' : 'Inactive')
-                        .removeClass('bg-secondary bg-success bg-danger')
-                        .addClass(response.status === 'healthy' ? 'bg-success' : 'bg-danger');
-                });
-        }, 30000);
-
-        // Debug Mode Toggle
-        $('#debugMode').change(function() {
-            const isChecked = $(this).prop('checked');
-            $('#forceSend').prop('disabled', !isChecked);
-            
-            $.ajax({
-                url: '/api/debug-mode',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({ active: isChecked }),
-                success: function(response) {
-                    showError('Debug mode ' + (isChecked ? 'enabled' : 'disabled'), 'success');
-                },
-                error: function(xhr) {
-                    showError('Failed to toggle debug mode: ' + (xhr.responseJSON?.error || 'Unknown error'));
-                    $(this).prop('checked', !isChecked);
-                }
-            });
-        });
-
-        // Test Email
-        $('#testEmail').click(function() {
-            const email = prompt('Enter email address for test:');
-            if (email) {
-                $.ajax({
-                    url: '/api/test-email',
-                    type: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({ email: email }),
-                    success: function() {
-                        showError('Test email sent successfully!', 'success');
-                    },
-                    error: function(xhr) {
-                        showError('Failed to send test email: ' + (xhr.responseJSON?.error || 'Unknown error'));
-                    }
-                });
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Service toggle
+    $('#serviceToggle').change(function() {
+        $.post('/api/toggle-email', function(response) {
+            if (response.active) {
+                showAlert('success', '✨ Email service activated!');
+            } else {
+                showAlert('info', '💤 Email service deactivated');
             }
+        }).fail(function(xhr) {
+            showAlert('danger', '😅 Failed to toggle service');
+            // Reset toggle to previous state
+            $(this).prop('checked', !$(this).prop('checked'));
         });
+    });
 
-        // Maintenance mode toggle
-        $('#maintenanceMode').change(function() {
-            const isChecked = $(this).prop('checked');
-            $.ajax({
-                url: '/api/maintenance',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({ active: isChecked }),
-                success: function() {
-                    showError('Maintenance mode ' + (isChecked ? 'enabled' : 'disabled'), 'success');
-                },
-                error: function(xhr) {
-                    showError('Failed to toggle maintenance mode: ' + (xhr.responseJSON?.error || 'Unknown error'));
-                    $(this).prop('checked', !isChecked);
-                }
-            });
+    // Debug toggle
+    $('#debugToggle').change(function() {
+        $.post('/api/debug-mode', {
+            active: $(this).prop('checked')
+        }, function(response) {
+            if (response.active) {
+                showAlert('success', '🐛 Debug mode enabled');
+            } else {
+                showAlert('info', '🚀 Debug mode disabled');
+            }
+        }).fail(function(xhr) {
+            showAlert('danger', '😅 Failed to toggle debug mode');
+            // Reset toggle
+            $(this).prop('checked', !$(this).prop('checked'));
         });
-    </script>
-</body>
-</html> 
+    });
+});
+</script>
+{% endblock %} 

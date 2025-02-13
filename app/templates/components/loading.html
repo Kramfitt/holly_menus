@@ -1,0 +1,41 @@
+<div class="loading-container">
+    <div class="loading-spinner">
+        <div class="loading-emoji">{{ emoji }}</div>
+        <div class="loading-text">{{ message }}</div>
+    </div>
+</div>
+
+<style>
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.loading-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
+}
+
+.loading-spinner {
+    text-align: center;
+}
+
+.loading-emoji {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    animation: bounce 1s infinite;
+}
+
+.loading-text {
+    color: #6b7280;
+    animation: pulse 2s infinite;
+}
+</style> 

@@ -404,12 +404,12 @@ def validate_template(file, season, week):
         
     return errors
 
-@bp.route('/api/template', methods=['POST'])
+@bp.route('/api/upload-template', methods=['POST'])
 @login_required
 def upload_template():
     try:
         if 'template' not in request.files:
-            return jsonify({'error': 'No file provided'}), 400
+            return jsonify({'error': '📁 No file provided'}), 400
             
         file = request.files['template']
         season = request.form.get('season')
@@ -423,43 +423,19 @@ def upload_template():
                 'details': errors
             }), 400
             
-        # Secure the filename
-        filename = secure_filename(file.filename)
-        file_path = f"menus/{season}_{week}_{filename}"
+        # Save using menu service
+        result = current_app.menu_service.save_template(file, season, week)
         
-        # Upload to Supabase Storage
-        supabase.storage.from_('menus').upload(
-            file_path,
-            file.read(),
-            {'content-type': file.content_type}
-        )
-        
-        # Get public URL
-        file_url = supabase.storage.from_('menus').get_public_url(file_path)
-        
-        # Store in database
-        response = safe_supabase_query(
-            'menu_templates',
-            action="insert",
-            data={
-                'season': season.lower(),
-                'week': int(week),
-                'file_path': file_path,
-                'file_url': file_url,
-                'created_at': datetime.now().isoformat()
-            }
-        )
-        
-        if response is None:
-            raise Exception("Failed to save template")
+        if result.get('error'):
+            raise Exception(result['error'])
             
         get_logger().log_activity(
             action="Template Uploaded",
-            details=f"Uploaded template for {season} week {week}",
+            details=f"✨ Uploaded template for {season} week {week}",
             status="success"
         )
         
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'url': result['url']})
         
     except Exception as e:
         error_msg = handle_error(e, "Template Upload Failed")
@@ -697,40 +673,27 @@ def validate_settings(data):
 
 @bp.route('/api/settings', methods=['POST'])
 @login_required
-def update_settings():
+def save_settings():
     try:
         data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-            
-        # Validate settings
-        errors = validate_settings(data)
-        if errors:
+        
+        # Validate required fields
+        required = ['start_date', 'days_in_advance', 'recipient_emails']
+        missing = [f for f in required if not data.get(f)]
+        if missing:
             return jsonify({
-                'error': 'Validation failed',
-                'details': errors
+                'error': 'Missing required fields',
+                'details': missing
             }), 400
             
-        # Create settings object
-        settings = {
+        # Save to database
+        result = supabase.table('menu_settings').insert({
             'start_date': data['start_date'],
-            'days_in_advance': int(data['days_in_advance']),
+            'days_in_advance': data['days_in_advance'],
             'recipient_emails': data['recipient_emails'],
-            'season': data.get('season', 'summer'),
-            'season_change_date': data.get('season_change_date'),
             'created_at': datetime.now().isoformat()
-        }
+        }).execute()
         
-        # Insert new settings
-        response = safe_supabase_query(
-            'menu_settings',
-            action="insert",
-            data=settings
-        )
-        
-        if response is None:
-            raise Exception("Failed to save settings")
-            
         get_logger().log_activity(
             action="Settings Updated",
             details="Menu settings updated successfully",
@@ -740,8 +703,12 @@ def update_settings():
         return jsonify({'success': True})
         
     except Exception as e:
-        error_msg = handle_error(e, "Settings API Error")
-        return jsonify({'error': error_msg}), 500
+        get_logger().log_activity(
+            action="Settings Update Failed",
+            details=str(e),
+            status="error"
+        )
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/email-status', methods=['GET'])
 def get_email_status():
