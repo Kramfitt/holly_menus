@@ -1271,6 +1271,20 @@ def register_filters(app):
         except Exception:
             return str(value)
 
+    @app.template_filter('strftime')
+    def format_datetime_strftime(value, format='%Y-%m-%d %H:%M:%S'):
+        """Format datetime using strftime"""
+        if not value:
+            return ''
+        try:
+            if isinstance(value, str):
+                dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+            else:
+                dt = value
+            return dt.strftime(format)
+        except Exception:
+            return str(value)
+
     @app.template_filter('status_color')
     def status_color(status):
         """Convert status to Bootstrap color class"""
