@@ -1,17 +1,27 @@
-from datetime import datetime, timedelta
+import sys
 import os
+
+# Add the project root to Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from flask import Flask
+from datetime import datetime, timedelta
 import time
 import redis
 from supabase import create_client
 from app.utils.logger import get_logger
+from config import Config
 
-# Initialize Supabase client
+# Create minimal Flask app for context
+app = Flask(__name__)
+app.config.from_object(Config)
+
+# Initialize clients
 supabase = create_client(
     supabase_url=os.getenv('SUPABASE_URL'),
     supabase_key=os.getenv('SUPABASE_KEY')
 )
 
-# Initialize Redis client
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
 redis_client = redis.from_url(redis_url)
 
@@ -114,49 +124,50 @@ def send_menu_email(start_date, recipient_list, season, week_number=None):
 
 def run_worker():
     """Main worker loop"""
-    while True:
-        try:
-            # Check if service is active
-            if redis_client.get('service_state') != b'true':
-                time.sleep(60)  # Check every minute
-                continue
-                
-            # Calculate next menu
-            next_menu = calculate_next_menu()
-            if not next_menu:
-                time.sleep(300)  # Wait 5 minutes if no menu
-                continue
-                
-            # Check if it's time to send
-            now = datetime.now().date()
-            if now == next_menu['send_date']:
-                # Get settings for recipients
-                settings = supabase.table('menu_settings')\
-                    .select('*')\
-                    .order('created_at', desc=True)\
-                    .limit(1)\
-                    .execute()
+    with app.app_context():
+        while True:
+            try:
+                # Check if service is active
+                if redis_client.get('service_state') != b'true':
+                    time.sleep(60)  # Check every minute
+                    continue
                     
-                if settings.data:
-                    recipient_list = settings.data[0].get('recipient_emails', [])
-                    if recipient_list:
-                        send_menu_email(
-                            start_date=next_menu['period_start'],
-                            recipient_list=recipient_list,
-                            season=next_menu['season'],
-                            week_number=next_menu['menu_pair'].split('_')[0]  # Use first week of pair
-                        )
-            
-            # Sleep for a while
-            time.sleep(3600)  # Check every hour
-            
-        except Exception as e:
-            get_logger().log_activity(
-                action="Worker Error",
-                details=str(e),
-                status="error"
-            )
-            time.sleep(300)  # Wait 5 minutes on error
+                # Calculate next menu
+                next_menu = calculate_next_menu()
+                if not next_menu:
+                    time.sleep(300)  # Wait 5 minutes if no menu
+                    continue
+                    
+                # Check if it's time to send
+                now = datetime.now().date()
+                if now == next_menu['send_date']:
+                    # Get settings for recipients
+                    settings = supabase.table('menu_settings')\
+                        .select('*')\
+                        .order('created_at', desc=True)\
+                        .limit(1)\
+                        .execute()
+                        
+                    if settings.data:
+                        recipient_list = settings.data[0].get('recipient_emails', [])
+                        if recipient_list:
+                            send_menu_email(
+                                start_date=next_menu['period_start'],
+                                recipient_list=recipient_list,
+                                season=next_menu['season'],
+                                week_number=next_menu['menu_pair'].split('_')[0]  # Use first week of pair
+                            )
+                
+                # Sleep for a while
+                time.sleep(3600)  # Check every hour
+                
+            except Exception as e:
+                get_logger().log_activity(
+                    action="Worker Error",
+                    details=str(e),
+                    status="error"
+                )
+                time.sleep(300)  # Wait 5 minutes on error
 
 if __name__ == '__main__':
     run_worker() 
