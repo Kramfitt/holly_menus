@@ -27,50 +27,56 @@ def create_app():
     try:
         app = Flask(__name__)
         
-        # Load configuration first
-        app.config.from_object('config')
-        
-        # Check required config before anything else
-        missing_config = [key for key in REQUIRED_CONFIG if not app.config.get(key)]
-        if missing_config:
-            raise ValueError(f"Missing required configuration: {', '.join(missing_config)}")
-        
-        # Set session configuration
-        app.config.update(
-            PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
-            SESSION_COOKIE_SECURE=True,
-            SESSION_COOKIE_HTTPONLY=True,
-            SESSION_COOKIE_SAMESITE='Lax'
-        )
-        
-        # Configure logging first
-        configure_logging(app)
-        
-        # Initialize services only after config check
-        try:
-            app.menu_service = MenuService(db=supabase, storage=supabase.storage)
-            app.email_service = EmailService(config={
-                'SMTP_SERVER': SMTP_SERVER,
-                'SMTP_PORT': SMTP_PORT,
-                'SMTP_USERNAME': SMTP_USERNAME,
-                'SMTP_PASSWORD': SMTP_PASSWORD
-            })
-            app.activity_logger = Logger()  # Rename to avoid conflict with Flask logger
-        except Exception as service_error:
-            raise RuntimeError(f"Failed to initialize services: {str(service_error)}")
-        
-        # Register blueprint and filters
-        from app.routes.main import bp as main_bp, register_filters
-        app.register_blueprint(main_bp)
-        register_filters(app)
-        
-        # Add service health checks
-        check_services(app)
-        
-        # Verify app setup
-        verify_app_setup(app)
-        
-        return app
+        # Push an application context
+        with app.app_context():
+            # Load configuration first
+            app.config.from_object('config')
+            
+            # Check required config before anything else
+            missing_config = [key for key in REQUIRED_CONFIG if not app.config.get(key)]
+            if missing_config:
+                raise ValueError(f"Missing required configuration: {', '.join(missing_config)}")
+            
+            # Set session configuration
+            app.config.update(
+                PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+                SESSION_COOKIE_SECURE=True,
+                SESSION_COOKIE_HTTPONLY=True,
+                SESSION_COOKIE_SAMESITE='Lax'
+            )
+            
+            # Configure logging first
+            configure_logging(app)
+            
+            # Initialize services only after config check
+            try:
+                # Attach redis client to app
+                app.redis_client = redis_client
+                
+                # Attach other services
+                app.menu_service = MenuService(db=supabase, storage=supabase.storage)
+                app.email_service = EmailService(config={
+                    'SMTP_SERVER': SMTP_SERVER,
+                    'SMTP_PORT': SMTP_PORT,
+                    'SMTP_USERNAME': SMTP_USERNAME,
+                    'SMTP_PASSWORD': SMTP_PASSWORD
+                })
+                app.activity_logger = Logger()
+            except Exception as service_error:
+                raise RuntimeError(f"Failed to initialize services: {str(service_error)}")
+            
+            # Register blueprint and filters
+            from app.routes.main import bp as main_bp, register_filters
+            app.register_blueprint(main_bp)
+            register_filters(app)
+            
+            # Add service health checks
+            check_services(app)
+            
+            # Verify app setup
+            verify_app_setup(app)
+            
+            return app
         
     except Exception as e:
         # Log the error
@@ -125,9 +131,9 @@ def check_services(app):
     """Verify all services are working"""
     errors = []
     
-    # Check Redis
+    # Check Redis using global client
     try:
-        app.redis_client.ping()
+        redis_client.ping()
     except Exception as e:
         errors.append(f"Redis connection failed: {str(e)}")
     
