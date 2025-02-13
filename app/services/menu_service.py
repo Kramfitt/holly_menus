@@ -22,34 +22,39 @@ class MenuService:
             bucket_exists = any(b['name'] == self.bucket for b in buckets)
             
             if not bucket_exists:
-                # Create the bucket if it doesn't exist
-                self.storage.create_bucket(
-                    id=self.bucket,  # Change 'name' to 'id'
-                    options={
-                        'public': True,
-                        'file_size_limit': 5242880,  # 5MB limit
-                        'allowed_mime_types': [
-                            'image/jpeg',
-                            'image/png',
-                            'application/pdf'
-                        ]
-                    }
-                )
-                get_logger().log_activity(
-                    action="Bucket Created",
-                    details=f"Created storage bucket: {self.bucket}",
-                    status="info"
-                )
-            
+                try:
+                    # Create the bucket if it doesn't exist
+                    self.storage.create_bucket(
+                        self.bucket,
+                        {'public': True}
+                    )
+                    
+                    get_logger().log_activity(
+                        action="Bucket Created",
+                        details=f"Created storage bucket: {self.bucket}",
+                        status="success"
+                    )
+                    
+                    # Wait a moment for bucket to be ready
+                    time.sleep(1)
+                    
+                except Exception as bucket_error:
+                    get_logger().log_activity(
+                        action="Bucket Creation Failed",
+                        details=str(bucket_error),
+                        status="error"
+                    )
+                    return False
+                
             return True
             
         except Exception as e:
             get_logger().log_activity(
-                action="Bucket Creation Failed",
+                action="Bucket Check Failed",
                 details=str(e),
                 status="error"
             )
-            raise ValueError(f"Failed to ensure bucket exists: {str(e)}")
+            return False
     
     def calculate_next_menu(self):
         """Calculate which menu should be sent next"""
@@ -158,68 +163,89 @@ class MenuService:
 
     def save_template(self, file, season, week):
         """Save menu template to storage and database"""
-        try:
-            # Ensure bucket exists first
-            self._ensure_bucket_exists()
-            
-            # Generate unique filename
-            filename = secure_filename(f"{season.lower()}_week{week}_{int(time.time())}{os.path.splitext(file.filename)[1]}")
-            
-            # Upload to storage
-            file_path = f"{season}/{filename}"
-            
-            # Read file content
-            file_content = file.read()
-            file.seek(0)  # Reset file pointer
-            
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
             try:
-                # Upload to Supabase storage
+                # Validate file first
+                self._validate_file(file)
+                
+                # Ensure bucket exists
+                if not self._ensure_bucket_exists():
+                    raise ValueError("Failed to create or access storage bucket")
+                
+                # Clean up old template
+                self._cleanup_old_template(season, week)
+                
+                # Generate unique filename
+                filename = secure_filename(f"{season.lower()}_week{week}_{int(time.time())}{os.path.splitext(file.filename)[1]}")
+                file_path = f"{season}/{filename}"
+                
+                # Read file content
+                file_content = file.read()
+                file.seek(0)
+                
+                # Upload to storage
                 self.storage.from_(self.bucket).upload(
                     file_path,
                     file_content,
                     {'content-type': file.content_type}
                 )
+                
+                # Get public URL
+                file_url = self.storage.from_(self.bucket).get_public_url(file_path)
+                
+                # Save to database
+                self.db.table('menu_templates').upsert({
+                    'season': season.lower(),
+                    'week': int(week),
+                    'file_path': file_path,
+                    'file_url': file_url,
+                    'file_type': file.content_type,
+                    'file_size': len(file_content),
+                    'updated_at': datetime.now().isoformat()
+                }).execute()
+                
+                get_logger().log_activity(
+                    action="Template Upload",
+                    details={
+                        'season': season,
+                        'week': week,
+                        'file_type': file.content_type,
+                        'file_size': len(file_content),
+                        'path': file_path
+                    },
+                    status="success"
+                )
+                
+                return {'success': True, 'url': file_url}
+                
+            except ValueError as e:
+                # Don't retry validation errors
+                get_logger().log_activity(
+                    action="Template Upload Failed",
+                    details=str(e),
+                    status="error"
+                )
+                return {'error': str(e)}
+                
             except Exception as e:
-                if 'Bucket not found' in str(e):
-                    # Try to create bucket and retry upload
-                    self._ensure_bucket_exists()
-                    self.storage.from_(self.bucket).upload(
-                        file_path,
-                        file_content,
-                        {'content-type': file.content_type}
+                retry_count += 1
+                if retry_count >= max_retries:
+                    get_logger().log_activity(
+                        action="Template Upload Failed",
+                        details=f"Failed after {max_retries} attempts: {str(e)}",
+                        status="error"
                     )
-                else:
-                    raise
-            
-            # Get public URL
-            file_url = self.storage.from_(self.bucket).get_public_url(file_path)
-            
-            # Save to database
-            self.db.table('menu_templates').upsert({
-                'season': season.lower(),
-                'week': int(week),
-                'file_path': file_path,
-                'file_url': file_url,
-                'updated_at': datetime.now().isoformat()
-            }).execute()
-            
-            # Log success
-            get_logger().log_activity(
-                action="Template Upload",
-                details=f"Template uploaded for {season} week {week}",
-                status="success"
-            )
-            
-            return {'success': True, 'url': file_url}
-            
-        except Exception as e:
-            # Log error
-            get_logger().log_activity(
-                action="Template Upload Failed",
-                details=str(e),
-                status="error"
-            )
-            return {'error': str(e)}
+                    return {'error': str(e)}
+                
+                time.sleep(1)
+                get_logger().log_activity(
+                    action="Template Upload Retry",
+                    details=f"Attempt {retry_count} of {max_retries}",
+                    status="warning"
+                )
 
     def get_templates(self):
         """Get all templates organized by season"""
@@ -231,7 +257,7 @@ class MenuService:
                 season = template['season']
                 week = str(template['week'])
                 templates[season][week] = {
-                    'file_url': template['template_url'],
+                    'file_url': template.get('file_url'),
                     'updated_at': template['updated_at']
                 }
             
@@ -343,4 +369,124 @@ class MenuService:
                 },
                 status="error"
             )
-            raise ValueError(f"Failed to generate preview: {str(e)}") 
+            raise ValueError(f"Failed to generate preview: {str(e)}")
+
+    def _validate_file(self, file):
+        """Validate uploaded file"""
+        try:
+            # Basic checks
+            if not file or not file.filename:
+                raise ValueError("No valid file provided")
+            
+            # Check file type and extension match
+            allowed_types = {
+                'application/pdf': ['.pdf'],
+                'image/jpeg': ['.jpg', '.jpeg'],
+                'image/png': ['.png']
+            }
+            
+            ext = os.path.splitext(file.filename)[1].lower()
+            if file.content_type not in allowed_types:
+                raise ValueError(f"Invalid file type. Allowed types: PDF, JPEG, PNG")
+            
+            if ext not in allowed_types[file.content_type]:
+                raise ValueError(f"File extension doesn't match its content type")
+            
+            # Check file size (5MB limit)
+            file.seek(0, os.SEEK_END)
+            size = file.tell()
+            file.seek(0)
+            
+            if size > 5 * 1024 * 1024:
+                raise ValueError("File size exceeds 5MB limit")
+            
+            # Basic content check
+            try:
+                content = file.read(1024)  # Read first 1KB
+                file.seek(0)
+                
+                # Check for common file signatures
+                if file.content_type == 'application/pdf' and not content.startswith(b'%PDF'):
+                    raise ValueError("Invalid PDF file")
+                elif file.content_type == 'image/jpeg' and not content.startswith(b'\xFF\xD8'):
+                    raise ValueError("Invalid JPEG file")
+                elif file.content_type == 'image/png' and not content.startswith(b'\x89PNG'):
+                    raise ValueError("Invalid PNG file")
+                
+            except Exception as e:
+                raise ValueError(f"File content validation failed: {str(e)}")
+            
+            return True
+            
+        except ValueError as e:
+            raise e
+        except Exception as e:
+            get_logger().log_activity(
+                action="File Validation Failed",
+                details=str(e),
+                status="error"
+            )
+            raise ValueError(f"File validation failed: {str(e)}")
+
+    def _cleanup_old_template(self, season, week):
+        """Remove old template if it exists"""
+        try:
+            old_template = self.get_template(season, week)
+            if old_template and old_template.get('file_path'):
+                # Backup first
+                self._backup_template(old_template)
+                
+                # Then delete
+                try:
+                    self.storage.from_(self.bucket).remove([old_template['file_path']])
+                    get_logger().log_activity(
+                        action="Template Cleanup",
+                        details={
+                            'file_path': old_template['file_path'],
+                            'file_type': old_template.get('file_type'),
+                            'file_size': old_template.get('file_size')
+                        },
+                        status="success"
+                    )
+                except Exception as e:
+                    get_logger().log_activity(
+                        action="Template Cleanup Failed",
+                        details=str(e),
+                        status="warning"
+                    )
+        except Exception as e:
+            get_logger().log_activity(
+                action="Template Cleanup Error",
+                details=str(e),
+                status="error"
+            )
+
+    def _backup_template(self, template):
+        """Create backup of template before deletion"""
+        try:
+            if not template or not template.get('file_path'):
+                return
+            
+            # Create backup path
+            backup_path = f"backup/{template['season']}/{os.path.basename(template['file_path'])}"
+            
+            # Copy file to backup
+            content = self.storage.from_(self.bucket).download(template['file_path'])
+            self.storage.from_(self.bucket).upload(
+                backup_path,
+                content,
+                {'content-type': template.get('file_type', 'application/octet-stream')}
+            )
+            
+            get_logger().log_activity(
+                action="Template Backup",
+                details=f"Backed up template: {template['file_path']} → {backup_path}",
+                status="success"
+            )
+            
+        except Exception as e:
+            get_logger().log_activity(
+                action="Template Backup Failed",
+                details=str(e),
+                status="warning"
+            ) 
