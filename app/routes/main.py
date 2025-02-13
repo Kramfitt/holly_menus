@@ -328,41 +328,46 @@ def preview():
 @bp.route('/api/preview', methods=['GET'])
 def api_preview_menu():
     try:
-        season = request.args.get('season')
+        season = request.args.get('season', '').lower()
         week = request.args.get('week')
         start_date = request.args.get('date')
         
         if not all([season, week, start_date]):
-            return "Missing required parameters", 400
+            return jsonify({
+                'error': 'Missing parameters',
+                'details': {
+                    'season': '🌞/❄️ Select season' if not season else None,
+                    'week': '📅 Select week' if not week else None,
+                    'date': '📆 Select start date' if not start_date else None
+                }
+            }), 400
             
         # Get menu template
-        menu_response = supabase.table('menus')\
-            .select('*')\
-            .eq('season', season)\
-            .eq('week', week)\
-            .execute()
+        template = current_app.menu_service.get_template(season, week)
+        if not template:
+            return jsonify({
+                'error': 'Template not found',
+                'details': f'No template found for {season.title()} Week {week}'
+            }), 404
             
-        if not menu_response.data:
-            return f"No template found for {season} week {week}", 404
-            
-        menu = menu_response.data[0]
-        date_obj = datetime.strptime(start_date, '%Y-%m-%d')
-        
         # Generate preview
-        preview_url = menu_service.generate_preview(menu, date_obj)
+        preview_data = current_app.menu_service.generate_preview(
+            template, 
+            start_date=datetime.strptime(start_date, '%Y-%m-%d')
+        )
         
-        return f'<div class="preview-container">' \
-               f'<img src="{preview_url}" class="img-fluid" alt="Menu Preview">' \
-               f'<div class="mt-2 text-muted">Preview generated for {season.title()} Week {week}</div>' \
-               f'</div>'
-               
+        return jsonify(preview_data)
+        
     except Exception as e:
         get_logger().log_activity(
             action="Preview Generation Failed",
             details=str(e),
             status="error"
         )
-        return str(e), 500
+        return jsonify({
+            'error': 'Preview generation failed',
+            'details': str(e)
+        }), 500
 
 def validate_template(file, season, week):
     """Validate template upload"""

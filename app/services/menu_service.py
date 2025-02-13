@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
+import time
 
 class MenuService:
     def __init__(self, db, storage):
         self.db = db
         self.storage = storage
+        self.bucket = 'menu-templates'
         
     def calculate_next_menu(self):
         """Calculate which menu should be sent next"""
@@ -109,4 +111,49 @@ class MenuService:
 
     def get_menu_template(self):
         """Handle menu template retrieval"""
-        pass 
+        pass
+
+    def save_template(self, file, season, week):
+        """Save menu template to storage and database"""
+        try:
+            # Generate unique filename
+            filename = f"{season.lower()}_week{week}_{int(time.time())}.pdf"
+            
+            # Upload to storage
+            file_path = f"{season}/{filename}"
+            self.storage.from_(self.bucket).upload(file_path, file)
+            
+            # Get public URL
+            file_url = self.storage.from_(self.bucket).get_public_url(file_path)
+            
+            # Save to database
+            self.db.table('menu_templates').upsert({
+                'season': season.lower(),
+                'week': int(week),
+                'template_url': file_url,
+                'updated_at': datetime.now().isoformat()
+            }).execute()
+            
+            return {'success': True, 'url': file_url}
+            
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_templates(self):
+        """Get all templates organized by season"""
+        try:
+            response = self.db.table('menu_templates').select('*').execute()
+            templates = {'summer': {}, 'winter': {}}
+            
+            for template in response.data:
+                season = template['season']
+                week = str(template['week'])
+                templates[season][week] = {
+                    'file_url': template['template_url'],
+                    'updated_at': template['updated_at']
+                }
+            
+            return templates
+        except Exception as e:
+            logger.error(f"Error fetching templates: {str(e)}")
+            return {'summer': {}, 'winter': {}} 
