@@ -24,14 +24,25 @@ class MenuService:
             if not bucket_exists:
                 # Create the bucket if it doesn't exist
                 self.storage.create_bucket(
-                    self.bucket,
-                    {'public': True}  # Make it publicly accessible
+                    id=self.bucket,  # Change 'name' to 'id'
+                    options={
+                        'public': True,
+                        'file_size_limit': 5242880,  # 5MB limit
+                        'allowed_mime_types': [
+                            'image/jpeg',
+                            'image/png',
+                            'application/pdf'
+                        ]
+                    }
                 )
                 get_logger().log_activity(
                     action="Bucket Created",
                     details=f"Created storage bucket: {self.bucket}",
                     status="info"
                 )
+            
+            return True
+            
         except Exception as e:
             get_logger().log_activity(
                 action="Bucket Creation Failed",
