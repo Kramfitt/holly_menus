@@ -179,6 +179,24 @@
                 </div>
             </div>
 
+            <!-- Service Status -->
+            <div class="col-md-6 mb-4">
+                <div class="card status-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">
+                            <i class="status-icon"></i>
+                            Service Status
+                        </h5>
+                        <div class="card-value {{ 'text-success' if service_active else 'text-danger' }}">
+                            {{ 'Active' if service_active else 'Inactive' }}
+                        </div>
+                        <p class="card-text text-muted">
+                            Menu Email Service
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Next Send Date -->
             <div class="col-md-6 mb-4">
                 <div class="card status-card">
@@ -210,24 +228,6 @@
                         </div>
                         <p class="card-text text-muted">
                             Menu Period {{ next_menu.menu_pair if next_menu else '' }}
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Service Status -->
-            <div class="col-md-6 mb-4">
-                <div class="card status-card">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">
-                            <i class="status-icon"></i>
-                            Service Status
-                        </h5>
-                        <div class="card-value {{ 'text-success' if service_active else 'text-danger' }}">
-                            {{ 'Active' if service_active else 'Inactive' }}
-                        </div>
-                        <p class="card-text text-muted">
-                            Menu Email Service
                         </p>
                     </div>
                 </div>
