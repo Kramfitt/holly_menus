@@ -1220,7 +1220,6 @@ def safe_supabase_query(table, action="query", timeout=10, **kwargs):
             return query.insert(kwargs.get('data')).execute()
         elif action == "delete":
             query = query.delete()
-            # Add filter for delete
             if kwargs.get('filter_column'):
                 query = query.filter(
                     kwargs['filter_column'],
@@ -1229,7 +1228,8 @@ def safe_supabase_query(table, action="query", timeout=10, **kwargs):
                 )
             
         if kwargs.get('order_by'):
-            query = query.order(kwargs['order_by'], ascending=kwargs.get('ascending', True))
+            order_desc = not kwargs.get('ascending', True)  # Convert to desc parameter
+            query = query.order(kwargs['order_by'], desc=order_desc)
             
         if kwargs.get('limit'):
             query = query.limit(kwargs['limit'])
