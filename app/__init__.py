@@ -50,8 +50,9 @@ def create_app():
             
             # Initialize services only after config check
             try:
-                # Attach redis client to app
+                # Attach clients to app
                 app.redis_client = redis_client
+                app.supabase = supabase
                 
                 # Attach other services
                 app.menu_service = MenuService(db=supabase, storage=supabase.storage)
