@@ -5,6 +5,8 @@ import os
 from werkzeug.utils import secure_filename
 import traceback
 
+from app.utils.logger import get_logger
+
 class MenuService:
     def __init__(self, db, storage):
         self.db = db
@@ -148,10 +150,22 @@ class MenuService:
                 'updated_at': datetime.now().isoformat()
             }).execute()
             
+            # Log success
+            get_logger().log_activity(
+                action="Template Upload",
+                details=f"Template uploaded for {season} week {week}",
+                status="success"
+            )
+            
             return {'success': True, 'url': file_url}
             
         except Exception as e:
-            logger.error(f"Template upload failed: {str(e)}")
+            # Log error
+            get_logger().log_activity(
+                action="Template Upload Failed",
+                details=str(e),
+                status="error"
+            )
             return {'error': str(e)}
 
     def get_templates(self):
@@ -170,7 +184,11 @@ class MenuService:
             
             return templates
         except Exception as e:
-            logger.error(f"Error fetching templates: {str(e)}")
+            get_logger().log_activity(
+                action="Template Fetch Failed",
+                details=str(e),
+                status="error"
+            )
             return {'summer': {}, 'winter': {}}
 
     def get_template(self, season, week):
@@ -188,7 +206,11 @@ class MenuService:
             return response.data[0]
             
         except Exception as e:
-            logger.error(f"Error fetching template: {str(e)}")
+            get_logger().log_activity(
+                action="Template Fetch Failed",
+                details=f"Error fetching template for {season} week {week}: {str(e)}",
+                status="error"
+            )
             return None
 
     def generate_preview(self, template, start_date):
