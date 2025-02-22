@@ -1,4 +1,108 @@
-# Holly Lea Menu System
+# Menu System
+
+A robust menu management system for handling menu templates and automated email distribution.
+
+## Features
+
+### Core Functionality
+- 📅 Menu template management (upload, preview, delete)
+- 📧 Automated email distribution
+- 🔄 Season-based menu rotation
+- ⚙️ Configurable settings
+- 📊 System status monitoring
+
+### Technical Features
+- 🔒 Secure file handling with validation
+- 🔄 Automatic file backups
+- 📝 Comprehensive activity logging
+- ⚡ Redis caching
+- 🛡️ Error handling and recovery
+- 🎨 Responsive UI with animations
+
+## Technology Stack
+
+### Backend
+- Python/Flask
+- Supabase (Database & Storage)
+- Redis (Caching & State)
+- SMTP Email Service
+
+### Frontend
+- HTML5/CSS3
+- JavaScript/jQuery
+- Bootstrap 5
+- Custom animations
+
+## Security Features
+- File validation & sanitization
+- Size limits & type restrictions
+- Backup system
+- Error logging & monitoring
+- Rate limiting
+- Session management
+
+## System Requirements
+- Python 3.8+
+- Redis server
+- SMTP server access
+- Supabase account
+
+## Environment Variables
+```
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_key
+REDIS_URL=your_redis_url
+SMTP_SERVER=smtp_server
+SMTP_PORT=smtp_port
+SMTP_USERNAME=smtp_username
+SMTP_PASSWORD=smtp_password
+DASHBOARD_PASSWORD=admin_password
+SECRET_KEY=flask_secret_key
+```
+
+## Database Schema
+
+### menu_settings
+- start_date: date
+- days_in_advance: integer
+- recipient_emails: text[]
+- season: text
+- created_at: timestamp
+
+### menu_templates
+- season: text
+- week: integer
+- file_path: text
+- file_url: text
+- file_type: text
+- file_size: integer
+- updated_at: timestamp
+
+### activity_log
+- action: text
+- details: text
+- status: text
+- created_at: timestamp
+
+## File Storage
+- Bucket: menu-templates
+- Supported types: PDF, JPEG, PNG
+- Size limit: 5MB
+- Automatic backups
+
+## Maintenance
+- Debug mode for troubleshooting
+- Activity logging
+- System status monitoring
+- Connection health checks
+- Automatic retry mechanisms
+
+## Future Enhancements
+- Email template customization
+- Advanced preview features
+- Analytics dashboard
+- Multi-language support
+- API documentation
 
 ## Overview
 Automated system for managing and sending periodic menus to residents.
@@ -36,39 +140,6 @@ must be stored in environment variables, never committed to the repository.
 - System monitoring
 - Backup/restore
 - Activity logging
-
-## Environment Variables
-Required in Render "Menu Scheduler" Environment Group:
-- SUPABASE_URL
-- SUPABASE_KEY
-- SMTP_SERVER
-- SMTP_PORT
-- SMTP_USERNAME
-- SMTP_PASSWORD
-- ADMIN_EMAIL
-- REDIS_URL
-
-## Database Tables (Supabase)
-1. menu_settings
-   - System configuration
-   - Schedule settings
-   - Email recipients
-
-2. menus
-   - Menu templates
-   - File storage
-
-3. activity_log
-   - System events
-   - Error tracking
-
-4. notifications
-   - System alerts
-   - Error notifications
-
-5. backups
-   - System backups
-   - Restore points
 
 ## Deployment
 - Auto-deploys from GitHub main branch

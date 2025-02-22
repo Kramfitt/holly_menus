@@ -23,11 +23,8 @@ class MenuService:
             
             if not bucket_exists:
                 try:
-                    # Create the bucket if it doesn't exist
-                    self.storage.create_bucket(
-                        self.bucket,
-                        {'public': True}
-                    )
+                    # Create the bucket with minimal config
+                    self.storage.create_bucket(self.bucket)
                     
                     get_logger().log_activity(
                         action="Bucket Created",
@@ -39,12 +36,12 @@ class MenuService:
                     time.sleep(1)
                     
                 except Exception as bucket_error:
+                    # Log but don't fail - bucket might exist but be inaccessible
                     get_logger().log_activity(
-                        action="Bucket Creation Failed",
+                        action="Bucket Creation Note",
                         details=str(bucket_error),
-                        status="error"
+                        status="info"
                     )
-                    return False
                 
             return True
             

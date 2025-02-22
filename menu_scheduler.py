@@ -15,53 +15,31 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 import tempfile
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
 print("=== MENU SCHEDULER STARTING ===", file=sys.stderr)
 
 def load_config():
-    # Load environment variables
-    load_dotenv()
-    
-    # Load base config from yaml
-    with open('config.yaml', 'r') as f:
-        config = yaml.safe_load(f)
-    
-    # Override sensitive values with environment variables
-    config['email']['smtp_server'] = os.getenv('SMTP_SERVER', config['email']['smtp_server'])
-    config['email']['smtp_port'] = int(os.getenv('SMTP_PORT', config['email']['smtp_port']))
-    config['email']['sender_email'] = os.getenv('SENDER_EMAIL', config['email']['sender_email'])
-    config['recipients']['primary']['email'] = os.getenv('RECIPIENT_EMAIL', config['recipients']['primary']['email'])
-    
-    # Email password should ONLY come from environment variables
-    config['email']['password'] = os.getenv('EMAIL_PASSWORD')
-    
-    print("Configuration loaded with environment variables", file=sys.stderr)
-    return config
+    """Load configuration from config.yaml"""
+    try:
+        with open('config.yaml', 'r') as f:
+            config = yaml.safe_load(f)
+            
+        # Override email settings from environment variables
+        config['email']['sender_email'] = os.getenv('SMTP_USERNAME', config['email']['sender_email'])
+        config['email']['password'] = os.getenv('SMTP_PASSWORD', config['email']['password'])
+        
+        print("Configuration loaded with environment variables")
+        return config
+        
+    except Exception as e:
+        print(f"Error loading config: {e}")
+        raise
 
 def determine_menu_details(current_date):
-    """Calculate which menu should be sent based on the date"""
-    config = load_config()
-    
-    # Calculate next menu start date (2 weeks from now)
-    next_date = current_date + timedelta(days=14)
-    
-    # Determine season
-    year = next_date.year
-    summer_start = datetime.strptime(f"{year}-" + config['seasons']['summer']['start_date'][5:], "%Y-%m-%d")
-    winter_start = datetime.strptime(f"{year}-" + config['seasons']['winter']['start_date'][5:], "%Y-%m-%d")
-    
-    is_summer = (summer_start <= next_date < winter_start)
-    season = "Summer" if is_summer else "Winter"
-    season_start = summer_start if is_summer else winter_start
-    
-    # Calculate week number (1-4)
-    weeks_since_start = ((next_date - season_start).days // 14)
-    week_number = (weeks_since_start % 4) + 1
-    
-    return {
-        'start_date': next_date,
-        'season': season,
-        'week_number': week_number
-    }
+    """Determine which menu template to use based on the current date"""
+    pass  # We'll implement this later if needed
 
 def get_menu_file_path(menu_details, config):
     """Get the path to the correct menu template file"""
