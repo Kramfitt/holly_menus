@@ -4,8 +4,8 @@ services:
     name: menu-system
     env: python
     buildCommand: |
-      sudo apt-get update -y
-      sudo apt-get install -y $(cat packages.txt)
+      apt-get update -y
+      apt-get install -y $(cat packages.txt)
       pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
@@ -33,8 +33,8 @@ services:
     name: menu-worker
     env: python
     buildCommand: |
-      sudo apt-get update -y
-      sudo apt-get install -y $(cat packages.txt)
+      apt-get update -y
+      apt-get install -y $(cat packages.txt)
       pip install -r requirements.txt
     startCommand: |
       python test_tesseract.py
