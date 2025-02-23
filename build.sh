@@ -3,6 +3,15 @@ set -e  # Exit on any error
 
 echo "🚀 Starting build process..."
 
+# Check if running in Docker
+if [ -f "/.dockerenv" ]; then
+    echo "🐳 Running in Docker environment - skipping system checks"
+    echo "Installing Python dependencies..."
+    pip install -r requirements.txt
+    echo "🏁 Build process completed"
+    exit 0
+fi
+
 # System information
 echo "📊 System Information:"
 echo "OS: $(uname -a)"
