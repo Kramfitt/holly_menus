@@ -3,21 +3,49 @@ set -e  # Exit on any error
 
 echo "🚀 Starting build process..."
 
+# System information
+echo "📊 System Information:"
+echo "OS: $(uname -a)"
+echo "Distribution: $(cat /etc/os-release | grep PRETTY_NAME || echo 'Unknown')"
+echo "Current directory: $(pwd)"
+echo "PATH: $PATH"
+
 # Verify system dependencies
 echo "📦 Verifying system packages..."
-echo "Current directory: $(pwd)"
 
 # Verify Tesseract installation
 echo "🔍 Verifying Tesseract installation..."
 echo "Checking Tesseract binary..."
-which tesseract || {
-    echo "❌ Tesseract not found in PATH"
-    exit 1
-}
 
-echo "Checking common locations..."
-ls -l /usr/bin/tesseract* || echo "Not found in /usr/bin"
-ls -l /usr/local/bin/tesseract* || echo "Not found in /usr/local/bin"
+# Check multiple possible locations
+TESSERACT_LOCATIONS=(
+    "/usr/bin/tesseract"
+    "/usr/local/bin/tesseract"
+    "/opt/tesseract/bin/tesseract"
+)
+
+TESSERACT_FOUND=false
+for loc in "${TESSERACT_LOCATIONS[@]}"; do
+    if [ -f "$loc" ]; then
+        echo "✅ Found Tesseract at: $loc"
+        TESSERACT_FOUND=true
+        export PATH="$(dirname $loc):$PATH"
+        break
+    fi
+done
+
+if [ "$TESSERACT_FOUND" = false ]; then
+    echo "❌ Tesseract not found in common locations"
+    echo "Checking PATH for tesseract..."
+    which tesseract || {
+        echo "❌ Tesseract not found in PATH"
+        echo "Available files in /usr/bin:"
+        ls -la /usr/bin/tesseract* || echo "No Tesseract files found in /usr/bin"
+        echo "Available files in /usr/local/bin:"
+        ls -la /usr/local/bin/tesseract* || echo "No Tesseract files found in /usr/local/bin"
+        exit 1
+    }
+fi
 
 echo "Running tesseract version..."
 tesseract --version || {
@@ -35,6 +63,8 @@ tesseract --list-langs || {
 echo "📄 Verifying Poppler installation..."
 which pdftoppm || {
     echo "❌ Poppler (pdftoppm) not found"
+    echo "Available files in /usr/bin:"
+    ls -la /usr/bin/pdf* || echo "No PDF tools found in /usr/bin"
     exit 1
 }
 
@@ -48,7 +78,9 @@ pip install -r requirements.txt || {
 # Test Tesseract with Python
 echo "🧪 Testing Tesseract with Python..."
 python -c "
+import os
 import pytesseract
+print('Environment TESSERACT_PATH:', os.getenv('TESSERACT_PATH'))
 print('Python Tesseract path:', pytesseract.get_tesseract_cmd())
 print('Tesseract version:', pytesseract.get_tesseract_version())
 print('Available languages:', pytesseract.get_languages())

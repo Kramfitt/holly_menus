@@ -3,7 +3,16 @@ services:
   - type: web
     name: menu-system
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      # Add Tesseract repository
+      apt-get update -y
+      apt-get install -y software-properties-common
+      add-apt-repository -y ppa:alex-p/tesseract-ocr
+      apt-get update -y
+      # Install packages
+      apt-get install -y poppler-utils tesseract-ocr tesseract-ocr-eng libtesseract-dev libleptonica-dev
+      # Install Python dependencies
+      pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
       - key: PYTHON_VERSION
@@ -24,18 +33,21 @@ services:
         sync: false
       - key: ADMIN_EMAIL
         sync: false
-    packages:
-      - poppler-utils
-      - tesseract-ocr
-      - tesseract-ocr-eng
-      - libtesseract-dev
-      - libleptonica-dev
 
   # Worker Service
   - type: worker
     name: menu-worker
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      # Add Tesseract repository
+      apt-get update -y
+      apt-get install -y software-properties-common
+      add-apt-repository -y ppa:alex-p/tesseract-ocr
+      apt-get update -y
+      # Install packages
+      apt-get install -y poppler-utils tesseract-ocr tesseract-ocr-eng libtesseract-dev libleptonica-dev
+      # Install Python dependencies
+      pip install -r requirements.txt
     startCommand: |
       python test_tesseract.py
       python worker.py
@@ -55,10 +67,4 @@ services:
       - key: SMTP_USERNAME
         sync: false
       - key: SMTP_PASSWORD
-        sync: false
-    packages:
-      - poppler-utils
-      - tesseract-ocr
-      - tesseract-ocr-eng
-      - libtesseract-dev
-      - libleptonica-dev 
+        sync: false 
