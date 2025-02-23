@@ -5,6 +5,10 @@ services:
     env: docker
     dockerfilePath: Dockerfile.web
     dockerCommand: gunicorn app:app
+    buildCommand: |
+      apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng libtesseract-dev libleptonica-dev poppler-utils
+      pip install -r requirements.txt
+      python test_tesseract.py
     envVars:
       - key: DOCKER_BUILD
         value: "true"
@@ -35,6 +39,10 @@ services:
     env: docker
     dockerfilePath: Dockerfile.worker
     dockerCommand: python worker.py
+    buildCommand: |
+      apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng libtesseract-dev libleptonica-dev poppler-utils
+      pip install -r requirements.txt
+      python test_tesseract.py
     envVars:
       - key: DOCKER_BUILD
         value: "true"
