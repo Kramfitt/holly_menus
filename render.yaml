@@ -5,7 +5,7 @@ services:
     env: python
     buildCommand: |
       # Install system packages first
-      apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng poppler-utils
+      sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-eng poppler-utils
       # Run build script
       bash ./build.sh
     startCommand: gunicorn app:app
@@ -29,16 +29,12 @@ services:
       - key: ADMIN_EMAIL
         sync: false
 
-  # Worker Service
+  # Worker Service (Docker-based)
   - type: worker
     name: menu-worker
-    env: python
-    buildCommand: |
-      # Install system packages first
-      apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng poppler-utils
-      # Run build script
-      bash ./build.sh
-    startCommand: python worker.py
+    env: docker
+    dockerfilePath: Dockerfile.worker
+    dockerCommand: python worker.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0

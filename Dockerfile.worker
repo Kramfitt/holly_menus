@@ -1,0 +1,37 @@
+# Use Python base image
+FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies and Tesseract
+RUN apt-get update && \
+    apt-get install -y \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    poppler-utils \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && tesseract --version
+
+# Set Tesseract path
+ENV TESSERACT_PATH=/usr/bin/tesseract
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first to leverage Docker cache
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy only the worker-related files
+COPY worker.py .
+COPY app/ app/
+COPY config/ config/
+
+# Verify Tesseract is working
+RUN python -c "import pytesseract; print(pytesseract.get_tesseract_version())"
+
+# Command to run the worker
+CMD ["python", "worker.py"] 
