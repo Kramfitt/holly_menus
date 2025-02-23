@@ -4,8 +4,8 @@ services:
     name: menu-system
     env: python
     buildCommand: |
-      apt-get update -y
-      apt-get install -y $(cat packages.txt)
+      sudo apt-get update -y
+      sudo apt-get install -y $(cat packages.txt)
       pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
@@ -33,10 +33,12 @@ services:
     name: menu-worker
     env: python
     buildCommand: |
-      apt-get update -y
-      apt-get install -y $(cat packages.txt)
+      sudo apt-get update -y
+      sudo apt-get install -y $(cat packages.txt)
       pip install -r requirements.txt
-    startCommand: python worker.py
+    startCommand: |
+      python test_tesseract.py
+      python worker.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
