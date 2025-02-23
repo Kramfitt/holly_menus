@@ -803,59 +803,45 @@ Holly Lodge Menu System"""
             print(f"Environment: Render={is_render}, Docker={is_docker}")
             
             # Get Tesseract path from environment or use default
-            tesseract_path = os.getenv('TESSERACT_PATH', '/usr/bin/tesseract')
-            print(f"Setting Tesseract command path to: {tesseract_path}")
+            tesseract_path = os.getenv('TESSERACT_PATH')
+            print(f"Tesseract path from environment: {tesseract_path}")
             
             # Check multiple possible Tesseract locations
             possible_paths = [
                 tesseract_path,
+                '/usr/bin/tesseract',
                 '/usr/local/bin/tesseract',
                 '/opt/homebrew/bin/tesseract',
-                '/app/.apt/usr/bin/tesseract',  # Common Render path
-                os.path.join(os.getcwd(), '.apt/usr/bin/tesseract'),  # Local Render path
-                '/app/vendor/tesseract/bin/tesseract',  # Another possible Render path
-                os.path.join(os.getcwd(), 'vendor/tesseract/bin/tesseract')  # Local vendor path
+                '/app/.apt/usr/bin/tesseract',  # Render path
+                os.path.join(os.getcwd(), '.apt/usr/bin/tesseract'),  # Local path
+                os.path.join(os.path.expanduser('~'), '.apt/usr/bin/tesseract'),  # User home path
             ]
             
-            # On Render, check if we need to create .apt directory
-            if is_render and not os.path.exists('/app/.apt'):
-                try:
-                    os.makedirs('/app/.apt/usr/bin', exist_ok=True)
-                    print("Created .apt directory structure")
-                except Exception as e:
-                    print(f"Error creating .apt directory: {e}")
+            # Filter out None values
+            possible_paths = [p for p in possible_paths if p]
+            
+            # Try to create local .apt directory if we don't have root access
+            local_tesseract_path = os.path.join(os.getcwd(), '.apt/usr/bin/tesseract')
+            try:
+                os.makedirs(os.path.dirname(local_tesseract_path), exist_ok=True)
+                print(f"Created local directory: {os.path.dirname(local_tesseract_path)}")
+            except Exception as e:
+                print(f"Note: Could not create local directory: {e}")
             
             found_path = None
             for path in possible_paths:
-                if os.path.exists(path):
-                    print(f"Found Tesseract at: {path}")
+                if os.path.exists(path) and os.access(path, os.X_OK):
+                    print(f"Found executable Tesseract at: {path}")
                     found_path = path
                     break
             
             if not found_path:
                 print("Tesseract not found in common locations")
                 # Try finding in PATH
-                try:
-                    # First check if tesseract is in PATH
-                    tesseract_in_path = shutil.which('tesseract')
-                    if tesseract_in_path:
-                        found_path = tesseract_in_path
-                        print(f"Found Tesseract in PATH: {found_path}")
-                    else:
-                        # Try to install Tesseract if we're in Render
-                        if is_render:
-                            print("Attempting to install Tesseract...")
-                            try:
-                                os.system('apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng')
-                                # Check if installation was successful
-                                tesseract_in_path = shutil.which('tesseract')
-                                if tesseract_in_path:
-                                    found_path = tesseract_in_path
-                                    print(f"Successfully installed Tesseract at: {found_path}")
-                            except Exception as e:
-                                print(f"Error installing Tesseract: {e}")
-                except Exception as e:
-                    print(f"Error checking PATH for Tesseract: {e}")
+                tesseract_in_path = shutil.which('tesseract')
+                if tesseract_in_path:
+                    found_path = tesseract_in_path
+                    print(f"Found Tesseract in PATH: {found_path}")
             
             if not found_path:
                 print("Could not locate Tesseract binary")
@@ -867,7 +853,6 @@ Holly Lodge Menu System"""
             
             # Try to verify Tesseract version without running OCR
             try:
-                import subprocess
                 result = subprocess.run([found_path, '--version'], capture_output=True, text=True)
                 if result.returncode == 0:
                     print(f"Tesseract version info:\n{result.stdout}")
@@ -885,40 +870,32 @@ Holly Lodge Menu System"""
                     print("English language data found")
                 else:
                     print("Warning: English language data not found")
-                    # Try to install language data if missing
-                    if is_render:
-                        try:
-                            os.system('apt-get install -y tesseract-ocr-eng')
-                            print("Installed English language data")
-                        except Exception as e:
-                            print(f"Error installing language data: {e}")
             except Exception as e:
                 print(f"Error checking language data: {e}")
             
-            # Test Tesseract functionality with minimal permissions
+            # Test Tesseract functionality with a simple image
             try:
-                # Create a simple test image in a writable directory
-                temp_dir = os.path.join(os.getcwd(), 'temp_images')
-                os.makedirs(temp_dir, exist_ok=True)
-                test_img_path = os.path.join(temp_dir, 'test.png')
+                # Create a simple test image in the current directory
+                test_dir = os.path.join(os.getcwd(), 'temp_images')
+                os.makedirs(test_dir, exist_ok=True)
+                test_img_path = os.path.join(test_dir, 'test.png')
                 
                 # Create a simple test image with text
-                test_img = Image.new('RGB', (100, 30), color='white')
+                test_img = Image.new('RGB', (200, 50), color='white')
                 draw = ImageDraw.Draw(test_img)
-                draw.text((10, 10), "TEST", fill='black')
+                draw.text((10, 10), "TEST OCR 123", fill='black')
                 test_img.save(test_img_path)
                 
                 # Try OCR
                 result = pytesseract.image_to_string(test_img)
-                print("Tesseract OCR test successful")
-                print(f"OCR Result: {result.strip()}")
+                print(f"OCR test result: {result.strip()}")
                 
                 # Clean up
                 try:
                     os.remove(test_img_path)
-                except Exception:
-                    pass
-                    
+                except Exception as e:
+                    print(f"Note: Could not remove test image: {e}")
+                
                 return True
                 
             except Exception as e:
