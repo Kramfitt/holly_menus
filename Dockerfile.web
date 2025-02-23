@@ -1,42 +1,38 @@
-# Use Python 3.11 slim image
+# Use Python base image
 FROM python:3.11-slim
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV DEBIAN_FRONTEND=noninteractive
-ENV TESSERACT_PATH=/usr/bin/tesseract
-ENV DOCKER_BUILD=true
+ENV PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    TESSERACT_PATH=/usr/bin/tesseract \
+    DOCKER_BUILD=true
 
 # Install system dependencies and Tesseract
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && \
+    apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-eng \
     libtesseract-dev \
     libleptonica-dev \
     poppler-utils \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# Verify Tesseract installation
-RUN tesseract --version && \
-    tesseract --list-langs && \
-    echo "Tesseract installation verified"
+    && rm -rf /var/lib/apt/lists/* \
+    && tesseract --version \
+    && tesseract --list-langs \
+    && echo "Tesseract installation verified"
 
 # Set working directory
 WORKDIR /app
 
-# Copy requirements and install dependencies
+# Copy requirements first to leverage Docker cache
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application files
+# Copy the rest of the application
 COPY . .
 
-# Copy test script
-COPY test_tesseract.py .
-
-# Final verification step
+# Final verification of Tesseract
 RUN python test_tesseract.py
 
-# Command to run the application
+# Default command
 CMD ["gunicorn", "app:app"] 
