@@ -293,7 +293,7 @@
     <!-- Service Control Squares -->
     <div class="row g-4 mt-4">
         <div class="col-md-6">
-            <div class="service-square {{ 'active' if email_active }}" onclick="toggleEmailService()">
+            <div id="emailServiceSquare" class="service-square {{ 'active' if email_active }}" onclick="toggleEmailService()">
                 <div class="icon">⚫</div>
                 <div class="title">Email Service</div>
                 <div class="status">{{ 'Active' if email_active else 'Inactive' }}</div>
@@ -302,10 +302,10 @@
             </div>
         </div>
         <div class="col-md-6">
-            <div class="service-square {{ 'active' if debug_mode }}" onclick="toggleDebugMode()">
+            <div id="debugModeSquare" class="service-square {{ 'active' if debug_mode }}" onclick="toggleDebugMode()">
                 <div class="icon">🚀</div>
                 <div class="title">Debug Mode</div>
-                <div class="status">{{ 'Enabled' if debug_mode else 'Disabled' }}</div>
+                <div class="status">{{ 'Active' if debug_mode else 'Inactive' }}</div>
                 <div class="description">When enabled, shows detailed error messages and logs additional information. Useful for troubleshooting but should be disabled in production.</div>
                 <div class="toggle"></div>
             </div>
@@ -317,10 +317,18 @@
 {% block scripts %}
 <script>
 function toggleEmailService() {
+    const emailSquare = document.getElementById('emailServiceSquare');
+    const statusDiv = emailSquare.querySelector('.status');
+    const titleDiv = emailSquare.querySelector('.title');
+    
+    // Show loading state
+    emailSquare.style.opacity = '0.7';
+    
     fetch('/api/toggle-email', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
         }
     })
     .then(response => {
@@ -329,16 +337,30 @@ function toggleEmailService() {
         }
         return response.json();
     })
-    .then(() => {
-        location.reload();
+    .then(data => {
+        const isActive = data.state === 'true';
+        emailSquare.classList.toggle('active', isActive);
+        if (statusDiv) {
+            statusDiv.textContent = isActive ? 'Active' : 'Inactive';
+        }
+        if (titleDiv) {
+            titleDiv.innerHTML = `Email Service ${isActive ? '<span class="badge bg-success">Active</span>' : ''}`;
+        }
+        showAlert('success', `Email service ${isActive ? 'enabled' : 'disabled'} successfully`);
     })
     .catch(error => {
-        alert('Error: ' + error);
+        showAlert('danger', '⚠️ ' + error);
+        console.error('Email service toggle error:', error);
+    })
+    .finally(() => {
+        emailSquare.style.opacity = '1';
     });
 }
 
 function toggleDebugMode() {
-    const debugSquare = document.querySelector('.service-square:last-child');
+    const debugSquare = document.getElementById('debugModeSquare');
+    const statusDiv = debugSquare.querySelector('.status');
+    const titleDiv = debugSquare.querySelector('.title');
     const isActive = !debugSquare.classList.contains('active');
     
     // Show loading state
@@ -365,12 +387,9 @@ function toggleDebugMode() {
             throw new Error(data.error);
         }
         
-        // Update UI without page reload
-        debugSquare.classList.toggle('active');
-        const statusDiv = debugSquare.querySelector('.status');
-        const titleDiv = debugSquare.querySelector('.title');
+        debugSquare.classList.toggle('active', isActive);
         if (statusDiv) {
-            statusDiv.textContent = isActive ? 'Enabled' : 'Disabled';
+            statusDiv.textContent = isActive ? 'Active' : 'Inactive';
         }
         if (titleDiv) {
             titleDiv.innerHTML = `Debug Mode ${isActive ? '<span class="badge bg-warning">Active</span>' : ''}`;
@@ -379,7 +398,6 @@ function toggleDebugMode() {
         showAlert('success', `Debug mode ${isActive ? 'enabled' : 'disabled'} successfully`);
     })
     .catch(error => {
-        debugSquare.style.opacity = '1';
         showAlert('danger', '⚠️ ' + error.message);
         console.error('Debug toggle error:', error);
     })
