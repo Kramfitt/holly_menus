@@ -6,7 +6,13 @@ services:
     dockerfilePath: Dockerfile.web
     dockerCommand: gunicorn app:app
     buildCommand: |
+      mkdir -p /app/.apt/usr/bin
       apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng libtesseract-dev libleptonica-dev poppler-utils
+      ln -sf /usr/bin/tesseract /app/.apt/usr/bin/tesseract
+      export PATH="/app/.apt/usr/bin:$PATH"
+      export TESSERACT_PATH=/app/.apt/usr/bin/tesseract
+      tesseract --version
+      tesseract --list-langs
       pip install -r requirements.txt
       python test_tesseract.py
     envVars:
@@ -17,7 +23,7 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: TESSERACT_PATH
-        value: /usr/bin/tesseract
+        value: /app/.apt/usr/bin/tesseract
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
@@ -40,7 +46,13 @@ services:
     dockerfilePath: Dockerfile.worker
     dockerCommand: python worker.py
     buildCommand: |
+      mkdir -p /app/.apt/usr/bin
       apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng libtesseract-dev libleptonica-dev poppler-utils
+      ln -sf /usr/bin/tesseract /app/.apt/usr/bin/tesseract
+      export PATH="/app/.apt/usr/bin:$PATH"
+      export TESSERACT_PATH=/app/.apt/usr/bin/tesseract
+      tesseract --version
+      tesseract --list-langs
       pip install -r requirements.txt
       python test_tesseract.py
     envVars:
@@ -51,7 +63,7 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: TESSERACT_PATH
-        value: /usr/bin/tesseract
+        value: /app/.apt/usr/bin/tesseract
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY

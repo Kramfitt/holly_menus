@@ -13,7 +13,7 @@ from menu_scheduler import load_config
 from menu_utils import add_dates_to_menu
 import re
 import pytesseract
-from PIL import Image
+from PIL import Image, ImageDraw
 import cv2
 import numpy as np
 import smtplib
@@ -812,8 +812,18 @@ Holly Lodge Menu System"""
                 '/usr/local/bin/tesseract',
                 '/opt/homebrew/bin/tesseract',
                 '/app/.apt/usr/bin/tesseract',  # Common Render path
-                os.path.join(os.getcwd(), '.apt/usr/bin/tesseract')  # Local Render path
+                os.path.join(os.getcwd(), '.apt/usr/bin/tesseract'),  # Local Render path
+                '/app/vendor/tesseract/bin/tesseract',  # Another possible Render path
+                os.path.join(os.getcwd(), 'vendor/tesseract/bin/tesseract')  # Local vendor path
             ]
+            
+            # On Render, check if we need to create .apt directory
+            if is_render and not os.path.exists('/app/.apt'):
+                try:
+                    os.makedirs('/app/.apt/usr/bin', exist_ok=True)
+                    print("Created .apt directory structure")
+                except Exception as e:
+                    print(f"Error creating .apt directory: {e}")
             
             found_path = None
             for path in possible_paths:
@@ -826,11 +836,24 @@ Holly Lodge Menu System"""
                 print("Tesseract not found in common locations")
                 # Try finding in PATH
                 try:
-                    import subprocess
-                    result = subprocess.run(['which', 'tesseract'], capture_output=True, text=True)
-                    if result.returncode == 0:
-                        found_path = result.stdout.strip()
+                    # First check if tesseract is in PATH
+                    tesseract_in_path = shutil.which('tesseract')
+                    if tesseract_in_path:
+                        found_path = tesseract_in_path
                         print(f"Found Tesseract in PATH: {found_path}")
+                    else:
+                        # Try to install Tesseract if we're in Render
+                        if is_render:
+                            print("Attempting to install Tesseract...")
+                            try:
+                                os.system('apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng')
+                                # Check if installation was successful
+                                tesseract_in_path = shutil.which('tesseract')
+                                if tesseract_in_path:
+                                    found_path = tesseract_in_path
+                                    print(f"Successfully installed Tesseract at: {found_path}")
+                            except Exception as e:
+                                print(f"Error installing Tesseract: {e}")
                 except Exception as e:
                     print(f"Error checking PATH for Tesseract: {e}")
             
@@ -840,6 +863,7 @@ Holly Lodge Menu System"""
             
             # Set Tesseract command path for pytesseract
             pytesseract.pytesseract.tesseract_cmd = found_path
+            os.environ['TESSERACT_PATH'] = found_path  # Update environment variable
             
             # Try to verify Tesseract version without running OCR
             try:
@@ -861,6 +885,13 @@ Holly Lodge Menu System"""
                     print("English language data found")
                 else:
                     print("Warning: English language data not found")
+                    # Try to install language data if missing
+                    if is_render:
+                        try:
+                            os.system('apt-get install -y tesseract-ocr-eng')
+                            print("Installed English language data")
+                        except Exception as e:
+                            print(f"Error installing language data: {e}")
             except Exception as e:
                 print(f"Error checking language data: {e}")
             
@@ -873,11 +904,14 @@ Holly Lodge Menu System"""
                 
                 # Create a simple test image with text
                 test_img = Image.new('RGB', (100, 30), color='white')
+                draw = ImageDraw.Draw(test_img)
+                draw.text((10, 10), "TEST", fill='black')
                 test_img.save(test_img_path)
                 
                 # Try OCR
                 result = pytesseract.image_to_string(test_img)
                 print("Tesseract OCR test successful")
+                print(f"OCR Result: {result.strip()}")
                 
                 # Clean up
                 try:
