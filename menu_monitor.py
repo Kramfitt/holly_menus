@@ -800,48 +800,85 @@ Holly Lodge Menu System"""
         try:
             logger.info("Verifying Tesseract installation...")
             
-            # Check if we're running in Docker
-            is_docker = os.environ.get('DOCKER_BUILD') == 'true'
+            # Check environment
+            is_docker = os.environ.get('DOCKER_BUILD') == 'true' or os.path.exists('/.dockerenv')
             is_render = os.environ.get('RENDER') == 'true'
             logger.info(f"Environment: Docker={is_docker}, Render={is_render}")
             
-            # Get Tesseract path from environment or use default
-            tesseract_path = os.getenv('TESSERACT_PATH', '/usr/bin/tesseract')
-            logger.info(f"Using Tesseract path: {tesseract_path}")
+            # Get Tesseract path with improved detection
+            tesseract_path = None
             
-            if os.path.exists(tesseract_path):
-                logger.info(f"Found Tesseract at: {tesseract_path}")
-                pytesseract.pytesseract.tesseract_cmd = tesseract_path
-            else:
-                logger.error(f"Tesseract not found at: {tesseract_path}")
-                # Check PATH as fallback
+            # Check environment variable first
+            if os.getenv('TESSERACT_PATH'):
+                tesseract_path = os.getenv('TESSERACT_PATH')
+                logger.info(f"Using Tesseract path from environment: {tesseract_path}")
+            
+            # Check common locations
+            common_paths = [
+                '/usr/bin/tesseract',
+                '/usr/local/bin/tesseract',
+                '/opt/homebrew/bin/tesseract',
+                '/app/.apt/usr/bin/tesseract',  # Common path on Render
+                'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'  # Windows path
+            ]
+            
+            if not tesseract_path:
+                for path in common_paths:
+                    if os.path.exists(path):
+                        tesseract_path = path
+                        logger.info(f"Found Tesseract at common location: {tesseract_path}")
+                        break
+            
+            # Final fallback to PATH
+            if not tesseract_path:
                 tesseract_in_path = shutil.which('tesseract')
                 if tesseract_in_path:
-                    logger.info(f"Found Tesseract in PATH: {tesseract_in_path}")
-                    pytesseract.pytesseract.tesseract_cmd = tesseract_in_path
-                else:
-                    logger.error("Tesseract not found in PATH")
-                    return False
+                    tesseract_path = tesseract_in_path
+                    logger.info(f"Found Tesseract in PATH: {tesseract_path}")
+            
+            if not tesseract_path:
+                logger.error("Tesseract not found in any location")
+                # If in Docker/Render, try to install
+                if is_docker or is_render:
+                    logger.info("Attempting to install Tesseract...")
+                    try:
+                        subprocess.run(['apt-get', 'update'], check=True)
+                        subprocess.run(['apt-get', 'install', '-y', 'tesseract-ocr'], check=True)
+                        tesseract_path = '/usr/bin/tesseract'
+                    except Exception as e:
+                        logger.error(f"Failed to install Tesseract: {e}")
+                return False
+
+            # Set Tesseract command path
+            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            logger.info(f"Setting Tesseract command path to: {tesseract_path}")
 
             # Test Tesseract functionality
             try:
+                # Try getting version first
                 version = pytesseract.get_tesseract_version()
                 logger.info(f"Tesseract version: {version}")
                 
-                # Test OCR functionality
-                test_img = Image.new('RGB', (100, 30), color='white')
-                test_text = pytesseract.image_to_string(test_img)
-                logger.info("Successfully tested OCR functionality")
-                
                 # Check language data
-                result = subprocess.run([pytesseract.pytesseract.tesseract_cmd, '--list-langs'], 
+                result = subprocess.run([tesseract_path, '--list-langs'], 
                                      capture_output=True, text=True)
                 if 'eng' in result.stdout:
                     logger.info("English language data installed")
                 else:
                     logger.error("English language data not found")
-                    return False
-                    
+                    if is_docker or is_render:
+                        logger.info("Attempting to install English language data...")
+                        try:
+                            subprocess.run(['apt-get', 'install', '-y', 'tesseract-ocr-eng'], check=True)
+                        except Exception as e:
+                            logger.error(f"Failed to install language data: {e}")
+                            return False
+                
+                # Test OCR functionality with simple image
+                test_img = Image.new('RGB', (100, 30), color='white')
+                test_text = pytesseract.image_to_string(test_img)
+                logger.info("Successfully tested OCR functionality")
+                
                 return True
                 
             except Exception as e:

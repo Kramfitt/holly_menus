@@ -8,6 +8,8 @@ services:
     envVars:
       - key: DOCKER_BUILD
         value: "true"
+      - key: RENDER
+        value: "true"
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: TESSERACT_PATH
@@ -35,6 +37,8 @@ services:
     dockerCommand: python worker.py
     envVars:
       - key: DOCKER_BUILD
+        value: "true"
+      - key: RENDER
         value: "true"
       - key: PYTHON_VERSION
         value: 3.11.0
