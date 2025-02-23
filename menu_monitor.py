@@ -22,6 +22,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.mime.application import MIMEApplication
 import yaml
+import platform
+from pdf2image import convert_from_path
 
 # Configure logging with more detailed format
 logging.basicConfig(
@@ -498,92 +500,63 @@ class MenuEmailMonitor:
             return None
 
     def process_pdf_attachment(self, attachment_data: bytes, original_filename: str) -> Tuple[List[str], Optional[Dict[str, str]]]:
-        """Process PDF attachment and return paths to images and extracted dates"""
-        # Save PDF to temp file
-        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_pdf:
-            temp_pdf.write(attachment_data)
-            pdf_path = temp_pdf.name
-
+        """Process a PDF attachment and extract menu information."""
         try:
-            # Convert to images
-            output_folder = os.path.join(self.config['temp_dir'], datetime.now().strftime('%Y%m%d_%H%M%S'))
-            os.makedirs(output_folder, exist_ok=True)
-            logger.info(f"Converting PDF to images in folder: {output_folder}")
+            logger.info("🔄 Processing PDF attachment...")
             
-            image_paths = convert_pdf_to_images(pdf_path, output_folder, self.config['poppler_path'])
+            # Create a unique temp directory for this processing
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            temp_dir = os.path.join(self.config['temp_dir'], timestamp)
+            os.makedirs(temp_dir, exist_ok=True)
             
-            if not image_paths:
-                logger.error("No images were generated from PDF")
-                return [], None
+            # Save the PDF temporarily
+            temp_pdf = os.path.join(temp_dir, f"temp_{timestamp}.pdf")
+            with open(temp_pdf, 'wb') as f:
+                f.write(attachment_data)
+            
+            # Convert PDF to images
+            try:
+                # On Linux (Render), don't specify poppler_path
+                if platform.system() != 'Windows':
+                    images = convert_from_path(temp_pdf)
+                else:
+                    poppler_path = os.getenv('POPPLER_PATH', 'C:\\Poppler\\Release-24.08.0-0\\poppler-24.08.0\\Library\\bin')
+                    images = convert_from_path(temp_pdf, poppler_path=poppler_path)
                 
-            logger.info(f"Generated {len(image_paths)} images from PDF")
-            
-            # Correct orientation for each image
-            corrected_paths = []
-            processed_paths = []
-            
-            for i, img_path in enumerate(image_paths):
-                # Correct orientation
-                corrected_path = os.path.join(output_folder, f"corrected_{os.path.basename(img_path)}")
-                correct_orientation(img_path, corrected_path)
-                if not os.path.exists(corrected_path):
-                    logger.warning(f"Failed to correct orientation for {img_path}, using original")
-                    corrected_path = img_path
-                corrected_paths.append(corrected_path)
-                
-                # Extract text and detect menu info for each page
-                page = Image.open(corrected_path)
-                text = pytesseract.image_to_string(page)
-                logger.info(f"Page {i+1} text:\n{text}")
-                
-                season, week_number = self.extract_menu_info(text)
-                if season and week_number:
-                    logger.info(f"Page {i+1}: Detected {season} Week {week_number}")
-                    template_path = self.get_template_for_menu(season, week_number)
+                image_paths = []
+                for i, image in enumerate(images):
+                    image_path = os.path.join(temp_dir, f'page_{i+1}.png')
+                    image.save(image_path, 'PNG')
+                    image_paths.append(image_path)
                     
-                    if template_path:
-                        # Use a larger header proportion for all weeks to ensure dates are covered
-                        header_proportion = 0.17  # Increased to 17% for all weeks
-                        
-                        # Try merging with template
-                        merged_path = self.merge_header_with_template(
-                            corrected_path, 
-                            template_path, 
-                            header_proportion=header_proportion
-                        )
-                        
-                        if merged_path:
-                            # Verify merged result
-                            try:
-                                test_img = cv2.imread(merged_path)
-                                if test_img is not None and test_img.shape[0] > 0 and test_img.shape[1] > 0:
-                                    logger.info(f"Successfully verified merged result for page {i+1}")
-                                    processed_paths.append(merged_path)
-                                    continue
-                                else:
-                                    logger.error(f"Merged result invalid for page {i+1}")
-                            except Exception as e:
-                                logger.error(f"Error verifying merged result: {e}")
+                logger.info(f"✅ Converted {len(image_paths)} pages to images")
                 
-                # If we couldn't process with template, use corrected image
-                logger.warning(f"Using corrected image for page {i+1} (no template processing)")
-                processed_paths.append(corrected_path)
-            
-            if not processed_paths:
-                logger.error("No pages were successfully processed")
+                # Extract dates from the first page
+                if image_paths:
+                    dates = self.extract_dates_from_image(image_paths[0])
+                    if dates:
+                        logger.info(f"✅ Successfully extracted dates: {dates}")
+                        return image_paths, dates
+                    else:
+                        logger.warning("⚠️ No dates found in the image")
+                        
+                return image_paths, None
+                
+            except Exception as e:
+                logger.error(f"Error converting PDF: {str(e)}")
+                logger.error("Please check if Poppler is properly installed and in PATH")
                 return [], None
                 
-            logger.info(f"Successfully processed {len(processed_paths)} pages")
-            return processed_paths, None
-            
         except Exception as e:
-            logger.error(f"Error processing PDF attachment: {e}")
+            logger.error(f"Error processing PDF attachment: {str(e)}")
             return [], None
         finally:
+            # Cleanup temporary files
             try:
-                os.unlink(pdf_path)  # Clean up temp PDF
+                if os.path.exists(temp_pdf):
+                    os.remove(temp_pdf)
             except Exception as e:
-                logger.error(f"Error cleaning up temporary PDF: {e}")
+                logger.error(f"Error cleaning up temporary files: {str(e)}")
 
     def send_response_email(self, recipient: str, processed_images: List[str]):
         """
