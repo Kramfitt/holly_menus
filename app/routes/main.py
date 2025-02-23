@@ -859,19 +859,34 @@ def get_email_status():
 @bp.route('/api/toggle-email', methods=['POST'])
 def toggle_email():
     try:
+        # Get Redis client from app config
+        redis_client = current_app.config.get('redis_client')
         if redis_client is None:
-            raise RuntimeError("Redis service is not available")
+            return jsonify({
+                'error': 'System configuration error',
+                'details': 'Redis service is not available'
+            }), 500
             
-        # Get current state from Redis with fallback
-        current_state = get_redis_value('service_state', 'false')
+        # Get current state from Redis
+        try:
+            current_state = redis_client.get('service_state')
+            current_state = current_state.decode('utf-8') if current_state else 'false'
+        except Exception as redis_error:
+            current_state = 'false'
+            logger.error(f"Error reading Redis state: {str(redis_error)}")
         
         # Toggle state
         new_state = 'false' if current_state == 'true' else 'true'
         
         # Set new state
-        success = set_redis_value('service_state', new_state)
-        if not success:
-            raise RuntimeError("Failed to update service state")
+        try:
+            redis_client.set('service_state', new_state)
+        except Exception as redis_error:
+            logger.error(f"Error setting Redis state: {str(redis_error)}")
+            return jsonify({
+                'error': 'Failed to update service state',
+                'details': str(redis_error)
+            }), 500
         
         # Log the change
         get_logger().log_activity(
@@ -880,14 +895,18 @@ def toggle_email():
             status="success"
         )
         
-        return jsonify({'active': new_state == 'true'})
+        return jsonify({
+            'success': True,
+            'active': new_state == 'true',
+            'message': f"Email service {'activated' if new_state == 'true' else 'deactivated'}"
+        })
+        
     except Exception as e:
-        get_logger().log_activity(
-            action="Email Service Toggle Failed",
-            details=str(e),
-            status="error"
-        )
-        return jsonify({'error': str(e)}), 500
+        error_msg = handle_error(e, "Email Service Toggle Failed")
+        return jsonify({
+            'error': 'System error occurred',
+            'details': error_msg
+        }), 500
 
 def send_email_safely(to_email, subject, body, timeout=30):
     """Send email with timeout and error handling"""

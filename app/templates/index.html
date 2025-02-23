@@ -340,7 +340,6 @@ function toggleEmailService() {
 function toggleDebugMode() {
     const debugSquare = document.querySelector('.service-square:last-child');
     const isActive = !debugSquare.classList.contains('active');
-    const originalState = debugSquare.innerHTML;
     
     // Show loading state
     debugSquare.style.opacity = '0.7';
@@ -348,13 +347,16 @@ function toggleDebugMode() {
     fetch('/api/debug-mode', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
         },
         body: JSON.stringify({ active: isActive })
     })
     .then(response => {
         if (!response.ok) {
-            return response.json().then(data => Promise.reject(data.error || 'Failed to toggle debug mode'));
+            return response.json().then(data => {
+                throw new Error(data.error || data.details || 'Failed to toggle debug mode');
+            });
         }
         return response.json();
     })
@@ -362,12 +364,27 @@ function toggleDebugMode() {
         if (data.error) {
             throw new Error(data.error);
         }
-        location.reload();
+        
+        // Update UI without page reload
+        debugSquare.classList.toggle('active');
+        const statusDiv = debugSquare.querySelector('.status');
+        const titleDiv = debugSquare.querySelector('.title');
+        if (statusDiv) {
+            statusDiv.textContent = isActive ? 'Enabled' : 'Disabled';
+        }
+        if (titleDiv) {
+            titleDiv.innerHTML = `Debug Mode ${isActive ? '<span class="badge bg-warning">Active</span>' : ''}`;
+        }
+        
+        showAlert('success', `Debug mode ${isActive ? 'enabled' : 'disabled'} successfully`);
     })
     .catch(error => {
         debugSquare.style.opacity = '1';
         showAlert('danger', '⚠️ ' + error.message);
         console.error('Debug toggle error:', error);
+    })
+    .finally(() => {
+        debugSquare.style.opacity = '1';
     });
 }
 
