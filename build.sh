@@ -3,44 +3,21 @@ set -e  # Exit on any error
 
 echo "🚀 Starting build process..."
 
-# Install system dependencies
-echo "📦 Installing system packages..."
+# Verify system dependencies
+echo "📦 Verifying system packages..."
 echo "Current directory: $(pwd)"
-echo "Contents of packages.txt:"
-cat packages.txt
-
-echo "Running apt-get update..."
-apt-get update -y || {
-    echo "Failed to update package list"
-    exit 1
-}
-
-echo "Installing packages..."
-apt-get install -y $(cat packages.txt) || {
-    echo "Failed to install packages"
-    exit 1
-}
 
 # Verify Tesseract installation
 echo "🔍 Verifying Tesseract installation..."
 echo "Checking Tesseract binary..."
-which tesseract || echo "tesseract not in PATH"
+which tesseract || {
+    echo "❌ Tesseract not found in PATH"
+    exit 1
+}
+
 echo "Checking common locations..."
 ls -l /usr/bin/tesseract* || echo "Not found in /usr/bin"
 ls -l /usr/local/bin/tesseract* || echo "Not found in /usr/local/bin"
-
-if ! command -v tesseract &> /dev/null; then
-    echo "❌ Tesseract is not installed!"
-    echo "Attempting manual installation..."
-    apt-get install -y tesseract-ocr tesseract-ocr-eng || {
-        echo "Manual installation failed!"
-        exit 1
-    }
-    if ! command -v tesseract &> /dev/null; then
-        echo "Manual installation completed but tesseract still not found!"
-        exit 1
-    fi
-fi
 
 echo "Running tesseract version..."
 tesseract --version || {
@@ -51,6 +28,13 @@ tesseract --version || {
 echo "Checking available languages..."
 tesseract --list-langs || {
     echo "Failed to list languages"
+    exit 1
+}
+
+# Verify Poppler installation
+echo "📄 Verifying Poppler installation..."
+which pdftoppm || {
+    echo "❌ Poppler (pdftoppm) not found"
     exit 1
 }
 

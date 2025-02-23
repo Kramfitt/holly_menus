@@ -3,10 +3,7 @@ services:
   - type: web
     name: menu-system
     env: python
-    buildCommand: |
-      apt-get update -y
-      apt-get install -y $(cat packages.txt)
-      pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
       - key: PYTHON_VERSION
@@ -27,15 +24,18 @@ services:
         sync: false
       - key: ADMIN_EMAIL
         sync: false
+    packages:
+      - poppler-utils
+      - tesseract-ocr
+      - tesseract-ocr-eng
+      - libtesseract-dev
+      - libleptonica-dev
 
   # Worker Service
   - type: worker
     name: menu-worker
     env: python
-    buildCommand: |
-      apt-get update -y
-      apt-get install -y $(cat packages.txt)
-      pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: |
       python test_tesseract.py
       python worker.py
@@ -55,4 +55,10 @@ services:
       - key: SMTP_USERNAME
         sync: false
       - key: SMTP_PASSWORD
-        sync: false 
+        sync: false
+    packages:
+      - poppler-utils
+      - tesseract-ocr
+      - tesseract-ocr-eng
+      - libtesseract-dev
+      - libleptonica-dev 
