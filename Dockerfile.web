@@ -19,7 +19,10 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/* \
     && tesseract --version \
     && tesseract --list-langs \
-    && echo "Tesseract installation verified"
+    && echo "Tesseract installation verified" \
+    && [ -f "/usr/bin/tesseract" ] && echo "Tesseract binary exists" \
+    && chmod +x /usr/bin/tesseract \
+    && echo "Tesseract permissions set"
 
 # Set working directory
 WORKDIR /app

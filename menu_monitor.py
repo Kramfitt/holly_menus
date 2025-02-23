@@ -802,123 +802,77 @@ Holly Lodge Menu System"""
             is_docker = os.getenv('DOCKER_BUILD', 'false').lower() == 'true'
             print(f"Environment: Render={is_render}, Docker={is_docker}")
             
-            # Get current directory and permissions
+            # Print current working directory and its contents
             cwd = os.getcwd()
             print(f"Current working directory: {cwd}")
             print(f"Directory contents: {os.listdir(cwd)}")
+            print(f"PATH environment: {os.environ.get('PATH', '')}")
             
-            # Check PATH environment
-            path_env = os.environ.get('PATH', '')
-            print(f"PATH environment: {path_env}")
-            
-            # In Docker/Render environment, Tesseract should be at /usr/bin/tesseract
-            if is_docker or is_render:
-                docker_tesseract = '/usr/bin/tesseract'
-                if os.path.exists(docker_tesseract):
-                    print(f"Found Docker-installed Tesseract at: {docker_tesseract}")
-                    pytesseract.pytesseract.tesseract_cmd = docker_tesseract
-                    os.environ['TESSERACT_PATH'] = docker_tesseract
-                    
-                    # Verify it's working
-                    try:
-                        version = subprocess.run([docker_tesseract, '--version'], 
-                                              capture_output=True, text=True, check=True)
-                        print(f"Tesseract version:\n{version.stdout}")
-                        
-                        # Test OCR functionality
-                        print("\nTesting OCR functionality:")
-                        test_dir = os.path.join(cwd, 'temp_images')
-                        os.makedirs(test_dir, exist_ok=True)
-                        test_img_path = os.path.join(test_dir, 'test.png')
-                        
-                        # Create test image
-                        test_img = Image.new('RGB', (200, 50), color='white')
-                        draw = ImageDraw.Draw(test_img)
-                        draw.text((10, 10), "TEST OCR 123", fill='black')
-                        test_img.save(test_img_path)
-                        
-                        # Try OCR
-                        result = pytesseract.image_to_string(Image.open(test_img_path))
-                        print(f"OCR test result: {result.strip()}")
-                        
-                        # Clean up
-                        os.remove(test_img_path)
-                        print("✅ OCR test successful")
-                        return True
-                        
-                    except Exception as e:
-                        print(f"❌ Error testing Docker-installed Tesseract: {e}")
-                        return False
-                else:
-                    print(f"❌ Docker-installed Tesseract not found at {docker_tesseract}")
-            
-            # For non-Docker environments, check multiple possible locations
-            possible_paths = [
-                os.getenv('TESSERACT_PATH'),
-                '/usr/bin/tesseract',
-                '/usr/local/bin/tesseract',
-                '/opt/homebrew/bin/tesseract',
-                'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
-            ]
-            
-            # Filter out None values and check each path
-            possible_paths = [p for p in possible_paths if p]
-            print("\nChecking possible Tesseract locations:")
-            
-            found_tesseract = None
-            for path in possible_paths:
-                exists = os.path.exists(path)
-                is_executable = os.access(path, os.X_OK) if exists else False
-                print(f"- {path}")
-                print(f"  Exists: {exists}")
-                print(f"  Executable: {is_executable}")
+            # Check for Tesseract at /usr/bin/tesseract for Docker/Render environments
+            docker_tesseract = '/usr/bin/tesseract'
+            if os.path.exists(docker_tesseract):
+                print(f"Found Tesseract at: {docker_tesseract}")
+                pytesseract.pytesseract.tesseract_cmd = docker_tesseract
+                os.environ['TESSERACT_PATH'] = docker_tesseract
                 
-                if exists and is_executable:
-                    found_tesseract = path
-                    print(f"✅ Found executable Tesseract at: {path}")
-                    break
-            
-            # If not found in standard locations, try PATH
-            if not found_tesseract:
+                # Verify version and languages
+                try:
+                    version = subprocess.run([docker_tesseract, '--version'], 
+                                          capture_output=True, text=True, check=True)
+                    print(f"Tesseract version:\n{version.stdout}")
+                    
+                    # Check languages
+                    langs = subprocess.run([docker_tesseract, '--list-langs'],
+                                        capture_output=True, text=True, check=True)
+                    print(f"Available languages:\n{langs.stdout}")
+                    
+                    # Test OCR functionality
+                    print("\nTesting OCR functionality:")
+                    test_dir = os.path.join(cwd, 'temp_images')
+                    os.makedirs(test_dir, exist_ok=True)
+                    test_img_path = os.path.join(test_dir, 'test.png')
+                    
+                    # Create test image
+                    test_img = Image.new('RGB', (200, 50), color='white')
+                    draw = ImageDraw.Draw(test_img)
+                    draw.text((10, 10), "TEST OCR 123", fill='black')
+                    test_img.save(test_img_path)
+                    
+                    # Try OCR
+                    result = pytesseract.image_to_string(Image.open(test_img_path))
+                    print(f"OCR test result: {result.strip()}")
+                    
+                    # Clean up
+                    os.remove(test_img_path)
+                    print("✅ OCR test successful")
+                    return True
+                    
+                except Exception as e:
+                    print(f"❌ Error testing Tesseract: {e}")
+                    return False
+            else:
+                print(f"❌ Tesseract not found at {docker_tesseract}")
+                
+                # Try to find Tesseract in PATH
                 tesseract_in_path = shutil.which('tesseract')
                 if tesseract_in_path:
-                    found_tesseract = tesseract_in_path
-                    print(f"✅ Found Tesseract in PATH: {found_tesseract}")
-            
-            if not found_tesseract:
+                    print(f"Found Tesseract in PATH: {tesseract_in_path}")
+                    pytesseract.pytesseract.tesseract_cmd = tesseract_in_path
+                    os.environ['TESSERACT_PATH'] = tesseract_in_path
+                    
+                    # Test the found Tesseract
+                    try:
+                        version = subprocess.run([tesseract_in_path, '--version'],
+                                              capture_output=True, text=True, check=True)
+                        print(f"Tesseract version:\n{version.stdout}")
+                        return True
+                    except Exception as e:
+                        print(f"❌ Error testing Tesseract from PATH: {e}")
+                        return False
+                
                 print("\n❌ Could not locate Tesseract binary")
                 return False
             
-            # Set Tesseract command path
-            pytesseract.pytesseract.tesseract_cmd = found_tesseract
-            os.environ['TESSERACT_PATH'] = found_tesseract
-            
-            # Test OCR functionality
-            print("\nTesting OCR functionality:")
-            try:
-                test_dir = os.path.join(cwd, 'temp_images')
-                os.makedirs(test_dir, exist_ok=True)
-                test_img_path = os.path.join(test_dir, 'test.png')
-                
-                # Create test image
-                test_img = Image.new('RGB', (200, 50), color='white')
-                draw = ImageDraw.Draw(test_img)
-                draw.text((10, 10), "TEST OCR 123", fill='black')
-                test_img.save(test_img_path)
-                
-                # Try OCR
-                result = pytesseract.image_to_string(Image.open(test_img_path))
-                print(f"OCR test result: {result.strip()}")
-                
-                # Clean up
-                os.remove(test_img_path)
-                print("✅ OCR test successful")
-                return True
-                
-            except Exception as e:
-                print(f"\n❌ OCR test failed: {e}")
-                return False
-                
         except Exception as e:
             print(f"\n❌ Error during Tesseract verification: {e}")
             return False
