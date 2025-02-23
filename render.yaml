@@ -6,6 +6,8 @@ services:
     dockerfilePath: Dockerfile.web
     dockerCommand: gunicorn app:app
     envVars:
+      - key: DOCKER_BUILD
+        value: "true"
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: TESSERACT_PATH
@@ -32,6 +34,8 @@ services:
     dockerfilePath: Dockerfile.worker
     dockerCommand: python worker.py
     envVars:
+      - key: DOCKER_BUILD
+        value: "true"
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: TESSERACT_PATH

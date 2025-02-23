@@ -3,16 +3,16 @@ set -e  # Exit on any error
 
 echo "🚀 Starting build process..."
 
-# Check if running in Docker
-if [ -f "/.dockerenv" ]; then
-    echo "🐳 Running in Docker environment - skipping system checks"
+# Check if we're building for Docker
+if [ -n "$DOCKER_BUILD" ] || [ -f "Dockerfile.web" ] || [ -f "Dockerfile.worker" ]; then
+    echo "🐳 Docker build detected - skipping system checks"
     echo "Installing Python dependencies..."
     pip install -r requirements.txt
     echo "🏁 Build process completed"
     exit 0
 fi
 
-# System information
+# Rest of the build script for non-Docker builds
 echo "📊 System Information:"
 echo "OS: $(uname -a)"
 echo "Distribution: $(cat /etc/os-release | grep PRETTY_NAME || echo 'Unknown')"
