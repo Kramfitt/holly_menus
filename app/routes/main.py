@@ -867,20 +867,19 @@ def toggle_email():
                 'details': 'Redis service is not available'
             }), 500
             
-        # Get current state from Redis
-        try:
-            current_state = redis_client.get('service_state')
-            current_state = current_state.decode('utf-8') if current_state else 'false'
-        except Exception as redis_error:
-            current_state = 'false'
-            logger.error(f"Error reading Redis state: {str(redis_error)}")
+        # Get desired state from request
+        data = request.get_json()
+        desired_state = str(data.get('active')).lower() if data else None
         
-        # Toggle state
-        new_state = 'false' if current_state == 'true' else 'true'
-        
+        if desired_state not in ['true', 'false']:
+            return jsonify({
+                'error': 'Invalid state',
+                'details': 'State must be true or false'
+            }), 400
+            
         # Set new state
         try:
-            redis_client.set('service_state', new_state)
+            redis_client.set('service_state', desired_state)
         except Exception as redis_error:
             logger.error(f"Error setting Redis state: {str(redis_error)}")
             return jsonify({
@@ -891,14 +890,14 @@ def toggle_email():
         # Log the change
         get_logger().log_activity(
             action="Email Service Toggled",
-            details=f"Email service {'activated' if new_state == 'true' else 'deactivated'}",
+            details=f"Email service {'activated' if desired_state == 'true' else 'deactivated'}",
             status="success"
         )
         
         return jsonify({
             'success': True,
-            'active': new_state == 'true',
-            'message': f"Email service {'activated' if new_state == 'true' else 'deactivated'}"
+            'state': desired_state,
+            'message': f"Email service {'activated' if desired_state == 'true' else 'deactivated'}"
         })
         
     except Exception as e:
@@ -1431,15 +1430,24 @@ def process_emails_now():
         
         # Process emails with debug output
         print("Processing new emails...")
-        monitor.process_new_emails()
-        
-        get_logger().log_activity(
-            action="Manual Email Processing",
-            details="Manually triggered menu email processing",
-            status="success"
-        )
-        
-        return jsonify({'success': True, 'message': 'Email processing completed'})
+        try:
+            monitor.process_new_emails()
+            get_logger().log_activity(
+                action="Manual Email Processing",
+                details="Manually triggered menu email processing",
+                status="success"
+            )
+            return jsonify({'success': True, 'message': 'Email processing completed'})
+        except Exception as process_error:
+            error_msg = str(process_error)
+            if "poppler" in error_msg.lower():
+                error_msg = "Poppler is not installed or not properly configured. Please install Poppler and ensure it's in your system PATH, or configure the correct path in config.yaml."
+            get_logger().log_activity(
+                action="Email Processing Failed",
+                details=error_msg,
+                status="error"
+            )
+            return jsonify({'error': error_msg}), 500
         
     except ImportError as e:
         error_msg = f"Failed to import MenuEmailMonitor: {str(e)}"
