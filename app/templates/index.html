@@ -320,6 +320,7 @@ function toggleEmailService() {
     const emailSquare = document.getElementById('emailServiceSquare');
     const statusDiv = emailSquare.querySelector('.status');
     const titleDiv = emailSquare.querySelector('.title');
+    const isActive = !emailSquare.classList.contains('active');
     
     // Show loading state
     emailSquare.style.opacity = '0.7';
@@ -329,27 +330,35 @@ function toggleEmailService() {
         headers: {
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest'
-        }
+        },
+        body: JSON.stringify({ active: isActive })
     })
     .then(response => {
         if (!response.ok) {
-            return response.json().then(data => Promise.reject(data.error || 'Failed to toggle service'));
+            return response.json().then(data => {
+                throw new Error(data.error || data.details || 'Failed to toggle email service');
+            });
         }
         return response.json();
     })
     .then(data => {
-        const isActive = data.state === 'true';
-        emailSquare.classList.toggle('active', isActive);
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        const newState = data.state === 'true';
+        emailSquare.classList.toggle('active', newState);
         if (statusDiv) {
-            statusDiv.textContent = isActive ? 'Active' : 'Inactive';
+            statusDiv.textContent = newState ? 'Active' : 'Inactive';
         }
         if (titleDiv) {
-            titleDiv.innerHTML = `Email Service ${isActive ? '<span class="badge bg-success">Active</span>' : ''}`;
+            titleDiv.innerHTML = `Email Service ${newState ? '<span class="badge bg-success">Active</span>' : ''}`;
         }
-        showAlert('success', `Email service ${isActive ? 'enabled' : 'disabled'} successfully`);
+        
+        showAlert('success', `Email service ${newState ? 'enabled' : 'disabled'} successfully`);
     })
     .catch(error => {
-        showAlert('danger', '⚠️ ' + error);
+        showAlert('danger', '⚠️ ' + error.message);
         console.error('Email service toggle error:', error);
     })
     .finally(() => {
