@@ -1,0 +1,131 @@
+2025-02-22 20:33:47,694 ERROR: Exception on / [GET]
+Traceback (most recent call last):
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 290, in index
+    email_active = redis_client.get('service_state') == b'true'
+                   ^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'get'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 144, in decorated_function
+    return f(*args, **kwargs)
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 314, in index
+    return render_template('index.html', error=str(e))
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 150, in render_template
+    return _render(app, template, context)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 131, in _render
+    rv = template.render(context)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Dev\HollyMenus\app\templates\index.html", line 1, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Dev\HollyMenus\app\templates\base.html", line 144, in top-level template code
+    {% block content %}{% endblock %}
+    ^^^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\app\templates\index.html", line 332, in block 'content'
+    <div class="health-status {{ 'good' if all([db_status, redis_status, smtp_status]) else 'warning' if any([db_status, redis_status, smtp_status]) else 'error' }}"></div>
+    ^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\utils.py", line 92, in from_obj
+    if hasattr(obj, "jinja_pass_arg"):
+       ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+jinja2.exceptions.UndefinedError: 'all' is undefined
+2025-02-22 20:35:57,507 ERROR: Exception on / [GET]
+Traceback (most recent call last):
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 290, in index
+    # Check service statuses with error handling
+AttributeError: 'NoneType' object has no attribute 'get'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 144, in decorated_function
+    return f(*args, **kwargs)
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 314, in index
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 150, in render_template
+    return _render(app, template, context)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 131, in _render
+    rv = template.render(context)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Dev\HollyMenus\app\templates\index.html", line 1, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Dev\HollyMenus\app\templates\base.html", line 144, in top-level template code
+    {% block content %}{% endblock %}
+    ^^^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\app\templates\index.html", line 332, in block 'content'
+    <div class="health-status {{ 'good' if all([db_status, redis_status, smtp_status]) else 'warning' if any([db_status, redis_status, smtp_status]) else 'error' }}"></div>
+    ^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\utils.py", line 92, in from_obj
+    if hasattr(obj, "jinja_pass_arg"):
+       ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+jinja2.exceptions.UndefinedError: 'all' is undefined
+2025-02-22 20:35:57,507 ERROR: Exception on / [GET]
+Traceback (most recent call last):
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 290, in index
+    # Check service statuses with error handling
+AttributeError: 'NoneType' object has no attribute 'get'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 144, in decorated_function
+    return f(*args, **kwargs)
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 314, in index
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 150, in render_template
+    return _render(app, template, context)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 131, in _render
+    rv = template.render(context)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Dev\HollyMenus\app\templates\index.html", line 1, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Dev\HollyMenus\app\templates\base.html", line 144, in top-level template code
+    {% block content %}{% endblock %}
+    ^^^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\app\templates\index.html", line 332, in block 'content'
+    <div class="health-status {{ 'good' if all([db_status, redis_status, smtp_status]) else 'warning' if any([db_status, redis_status, smtp_status]) else 'error' }}"></div>
+    ^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\utils.py", line 92, in from_obj
+    if hasattr(obj, "jinja_pass_arg"):
+       ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+jinja2.exceptions.UndefinedError: 'all' is undefined
+2025-02-22 20:36:22,988 INFO: Menu Dashboard startup
+2025-02-22 20:36:24,724 INFO: Menu Dashboard startup
+2025-02-22 20:36:24,724 INFO: Menu Dashboard startup

@@ -5,6 +5,7 @@ import schedule
 import time
 import yaml
 import logging 
+import sys
 
 @dataclass
 class MenuSchedule:
@@ -23,24 +24,45 @@ def calculate_next_menu_date(current_date):
     # Calculate next menu date (2 weeks from current)
     next_date = current_date + timedelta(days=14)
     
-    # Convert season dates to datetime objects for current year
-    year = next_date.year
-    summer_start = datetime.strptime(f"{year}-" + config['seasons']['summer']['start_date'][5:], "%Y-%m-%d")
-    winter_start = datetime.strptime(f"{year}-" + config['seasons']['winter']['start_date'][5:], "%Y-%m-%d")
-    
-    # Adjust for year boundary if needed
-    if next_date < summer_start and next_date.month >= 1:
-        summer_start = datetime.strptime(f"{year-1}-" + config['seasons']['summer']['start_date'][5:], "%Y-%m-%d")
-        winter_start = datetime.strptime(f"{year-1}-" + config['seasons']['winter']['start_date'][5:], "%Y-%m-%d")
-    
-    # Determine season
-    is_summer = (summer_start <= next_date < winter_start)
-    season = "Summer" if is_summer else "Winter"
-    
-    # Calculate week number (1-4)
-    season_start = summer_start if is_summer else winter_start
-    weeks_since_start = ((next_date - season_start).days // 14)
-    week_number = (weeks_since_start % 4) + 1
+    # Get current settings
+    settings = get_menu_settings()
+    if not settings:
+        print("No settings found, using default season calculation", file=sys.stderr)
+        # Fall back to config-based season calculation
+        year = next_date.year
+        summer_start = datetime.strptime(f"{year}-" + config['seasons']['summer']['start_date'][5:], "%Y-%m-%d")
+        winter_start = datetime.strptime(f"{year}-" + config['seasons']['winter']['start_date'][5:], "%Y-%m-%d")
+        
+        # Adjust for year boundary if needed
+        if next_date < summer_start and next_date.month >= 1:
+            summer_start = datetime.strptime(f"{year-1}-" + config['seasons']['summer']['start_date'][5:], "%Y-%m-%d")
+            winter_start = datetime.strptime(f"{year-1}-" + config['seasons']['winter']['start_date'][5:], "%Y-%m-%d")
+        
+        # Determine season
+        is_summer = (summer_start <= next_date < winter_start)
+        season = "Summer" if is_summer else "Winter"
+        
+        # Calculate week number (1-4)
+        season_start = summer_start if is_summer else winter_start
+        weeks_since_start = ((next_date - season_start).days // 14)
+        week_number = (weeks_since_start % 4) + 1
+    else:
+        print("Using settings-based season calculation", file=sys.stderr)
+        # Use settings-based season calculation
+        season = settings['season'].capitalize()
+        if settings.get('season_change_date'):
+            change_date = datetime.strptime(settings['season_change_date'], '%Y-%m-%d').date()
+            if next_date.date() >= change_date:
+                season = 'Winter' if season == 'Summer' else 'Summer'
+        
+        # Calculate week number (1-4) from start date
+        start_date = datetime.strptime(settings['start_date'], '%Y-%m-%d').date()
+        weeks_since_start = ((next_date.date() - start_date).days // 14)
+        week_number = (weeks_since_start % 4) + 1
+        
+        print(f"Settings season: {settings['season']}", file=sys.stderr)
+        print(f"Change date: {settings.get('season_change_date')}", file=sys.stderr)
+        print(f"Week number: {week_number}", file=sys.stderr)
     
     return MenuSchedule(
         start_date=next_date,

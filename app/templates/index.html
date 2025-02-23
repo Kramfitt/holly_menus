@@ -2,76 +2,312 @@
 
 {% block title %}Dashboard - Menu System{% endblock %}
 
+{% block styles %}
+<style>
+.top-toolbar {
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    border-radius: 15px;
+    color: white;
+}
+
+.toolbar-title {
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.toolbar-subtitle {
+    font-size: 1rem;
+    opacity: 0.9;
+}
+
+.status-card {
+    background: white;
+    border-radius: 15px;
+    padding: 2rem;
+    height: 100%;
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.status-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+.status-card .icon {
+    font-size: 2.5rem;
+    margin-bottom: 1.2rem;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.status-card .title {
+    font-size: 1.1rem;
+    color: #6b7280;
+    margin-bottom: 0.8rem;
+    font-weight: 500;
+}
+
+.status-card .value {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 0.8rem;
+}
+
+.status-card .subtitle {
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+.connection-card {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin-top: 2rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.connection-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.connection-badge.connected {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+.connection-badge.disconnected {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.connection-info {
+    font-size: 0.9rem;
+    color: #6b7280;
+    margin-top: 0.25rem;
+}
+
+.service-toggle {
+    background: white;
+    border: 2px solid #e5e7eb;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+.service-toggle:hover {
+    border-color: #6366f1;
+    transform: translateY(-2px);
+}
+
+.service-toggle.active {
+    background: #6366f1;
+    color: white;
+    border-color: #6366f1;
+}
+
+.service-square {
+    background: white;
+    border-radius: 15px;
+    padding: 2rem;
+    height: 100%;
+    min-height: 300px;
+    transition: all 0.3s ease;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.service-square:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+.service-square .icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    color: #dc2626;
+}
+
+.service-square.active .icon {
+    color: #059669;
+}
+
+.service-square .title {
+    font-size: 1.2rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    color: #374151;
+}
+
+.service-square .status {
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    color: #6b7280;
+}
+
+.service-square .description {
+    font-size: 0.9rem;
+    color: #6b7280;
+    margin-bottom: 1.5rem;
+    line-height: 1.4;
+}
+
+.service-square .toggle {
+    width: 60px;
+    height: 30px;
+    background: #e5e7eb;
+    border-radius: 15px;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.service-square.active .toggle {
+    background: #059669;
+}
+
+.service-square .toggle::after {
+    content: '';
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    background: white;
+    border-radius: 13px;
+    top: 2px;
+    left: 2px;
+    transition: all 0.3s ease;
+}
+
+.service-square.active .toggle::after {
+    left: 32px;
+}
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="row">
-    <!-- Menu Season -->
-    <div class="col-md-6 mb-4">
-        <div class="card status-card">
-            <div class="card-body text-center">
-                <h5 class="card-title">
-                    <span class="season-icon"></span>
-                    Current Season
-                </h5>
-                <div class="card-value text-primary">
-                    {{ next_menu.season|title if next_menu else 'Not Set' }}
-                </div>
-                <p class="card-text text-muted">
-                    Active Menu Period
-                </p>
+<div class="container-fluid px-4 py-4">
+    <!-- Top Toolbar -->
+    <div class="top-toolbar">
+        <div class="toolbar-title">Menu Dashboard</div>
+        <div class="toolbar-subtitle">Manage menu templates and distribution settings</div>
+    </div>
+
+    <!-- Main Status Cards -->
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="status-card">
+                <div class="icon">🌞</div>
+                <div class="title">Current Season</div>
+                <div class="value">{{ settings.season|title if settings else 'Not Set' }}</div>
+                {% if settings and settings.season_change_date %}
+                <div class="subtitle">Changes to {{ 'Winter' if settings.season == 'summer' else 'Summer' }} on {{ settings.season_change_date|strftime('%d %B %Y') }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="status-card">
+                <div class="icon">📅</div>
+                <div class="title">Last Menu Sent</div>
+                <div class="value">{{ last_menu.send_date|strftime('%d %B %Y') if last_menu else 'No Menus Sent' }}</div>
+                {% if settings %}
+                <div class="subtitle">Processed from email inbox</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="status-card">
+                <div class="icon">📆</div>
+                <div class="title">Last Period Sent</div>
+                <div class="value">{{ last_menu.period_start|strftime('%d %B') if last_menu else 'None' }} - {{ last_menu.period_end|strftime('%d %B %Y') if last_menu else 'None' }}</div>
+                {% if last_menu %}
+                <div class="subtitle">Weeks {{ last_menu.menu_pair }}</div>
+                {% endif %}
             </div>
         </div>
     </div>
 
-    <!-- Service Status -->
-    <div class="col-md-6 mb-4">
-        <div class="card status-card">
-            <div class="card-body text-center">
-                <h5 class="card-title">
-                    <span class="status-icon"></span>
-                    Service Status
-                </h5>
-                <div class="card-value {{ 'text-success' if service_active else 'text-danger' }}">
-                    {{ 'Active' if service_active else 'Inactive' }}
+    <!-- System Connections -->
+    <div class="connection-card">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h5 class="mb-0">System Connections</h5>
+            <button class="btn btn-primary" onclick="processEmailsNow()">
+                <span class="nav-icon">📨</span> Process Now
+            </button>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <div class="connection-badge {{ 'connected' if db_status else 'disconnected' }}">
+                    <span class="nav-icon">{{ '✅' if db_status else '❌' }}</span>
+                    Database
                 </div>
-                <p class="card-text text-muted">
-                    Menu Email Service
-                </p>
+                <div class="connection-info">
+                    {{ 'Connected to Supabase' if db_status else 'Database connection failed' }}
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="connection-badge {{ 'connected' if redis_status else 'disconnected' }}">
+                    <span class="nav-icon">{{ '✅' if redis_status else '❌' }}</span>
+                    Redis Cache
+                </div>
+                <div class="connection-info">
+                    {{ 'Cache system active' if redis_status else 'Cache system offline' }}
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="connection-badge {{ 'connected' if smtp_status else 'disconnected' }}">
+                    <span class="nav-icon">{{ '✅' if smtp_status else '❌' }}</span>
+                    Email (SMTP)
+                </div>
+                <div class="connection-info">
+                    {{ 'Email system ready' if smtp_status else 'Email system not configured' }}
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Next Send Date -->
-    <div class="col-md-6 mb-4">
-        <div class="card status-card">
-            <div class="card-body text-center">
-                <h5 class="card-title">
-                    <span class="calendar-icon"></span>
-                    Next Send Date
-                </h5>
-                <div class="card-value text-success">
-                    {{ next_menu.send_date|strftime('%d %b %Y') if next_menu else 'Not Scheduled' }}
-                </div>
-                <p class="card-text text-muted">
-                    Menu Email Schedule
-                </p>
+    <!-- Service Control Squares -->
+    <div class="row g-4 mt-4">
+        <div class="col-md-6">
+            <div class="service-square {{ 'active' if email_active }}" onclick="toggleEmailService()">
+                <div class="icon">⚫</div>
+                <div class="title">Email Service</div>
+                <div class="status">{{ 'Active' if email_active else 'Inactive' }}</div>
+                <div class="description">Controls automatic menu email sending. When active, menus will be sent 4 days before the menu period starts.</div>
+                <div class="toggle"></div>
             </div>
         </div>
-    </div>
-
-    <!-- Period Date -->
-    <div class="col-md-6 mb-4">
-        <div class="card status-card">
-            <div class="card-body text-center">
-                <h5 class="card-title">
-                    <span class="period-icon"></span>
-                    Period Start
-                </h5>
-                <div class="card-value text-info">
-                    {{ next_menu.period_start|strftime('%d %b %Y') if next_menu else 'Not Set' }}
-                </div>
-                <p class="card-text text-muted">
-                    Menu Period {{ next_menu.menu_pair if next_menu else '' }}
-                </p>
+        <div class="col-md-6">
+            <div class="service-square {{ 'active' if debug_mode }}" onclick="toggleDebugMode()">
+                <div class="icon">🚀</div>
+                <div class="title">Debug Mode</div>
+                <div class="status">{{ 'Enabled' if debug_mode else 'Disabled' }}</div>
+                <div class="description">When enabled, shows detailed error messages and logs additional information. Useful for troubleshooting but should be disabled in production.</div>
+                <div class="toggle"></div>
             </div>
         </div>
     </div>
@@ -80,16 +316,87 @@
 
 {% block scripts %}
 <script>
-    // Update season icon based on current season
-    document.addEventListener('DOMContentLoaded', function() {
-        const seasonValue = document.querySelector('.card-value').textContent.trim();
-        const seasonIcon = document.querySelector('.season-icon');
-        seasonIcon.setAttribute('data-season', seasonValue.includes('Winter') ? '❄️' : '🌞');
-        
-        // Add some randomness to card animations
-        document.querySelectorAll('.status-card').forEach(card => {
-            card.style.animationDelay = `${Math.random() * 0.5}s`;
-        });
+function toggleEmailService() {
+    fetch('/api/toggle-email', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => Promise.reject(data.error || 'Failed to toggle service'));
+        }
+        return response.json();
+    })
+    .then(() => {
+        location.reload();
+    })
+    .catch(error => {
+        alert('Error: ' + error);
     });
+}
+
+function toggleDebugMode() {
+    const debugSquare = document.querySelector('.service-square:last-child');
+    const isActive = !debugSquare.classList.contains('active');
+    const originalState = debugSquare.innerHTML;
+    
+    // Show loading state
+    debugSquare.style.opacity = '0.7';
+    
+    fetch('/api/debug-mode', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ active: isActive })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => Promise.reject(data.error || 'Failed to toggle debug mode'));
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        location.reload();
+    })
+    .catch(error => {
+        debugSquare.style.opacity = '1';
+        showAlert('danger', '⚠️ ' + error.message);
+        console.error('Debug toggle error:', error);
+    });
+}
+
+function processEmailsNow() {
+    const button = document.querySelector('button[onclick="processEmailsNow()"]');
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="nav-icon">⏳</span> Processing...';
+    
+    fetch('/api/process-now', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        showAlert('success', '✨ ' + (data.message || 'Email processing completed'));
+    })
+    .catch(error => {
+        showAlert('danger', '😅 ' + error.message);
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
+}
 </script>
 {% endblock %} 

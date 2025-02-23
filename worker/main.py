@@ -25,8 +25,11 @@ from worker.scheduler import MenuScheduler
 load_dotenv(override=True)
 
 # Near the top with other configs
-redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-redis_client = redis.from_url(redis_url)
+redis_host = os.getenv('REDIS_HOST', 'localhost')
+redis_port = int(os.getenv('REDIS_PORT', 6379))
+redis_url = f"redis://{redis_host}:{redis_port}"
+print(f"Connecting to Redis at {redis_url}")
+redis_client = redis.from_url(redis_url, decode_responses=True)
 
 # Set initial state if none exists
 if redis_client.get('service_state') is None:
@@ -165,7 +168,7 @@ def get_menu_template(season, week_number):
         
         # Get the file from storage
         file_path = response.data[0]['file_path']
-        file_data = supabase.storage.from_('menus').download(file_path)
+        file_data = supabase.storage.from_('menu-templates').download(file_path)
         
         return file_data
         

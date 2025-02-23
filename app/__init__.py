@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, render_template
 from datetime import datetime, timedelta
-from config import (
+from config import (  # Import from config package
     supabase, 
     redis_client, 
     SMTP_SERVER, 
@@ -19,6 +19,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 import smtplib
+from werkzeug.exceptions import HTTPException
 
 def create_app():
     """Create and configure the Flask application"""
@@ -27,80 +28,74 @@ def create_app():
     try:
         app = Flask(__name__)
         
-        # Push an application context
-        with app.app_context():
-            # Load configuration first
-            app.config.from_object('config')
-            
-            # Check required config before anything else
-            missing_config = [key for key in REQUIRED_CONFIG if not app.config.get(key)]
-            if missing_config:
-                raise ValueError(f"Missing required configuration: {', '.join(missing_config)}")
-            
-            # Set session configuration
-            app.config.update(
-                PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
-                SESSION_COOKIE_SECURE=True,
-                SESSION_COOKIE_HTTPONLY=True,
-                SESSION_COOKIE_SAMESITE='Lax'
-            )
-            
-            # Configure logging first
-            configure_logging(app)
-            
-            # Initialize services only after config check
-            try:
-                # Attach clients to app
-                app.redis_client = redis_client
-                app.supabase = supabase
-                
-                # Attach other services
-                app.menu_service = MenuService(db=supabase, storage=supabase.storage)
-                app.email_service = EmailService(config={
-                    'SMTP_SERVER': SMTP_SERVER,
-                    'SMTP_PORT': SMTP_PORT,
-                    'SMTP_USERNAME': SMTP_USERNAME,
-                    'SMTP_PASSWORD': SMTP_PASSWORD
-                })
-                app.activity_logger = Logger()
-            except Exception as service_error:
-                raise RuntimeError(f"Failed to initialize services: {str(service_error)}")
-            
-            # Register blueprint and filters
-            from app.routes.main import bp as main_bp, register_filters
-            app.register_blueprint(main_bp)
-            register_filters(app)
-            
-            # Add service health checks
+        # Configure app with all required settings
+        app.config.update(
+            SECRET_KEY=SECRET_KEY,
+            DASHBOARD_PASSWORD=DASHBOARD_PASSWORD,
+            SMTP_SERVER=SMTP_SERVER,
+            SMTP_PORT=SMTP_PORT,
+            SMTP_USERNAME=SMTP_USERNAME,
+            SMTP_PASSWORD=SMTP_PASSWORD,
+            SUPABASE_URL=os.getenv('SUPABASE_URL'),
+            SUPABASE_KEY=os.getenv('SUPABASE_KEY'),
+            SESSION_COOKIE_SECURE=False if os.getenv('FLASK_ENV') == 'development' else True,
+            SESSION_COOKIE_HTTPONLY=True,
+            PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+            FLASK_ENV=os.getenv('FLASK_ENV', 'production'),
+            DEBUG=os.getenv('FLASK_DEBUG', '0') == '1'
+        )
+        
+        # Verify required configuration
+        missing_config = []
+        for key, required in REQUIRED_CONFIG.items():
+            if required and not app.config.get(key):
+                missing_config.append(key)
+        if missing_config:
+            raise ValueError(f"Missing required configuration: {', '.join(missing_config)}")
+        
+        # Set up logging
+        configure_logging(app)
+        
+        # Register blueprint
+        from app.routes.main import bp as main_bp, register_filters
+        app.register_blueprint(main_bp)
+        
+        # Register template filters
+        register_filters(app)
+        
+        # Initialize services
+        app.menu_service = MenuService(db=supabase, storage=supabase.storage)
+        app.email_service = EmailService(config={
+            'SMTP_SERVER': SMTP_SERVER,
+            'SMTP_PORT': SMTP_PORT,
+            'SMTP_USERNAME': SMTP_USERNAME,
+            'SMTP_PASSWORD': SMTP_PASSWORD
+        })
+        
+        # Verify services in production
+        if app.config['FLASK_ENV'] != 'development':
             check_services(app)
-            
-            # Verify app setup
-            verify_app_setup(app)
-            
-            return app
+        
+        return app
         
     except Exception as e:
         # Log the error
         print(f"Error creating app: {str(e)}")
         traceback.print_exc()
-        error_info = e  # Store error for error app
+        error_info = e
         
-        # Create minimal error app with better error handling
+        # Create minimal error app
         error_app = Flask(__name__)
         
         @error_app.route('/')
         @error_app.route('/<path:path>')
         def error_page(path=None):
             if isinstance(error_info, ValueError):
-                # Show config errors directly
                 error_msg = str(error_info)
             elif isinstance(error_info, RuntimeError):
-                # Show service initialization errors
                 error_msg = f"Application initialization error: {str(error_info)}"
             else:
-                # Generic error for everything else
-                error_msg = "Application configuration error. Please contact administrator."
-            
+                error_msg = f"Application configuration error: {str(error_info)}"
             return render_template('error.html', error=error_msg)
                 
         return error_app
@@ -140,7 +135,7 @@ def check_services(app):
     
     # Check Database
     try:
-        app.supabase.table('menu_settings').select('count').execute()
+        supabase.table('menu_settings').select('count').execute()
     except Exception as e:
         errors.append(f"Database connection failed: {str(e)}")
     

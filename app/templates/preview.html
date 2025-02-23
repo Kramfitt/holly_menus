@@ -73,30 +73,26 @@
             <div class="card-body">
                 <form id="previewForm" class="mb-4">
                     <div class="row">
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label">Season</label>
-                                <select class="form-control" name="season" required>
+                                <select class="form-control" name="season" required
+                                        title="Select menu season" aria-label="Menu season">
                                     <option value="summer">Summer</option>
                                     <option value="winter">Winter</option>
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label">Week</label>
-                                <select class="form-control" name="week" required>
+                                <select class="form-control" name="week" required
+                                        title="Select menu week" aria-label="Menu week">
                                     <option value="1">Week 1</option>
                                     <option value="2">Week 2</option>
                                     <option value="3">Week 3</option>
                                     <option value="4">Week 4</option>
                                 </select>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label class="form-label">Start Date</label>
-                                <input type="date" class="form-control" name="date" required>
                             </div>
                         </div>
                     </div>
@@ -135,12 +131,10 @@ $(document).ready(function() {
         // Get form data
         const season = form.find('[name="season"]').val();
         const week = form.find('[name="week"]').val();
-        const date = form.find('[name="date"]').val();
         
         $.get('/api/preview', {
             season: season,
-            week: week,
-            date: date
+            week: week
         })
         .done(function(response) {
             // Create preview card

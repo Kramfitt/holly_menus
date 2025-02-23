@@ -22,8 +22,11 @@ supabase = create_client(
     supabase_key=os.getenv('SUPABASE_KEY')
 )
 
-redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-redis_client = redis.from_url(redis_url)
+redis_host = os.getenv('REDIS_HOST', 'localhost')
+redis_port = int(os.getenv('REDIS_PORT', 6379))
+redis_url = f"redis://{redis_host}:{redis_port}"
+print(f"Connecting to Redis at {redis_url}")
+redis_client = redis.from_url(redis_url, decode_responses=True)
 
 def calculate_next_menu():
     """Calculate which menu should be sent next"""

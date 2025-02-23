@@ -46,9 +46,18 @@ class MenuEmailMonitor:
         self.templates_dir = 'menu_templates'
         os.makedirs(self.temp_dir, exist_ok=True)
         os.makedirs(self.templates_dir, exist_ok=True)
+        os.makedirs('output_images', exist_ok=True)
+        os.makedirs('temp_menus', exist_ok=True)
+        
+        # Set up dedicated temp directory
+        os.makedirs(os.path.join(tempfile.gettempdir(), 'menu_system'), exist_ok=True)
+        tempfile.tempdir = os.path.join(tempfile.gettempdir(), 'menu_system')
         
         logger.info(f"Initialized MenuEmailMonitor with email: {self.email}")
         logger.info(f"Templates directory: {os.path.abspath(self.templates_dir)}")
+        
+        # Initial cleanup of old files
+        self.cleanup_old_files()
         
         # Ensure we have our Menus folder
         self.ensure_folders()
@@ -90,19 +99,70 @@ class MenuEmailMonitor:
         """Clean up temporary files older than specified hours"""
         try:
             now = datetime.now()
-            count = 0
+            total_count = 0
             
-            for root, dirs, files in os.walk(self.temp_dir):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    file_time = datetime.fromtimestamp(os.path.getctime(file_path))
+            # Directories to clean
+            temp_dirs = [
+                self.temp_dir,  # temp_images
+                'output_images',  # processed outputs
+                'temp_menus',    # temporary menu files
+                os.path.join(tempfile.gettempdir(), 'menu_system')  # system temp files
+            ]
+            
+            # Create a dedicated temp directory for our system
+            os.makedirs(os.path.join(tempfile.gettempdir(), 'menu_system'), exist_ok=True)
+            
+            for temp_dir in temp_dirs:
+                if not os.path.exists(temp_dir):
+                    continue
                     
-                    if now - file_time > timedelta(hours=max_age_hours):
-                        os.remove(file_path)
-                        count += 1
+                dir_count = 0
+                logger.info(f"Cleaning directory: {temp_dir}")
+                
+                try:
+                    for root, dirs, files in os.walk(temp_dir):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            try:
+                                # Get file stats
+                                stats = os.stat(file_path)
+                                file_time = datetime.fromtimestamp(stats.st_mtime)  # Use modification time
+                                
+                                # Check if file is too old
+                                if now - file_time > timedelta(hours=max_age_hours):
+                                    try:
+                                        os.remove(file_path)
+                                        dir_count += 1
+                                    except PermissionError:
+                                        logger.warning(f"Could not delete file (in use): {file_path}")
+                                    except FileNotFoundError:
+                                        # File was already deleted
+                                        pass
+                                    
+                            except (OSError, FileNotFoundError) as e:
+                                logger.warning(f"Error checking file {file_path}: {e}")
+                                continue
                         
-            if count > 0:
-                logger.info(f"Cleaned up {count} old temporary files")
+                        # Remove empty directories
+                        for dir in dirs:
+                            dir_path = os.path.join(root, dir)
+                            try:
+                                if not os.listdir(dir_path):  # if directory is empty
+                                    os.rmdir(dir_path)
+                                    logger.info(f"Removed empty directory: {dir_path}")
+                            except (OSError, FileNotFoundError) as e:
+                                logger.warning(f"Error removing directory {dir_path}: {e}")
+                    
+                    if dir_count > 0:
+                        logger.info(f"Cleaned up {dir_count} files from {temp_dir}")
+                        total_count += dir_count
+                        
+                except Exception as e:
+                    logger.error(f"Error cleaning directory {temp_dir}: {e}")
+                    continue
+            
+            if total_count > 0:
+                logger.info(f"Total files cleaned up: {total_count}")
                 
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
@@ -576,89 +636,89 @@ Holly Lodge Menu System"""
             raise
 
     def process_new_emails(self):
-        """Check for new menu emails in the Menus folder and process them"""
+        """Process new unread emails in the Menus folder"""
         try:
+            print("\n🔍 Starting email processing...")
             mail = self.connect()
-            
-            # Select the Menus folder instead of INBOX
             mail.select('Menus')
             
-            # Just get all unread messages in this folder - no need for subject filtering
-            _, messages = mail.search(None, 'UNSEEN')
+            # Search for unread messages
+            _, message_numbers = mail.search(None, 'UNSEEN')
+            message_list = message_numbers[0].split()
             
-            if not messages[0]:
-                logger.info("No new unread emails in Menus folder")
+            if not message_list:
+                print("📭 No unread messages found")
                 return
-                
-            message_count = len(messages[0].split())
-            logger.info(f"Found {message_count} unread messages in Menus folder")
             
-            # Process each message
-            for msg_num in messages[0].split():
+            print(f"📬 Found {len(message_list)} unread messages")
+            
+            for msg_num in message_list:
                 try:
+                    print(f"\n📨 Processing message {msg_num.decode()}...")
+                    
+                    # Get message ID first for tracking
                     _, msg_data = mail.fetch(msg_num, '(RFC822)')
-                    email_message = email.message_from_bytes(msg_data[0][1])
-                    subject = email_message.get('Subject', '')
-                    sender = email_message.get('From', '')
+                    email_body = msg_data[0][1]
+                    message = email.message_from_bytes(email_body)
+                    message_id = message['Message-ID']
                     
-                    logger.info(f"Processing email - Subject: {subject}, From: {sender}")
-                    
-                    message_id = email_message.get('Message-ID', '')
-                    if message_id and self.is_email_processed(mail, message_id):
-                        logger.info(f"Skipping already processed email: {message_id}")
+                    # Skip if already processed
+                    if self.is_email_processed(mail, message_id):
+                        print("✓ Message already processed, skipping")
                         continue
-
+                    
+                    print("📎 Looking for attachments...")
+                    processed_images = []
+                    dates_info = None
+                    
                     # Process attachments
-                    attachments_processed = False
-                    attachment_count = 0
-                    for part in email_message.walk():
-                        if part.get_content_maintype() == 'application':
-                            attachment_count += 1
-                            content_type = part.get_content_type()
-                            logger.info(f"Found attachment type: {content_type}")
+                    for part in message.walk():
+                        if part.get_content_maintype() == 'multipart':
+                            continue
+                        if part.get('Content-Disposition') is None:
+                            continue
                             
-                            if content_type == 'application/pdf':
-                                filename = part.get_filename()
-                                if filename:
-                                    filename = decode_header(filename)[0][0]
-                                    if isinstance(filename, bytes):
-                                        filename = filename.decode()
-
-                                    logger.info(f"Processing PDF attachment: {filename}")
-                                    
-                                    # Process the PDF
-                                    image_paths, dates = self.process_pdf_attachment(
-                                        part.get_payload(decode=True),
-                                        filename
-                                    )
-
-                                    if image_paths:
-                                        # Send processed images back
-                                        self.send_response_email(sender, image_paths)
-                                        attachments_processed = True
-                                        logger.info("Successfully processed menu and sent response")
-
-                    if not attachment_count:
-                        logger.info("No attachments found in email")
-
-                    # Mark as processed if we handled attachments
-                    if attachments_processed:
+                        filename = part.get_filename()
+                        if not filename:
+                            continue
+                            
+                        print(f"📄 Found attachment: {filename}")
+                        
+                        if filename.lower().endswith('.pdf'):
+                            print("🔄 Processing PDF attachment...")
+                            attachment_data = part.get_payload(decode=True)
+                            images, dates = self.process_pdf_attachment(attachment_data, filename)
+                            if images:
+                                processed_images.extend(images)
+                                dates_info = dates
+                                print(f"✨ Successfully processed PDF into {len(images)} images")
+                    
+                    if processed_images:
+                        print("\n📧 Preparing to send response email...")
+                        sender_email = message['From']
+                        print(f"📤 Sending to: {sender_email}")
+                        
+                        print("⏳ Starting email send process...")
+                        self.send_response_email(sender_email, processed_images)
+                        print("✅ Response email sent successfully")
+                        
+                        # Mark as processed only after successful send
+                        print("📝 Marking email as processed...")
                         self.mark_as_processed(mail, msg_num, message_id)
+                        print("✓ Email marked as processed")
+                        
                     else:
-                        logger.warning(f"No valid PDF attachments found in email {message_id}")
-
+                        print("⚠️ No processable attachments found")
+                    
                 except Exception as e:
-                    logger.error(f"Error processing email {msg_num}: {e}")
+                    print(f"❌ Error processing message: {str(e)}")
                     continue
-
-            mail.logout()
-            logger.info("Successfully logged out from IMAP server")
-
+            
+            print("\n✨ Email processing complete!")
+            
         except Exception as e:
-            logger.error(f"Error in process_new_emails: {e}")
-        finally:
-            # Clean up old files
-            self.cleanup_old_files()
+            print(f"❌ Error in process_new_emails: {str(e)}")
+            raise
 
 def main():
     logger.info("Starting Menu Email Monitor")

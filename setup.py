@@ -6,7 +6,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         'Flask>=2.3.3',
-        'Pillow',  # This is the PIL library
+        'Pillow>=10.3.0',  # Updated to secure version
         'python-dotenv',
         'reportlab',
         'pytest',

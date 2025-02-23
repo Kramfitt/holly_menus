@@ -2,21 +2,23 @@ import os
 import re
 from dotenv import load_dotenv
 import redis
-from supabase import create_client
+from supabase import create_client, Client
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
 import json
 from datetime import datetime
 
 # Move to top with other constants
-REQUIRED_CONFIG = [
-    'SECRET_KEY',
-    'DASHBOARD_PASSWORD',
-    'SMTP_SERVER',
-    'SMTP_PORT',
-    'SMTP_USERNAME',
-    'SMTP_PASSWORD'
-]
+REQUIRED_CONFIG = {
+    'SECRET_KEY': True,
+    'DASHBOARD_PASSWORD': True,
+    'SMTP_SERVER': True,
+    'SMTP_PORT': True,
+    'SMTP_USERNAME': True,
+    'SMTP_PASSWORD': True,
+    'SUPABASE_URL': True,
+    'SUPABASE_KEY': True
+}
 
 # Other constants
 MIN_PASSWORD_LENGTH = 1  # Super permissive for development
@@ -227,9 +229,9 @@ validate_config()
 # Initialize services after validation
 try:
     # Initialize Supabase
-    supabase = create_client(
-        supabase_url=os.getenv('SUPABASE_URL'),
-        supabase_key=os.getenv('SUPABASE_KEY')
+    supabase: Client = create_client(
+        supabase_url=os.getenv('SUPABASE_URL', ''),
+        supabase_key=os.getenv('SUPABASE_KEY', '')
     )
     
     # Clean up proxy settings
@@ -237,21 +239,36 @@ try:
         if hasattr(supabase._http_client, 'proxies'):
             delattr(supabase._http_client, 'proxies')
             
-    # Initialize Redis
-    redis_client = redis.from_url(os.getenv('REDIS_URL', 'redis://localhost:6379'))
+    # Initialize Redis (optional in development)
+    try:
+        redis_host = os.getenv('REDIS_HOST', 'localhost')
+        redis_port = int(os.getenv('REDIS_PORT', 6379))
+        redis_url = f"redis://{redis_host}:{redis_port}"
+        print(f"Connecting to Redis at {redis_url}")
+        redis_client = redis.from_url(redis_url, decode_responses=True)
+        # Test connection
+        redis_client.ping()
+        print("✅ Redis connection successful")
+    except Exception as e:
+        print(f"⚠️ Redis connection error: {e}")
+        if os.getenv('FLASK_ENV') == 'development':
+            print("⚠️ Redis not available - some features will be disabled")
+            redis_client = None
+        else:
+            raise
     
 except Exception as e:
     raise RuntimeError(f"Failed to initialize services: {str(e)}")
 
 # Email settings
 SMTP_SERVER = os.getenv('SMTP_SERVER')
-SMTP_PORT = int(os.getenv('SMTP_PORT'))
+SMTP_PORT = int(os.getenv('SMTP_PORT', 587))
 SMTP_USERNAME = os.getenv('SMTP_USERNAME')
 SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
 
 # Security settings
-SECRET_KEY = os.getenv('SECRET_KEY')
-DASHBOARD_PASSWORD = os.getenv('DASHBOARD_PASSWORD')
+SECRET_KEY = os.getenv('SECRET_KEY', 'dev-key-please-change')
+DASHBOARD_PASSWORD = os.getenv('DASHBOARD_PASSWORD', 'admin')
 
 # Export in __all__
 __all__ = [

@@ -267,25 +267,38 @@ def validate_template_structure(config):
     current_date = datetime.now()
     print(f"Current date: {current_date}", file=sys.stderr)
     
-    # Determine current season
-    year = current_date.year
-    summer_start = datetime.strptime(f"{year}-" + config['seasons']['summer']['start_date'][5:], "%Y-%m-%d")
-    winter_start = datetime.strptime(f"{year}-" + config['seasons']['winter']['start_date'][5:], "%Y-%m-%d")
-    
-    print(f"Summer starts: {summer_start}", file=sys.stderr)
-    print(f"Winter starts: {winter_start}", file=sys.stderr)
-    
-    # Handle year wraparound for summer starting in December
-    if current_date.month >= 12:
-        summer_start = datetime.strptime(f"{year}-12-01", "%Y-%m-%d")
+    # Get current settings
+    settings = get_menu_settings()
+    if not settings:
+        print("No settings found, using default season calculation", file=sys.stderr)
+        # Fall back to config-based season calculation
+        year = current_date.year
+        summer_start = datetime.strptime(f"{year}-" + config['seasons']['summer']['start_date'][5:], "%Y-%m-%d")
+        winter_start = datetime.strptime(f"{year}-" + config['seasons']['winter']['start_date'][5:], "%Y-%m-%d")
+        
+        print(f"Summer starts: {summer_start}", file=sys.stderr)
+        print(f"Winter starts: {winter_start}", file=sys.stderr)
+        
+        # Handle year wraparound for summer starting in December
+        if current_date.month >= 12:
+            summer_start = datetime.strptime(f"{year}-12-01", "%Y-%m-%d")
+        else:
+            summer_start = datetime.strptime(f"{year-1}-12-01", "%Y-%m-%d")
+        
+        is_summer = (summer_start <= current_date < winter_start)
+        current_season = "summer" if is_summer else "winter"
     else:
-        summer_start = datetime.strptime(f"{year-1}-12-01", "%Y-%m-%d")
+        print("Using settings-based season calculation", file=sys.stderr)
+        # Use settings-based season calculation
+        current_season = settings['season']
+        if settings.get('season_change_date'):
+            change_date = datetime.strptime(settings['season_change_date'], '%Y-%m-%d').date()
+            if current_date.date() >= change_date:
+                current_season = 'winter' if current_season == 'summer' else 'summer'
+        
+        print(f"Settings season: {settings['season']}", file=sys.stderr)
+        print(f"Change date: {settings.get('season_change_date')}", file=sys.stderr)
     
-    is_summer = (summer_start <= current_date < winter_start)
-    current_season = "summer" if is_summer else "winter"
-    
-    print(f"Adjusted summer start: {summer_start}", file=sys.stderr)
-    print(f"Is summer? {is_summer}", file=sys.stderr)
     print(f"Current season: {current_season}", file=sys.stderr)
     print("=== END SEASON DEBUG ===\n", file=sys.stderr)
     

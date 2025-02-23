@@ -1,6 +1,6 @@
 from flask import (
     Flask, render_template, jsonify, request, session, 
-    redirect, url_for, Blueprint, current_app
+    redirect, url_for, Blueprint, current_app, flash
 )
 from functools import wraps
 from datetime import datetime, timedelta
@@ -8,7 +8,6 @@ from typing import Optional, Dict, Any
 import os
 import sys
 import time
-import redis
 import traceback
 from supabase import create_client, Client
 from worker import calculate_next_menu, send_menu_email
@@ -20,6 +19,7 @@ from config import (
 from app.utils.logger import Logger
 from app.services.menu_service import MenuService
 from app.services.email_service import EmailService
+from app.utils.debug import debug_log, debug_print, is_debug_mode
 from werkzeug.utils import secure_filename
 from PIL import Image, ImageDraw, ImageFont
 import io
@@ -30,10 +30,11 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
-import pytz  # Add this import
+import pytz
 from dotenv import load_dotenv
 import re
 from werkzeug.exceptions import HTTPException
+import json
 
 # Load environment variables
 load_dotenv()
@@ -49,28 +50,14 @@ def utility_processor():
         'datetime': datetime
     }
 
-# Near the top with other configs
-redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-redis_client = redis.from_url(redis_url)
-
-# Ensure initial state exists
-if redis_client.get('service_state') is None:
-    redis_client.set('service_state', 'false')
-
-# Add near top with other Redis initialization
-if redis_client.get('debug_mode') is None:
-    redis_client.set('debug_mode', 'false')
-
-# Initialize Supabase client
-supabase = create_client(
-    supabase_url=os.getenv('SUPABASE_URL'),
-    supabase_key=os.getenv('SUPABASE_KEY')
-)
-
-# Remove any proxy settings if they exist
-if hasattr(supabase, '_http_client'):
-    if hasattr(supabase._http_client, 'proxies'):
-        delattr(supabase._http_client, 'proxies')
+# Initialize services
+menu_service = MenuService(db=supabase, storage=supabase.storage)
+email_service = EmailService(config={
+    'SMTP_SERVER': SMTP_SERVER,
+    'SMTP_PORT': SMTP_PORT,
+    'SMTP_USERNAME': SMTP_USERNAME,
+    'SMTP_PASSWORD': SMTP_PASSWORD
+})
 
 logger = None
 
@@ -84,37 +71,48 @@ def get_logger():
             logger = Logger()
     return logger
 
-# Initialize services
-menu_service = MenuService(db=supabase, storage=supabase.storage)
-email_service = EmailService(config={
-    'SMTP_SERVER': SMTP_SERVER,
-    'SMTP_PORT': SMTP_PORT,
-    'SMTP_USERNAME': SMTP_USERNAME,
-    'SMTP_PASSWORD': SMTP_PASSWORD
-})
-
-# Update get_service_state to handle missing STATE_FILE
-def get_service_state():
-    """Get service state from Redis instead of file"""
+def get_service_state() -> Dict[str, Any]:
+    """Get service state with fallback for when Redis is not available"""
+    if redis_client is None:
+        return {
+            "active": True,
+            "last_updated": datetime.now().isoformat(),
+            "message": "Service running (Redis disabled)"
+        }
+    
     try:
         state = redis_client.get('service_state')
-        return {
-            "active": state == b'true',
-            "last_updated": datetime.now()
-        }
+        if state is None:
+            return {
+                "active": False,
+                "last_updated": datetime.now().isoformat(),
+                "message": "Service state unknown"
+            }
+        return json.loads(state)
     except Exception as e:
         get_logger().log_activity(
             action="Service State Error",
             details=str(e),
             status="error"
         )
-        return {"active": False, "last_updated": None}
+        return {
+            "active": False,
+            "last_updated": None,
+            "message": "Error getting service state"
+        }
 
-# Update save_service_state to use Redis
-def save_service_state(active):
+def save_service_state(state: Dict[str, Any]) -> bool:
     """Save service state to Redis"""
+    if redis_client is None:
+        get_logger().log_activity(
+            action="Service State Save",
+            details="Redis disabled - state not saved",
+            status="warning"
+        )
+        return True
+    
     try:
-        redis_client.set('service_state', str(active).lower())
+        redis_client.set('service_state', json.dumps(state))
         return True
     except Exception as e:
         get_logger().log_activity(
@@ -123,6 +121,20 @@ def save_service_state(active):
             status="error"
         )
         return False
+
+# Initialize service state if Redis is available
+if redis_client is not None:
+    try:
+        if redis_client.get('service_state') is None:
+            redis_client.set('service_state', json.dumps({
+                'active': False,
+                'last_updated': datetime.now().isoformat(),
+                'message': 'Service initialized'
+            }))
+        if redis_client.get('debug_mode') is None:
+            redis_client.set('debug_mode', 'false')
+    except Exception as e:
+        print(f"⚠️ Error initializing Redis state: {e}")
 
 # Login required decorator
 def login_required(f):
@@ -150,7 +162,10 @@ def handle_error(e, action="System Error"):
     return "An error occurred. Please try again or contact support."
 
 def rate_limit(key, limit=5, period=60):
-    """Basic rate limiting using Redis"""
+    """Basic rate limiting with fallback for when Redis is not available"""
+    if redis_client is None:
+        return True  # No rate limiting when Redis is disabled
+        
     try:
         current = int(redis_client.get(f"ratelimit:{key}") or 0)
         if current >= limit:
@@ -264,43 +279,71 @@ def logout():
 @bp.route('/')
 @login_required
 def index():
+    """Dashboard home page"""
     try:
-        # Get service state safely
-        service_active = get_redis_value('service_state', b'false') == b'true'
+        # Get menu service
+        menu_service = current_app.menu_service
         
-        # Get next menu info
-        next_menu = calculate_next_menu()
-        if not next_menu:
-            get_logger().log_activity(
-                action="Menu Calculation",
-                details="Could not calculate next menu",
-                status="warning"
-            )
+        # Get current settings and next menu
+        settings = menu_service.get_settings()
+        next_menu = menu_service.calculate_next_menu()
         
-        # Get recent activity
+        # Check service statuses with error handling
         try:
-            activity_response = supabase.table('activity_log')\
-                .select('*')\
-                .order('created_at', ascending=False)\
-                .limit(10)\
-                .execute()
-            recent_activity = activity_response.data
-        except Exception as e:
-            get_logger().log_activity(
-                action="Activity Log Error",
-                details=str(e),
-                status="error"
-            )
-            recent_activity = []
+            db_status = bool(menu_service.db.table('menu_settings').select('count').execute())
+        except Exception:
+            db_status = False
+            
+        try:
+            redis_status = redis_client and redis_client.ping()
+        except Exception:
+            redis_status = False
+            
+        try:
+            with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=5) as server:
+                server.starttls()
+                server.login(SMTP_USERNAME, SMTP_PASSWORD)
+                smtp_status = True
+        except Exception:
+            smtp_status = False
+        
+        # Get service states with fallbacks
+        try:
+            email_active = redis_client and redis_client.get('service_state') == b'true'
+        except Exception:
+            email_active = False
+            
+        try:
+            debug_mode = redis_client and redis_client.get('debug_mode') == b'true'
+        except Exception:
+            debug_mode = False
         
         return render_template('index.html',
-                             service_active=service_active,
-                             next_menu=next_menu,
-                             recent_activity=recent_activity)
-                             
+            settings=settings,
+            next_menu=next_menu,
+            db_status=db_status,
+            redis_status=redis_status,
+            smtp_status=smtp_status,
+            email_active=email_active,
+            debug_mode=debug_mode
+        )
+        
     except Exception as e:
-        error_msg = handle_error(e, "Dashboard Error")
-        return render_template('error.html', error=error_msg)
+        get_logger().log_activity(
+            action="Dashboard Error",
+            details=str(e),
+            status="error"
+        )
+        flash('Error loading dashboard. Check system status.', 'error')
+        return render_template('index.html',
+            settings=None,
+            next_menu=None,
+            db_status=False,
+            redis_status=False,
+            smtp_status=False,
+            email_active=False,
+            debug_mode=False
+        )
 
 @bp.route('/preview')
 @login_required
@@ -324,51 +367,36 @@ def preview():
         )
         return render_template('preview.html', error=str(e))
 
-# Add API endpoint for preview rendering
 @bp.route('/api/preview', methods=['GET'])
 def api_preview_menu():
+    """Generate a preview of a menu template"""
     try:
-        # Get and validate parameters
-        season = request.args.get('season', '').lower()
+        season = request.args.get('season')
         week = request.args.get('week')
-        start_date = request.args.get('date')
         
-        # Detailed validation with recovery suggestions
         errors = {}
         suggestions = {}
         
+        # Validate inputs
         if not season:
-            errors['season'] = '🌞/❄️ Season is required'
-            suggestions['season'] = 'Please select either Summer or Winter'
-        elif season not in ['summer', 'winter']:
+            errors['season'] = '🌞 Season is required'
+            suggestions['season'] = 'Please select summer or winter'
+        elif season.lower() not in ['summer', 'winter']:
             errors['season'] = '❌ Invalid season'
-            suggestions['season'] = 'Season must be either "summer" or "winter"'
+            suggestions['season'] = 'Season must be summer or winter'
             
         if not week:
             errors['week'] = '📅 Week is required'
-            suggestions['week'] = 'Please select a week number (1-4)'
+            suggestions['week'] = 'Please select a week number'
         else:
             try:
-                week_num = int(week)
-                if week_num < 1 or week_num > 4:
-                    errors['week'] = '❌ Week must be between 1 and 4'
-                    suggestions['week'] = 'Please select a valid week number'
+                week = int(week)
+                if week < 1 or week > 4:
+                    errors['week'] = '❌ Invalid week number'
+                    suggestions['week'] = 'Week must be between 1 and 4'
             except ValueError:
-                errors['week'] = '❌ Invalid week number'
+                errors['week'] = '❌ Invalid week format'
                 suggestions['week'] = 'Week must be a number between 1 and 4'
-                
-        if not start_date:
-            errors['date'] = '📆 Start date is required'
-            suggestions['date'] = 'Please select a start date'
-        else:
-            try:
-                start_date = datetime.strptime(start_date, '%Y-%m-%d')
-                if start_date.date() < datetime.now().date():
-                    errors['date'] = '❌ Start date cannot be in the past'
-                    suggestions['date'] = 'Please select a future date'
-            except ValueError:
-                errors['date'] = '❌ Invalid date format'
-                suggestions['date'] = 'Date must be in YYYY-MM-DD format'
                 
         if errors:
             return jsonify({
@@ -378,8 +406,10 @@ def api_preview_menu():
                 'help': 'Please correct the errors and try again'
             }), 400
             
-        # Get template with error handling
-        template = current_app.menu_service.get_template(season, week)
+        # Get template
+        menu_service = MenuService(db=supabase, storage=supabase.storage)
+        template = menu_service.get_template(season, week)
+        
         if not template:
             return jsonify({
                 'error': 'Template not found',
@@ -390,43 +420,14 @@ def api_preview_menu():
                 }
             }), 404
             
-        # Generate preview with error handling
-        try:
-            preview_data = current_app.menu_service.generate_preview(
-                template, 
-                start_date
-            )
-            return jsonify(preview_data)
-            
-        except ValueError as e:
-            return jsonify({
-                'error': 'Preview generation failed',
-                'details': {
-                    'message': str(e),
-                    'type': 'validation_error',
-                    'suggestion': 'Please check your input values',
-                    'help': 'Make sure all required fields are filled correctly'
-                }
-            }), 400
-            
-        except Exception as e:
-            get_logger().log_activity(
-                action="Preview Generation Error",
-                details={
-                    'error': str(e),
-                    'traceback': traceback.format_exc()
-                },
-                status="error"
-            )
-            return jsonify({
-                'error': 'Internal server error',
-                'details': {
-                    'message': 'An unexpected error occurred',
-                    'type': 'server_error',
-                    'suggestion': 'Please try again later',
-                    'help': 'If the problem persists, contact support'
-                }
-            }), 500
+        # Return template info
+        return jsonify({
+            'template': {
+                'season': season.title(),
+                'week': week,
+                'url': template['template_url']
+            }
+        })
             
     except Exception as e:
         get_logger().log_activity(
@@ -481,90 +482,111 @@ def validate_template(file, season, week):
 
 @bp.route('/api/upload-template', methods=['POST'])
 @login_required
+@debug_log("Template Upload", timing=True)
 def upload_template():
     try:
+        debug_print("=== Starting Template Upload ===")
+        debug_print("Request Files:", dict(request.files))
+        debug_print("Request Form:", dict(request.form))
+        
         if 'template' not in request.files:
+            debug_print("❌ No file provided in request")
             return jsonify({'error': '📁 No file provided'}), 400
             
         file = request.files['template']
         season = request.form.get('season')
         week = request.form.get('week')
         
+        debug_print(f"Upload request details:")
+        debug_print(f"- File: {file.filename if file else 'None'}")
+        debug_print(f"- Content Type: {file.content_type if file else 'None'}")
+        debug_print(f"- Season: {season}")
+        debug_print(f"- Week: {week}")
+        
         if not file or not file.filename:
+            debug_print("❌ No file selected")
             return jsonify({'error': '📁 No file selected'}), 400
             
         if not season or not week:
+            debug_print("❌ Missing season or week")
             return jsonify({'error': '❌ Missing season or week'}), 400
             
         # Basic validation
         if not file.filename.lower().endswith(('.pdf', '.jpg', '.jpeg', '.png')):
+            debug_print(f"❌ Invalid file type: {file.filename}")
             return jsonify({'error': '❌ Only PDF and images allowed'}), 400
             
-        # Save using menu service
-        result = current_app.menu_service.save_template(file, season, week)
-        
-        if result.get('error'):
-            return jsonify({'error': result['error']}), 400
+        # Verify menu service is available
+        if not hasattr(current_app, 'menu_service'):
+            debug_print("❌ Menu service not initialized")
+            return jsonify({'error': 'System configuration error: menu service not available'}), 500
             
-        get_logger().log_activity(
-            action="Template Uploaded",
-            details=f"✨ Uploaded template for {season} week {week}",
-            status="success"
-        )
-        
-        return jsonify({'success': True, 'url': result['url']})
-        
+        # Save using menu service
+        debug_print("Calling menu_service.save_template...")
+        try:
+            result = current_app.menu_service.save_template(file, season, week)
+            debug_print("save_template result:", result)
+            
+            if not result:
+                debug_print("❌ No result from save_template")
+                return jsonify({'error': 'No response from save operation'}), 500
+                
+            if not result.get('success'):
+                error_msg = result.get('error', 'Unknown error occurred')
+                debug_print(f"❌ Upload failed: {error_msg}")
+                return jsonify({'error': error_msg}), 400
+                
+            if not result.get('url'):
+                debug_print("❌ No URL in successful response")
+                return jsonify({'error': 'Upload succeeded but no URL was returned'}), 500
+                
+            get_logger().log_activity(
+                action="Template Uploaded",
+                details={
+                    "file": file.filename,
+                    "season": season,
+                    "week": week,
+                    "url": result['url']
+                },
+                status="success"
+            )
+            
+            return jsonify({
+                'success': True,
+                'message': 'Template uploaded successfully',
+                'url': result['url']
+            })
+            
+        except Exception as service_error:
+            debug_print(f"❌ Menu service error: {str(service_error)}")
+            debug_print("Service error details:", traceback.format_exc())
+            return jsonify({'error': f'Menu service error: {str(service_error)}'}), 500
+            
     except Exception as e:
+        debug_print(f"❌ Unexpected error: {str(e)}")
+        debug_print("Full error details:", traceback.format_exc())
         get_logger().log_activity(
             action="Template Upload Failed",
-            details=str(e),
+            details=f"Error: {str(e)}\nStack trace: {traceback.format_exc()}",
             status="error"
         )
-        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
+        return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/template', methods=['DELETE'])
-@login_required
-def delete_template():
+@bp.route('/api/templates/<season>/<week>', methods=['DELETE'])
+def delete_template(season: str, week: str):
+    """Delete a menu template"""
     try:
-        data = request.json
-        season = data.get('season')
-        week = data.get('week')
+        menu_service = MenuService(db=supabase, storage=supabase.storage)
+        result = menu_service.delete_template(season, int(week))
         
-        if not season or not week:
-            return jsonify({'error': 'Missing season or week'}), 400
+        if 'error' in result:
+            return jsonify({'error': result['error']}), 400
             
-        # Get template
-        template = supabase.table('menus')\
-            .select('*')\
-            .eq('season', season)\
-            .eq('week', week)\
-            .execute()
-            
-        if not template.data:
-            return jsonify({'error': 'Template not found'}), 404
-            
-        # Delete from storage
-        file_path = template.data[0]['file_path']
-        supabase.storage.from_('menus').remove([file_path])
-        
-        # Delete from database
-        supabase.table('menus')\
-            .delete()\
-            .eq('season', season)\
-            .eq('week', week)\
-            .execute()
-            
-        get_logger().log_activity(
-            action="Template Deleted",
-            details=f"Deleted {season} week {week} template",
-            status="success"
-        )
-        
-        return jsonify({'success': True})
+        return jsonify({'success': True}), 200
         
     except Exception as e:
         get_logger().log_activity(
-            action="Template Delete Failed",
+            action="Delete Template Route Failed",
             details=str(e),
             status="error"
         )
@@ -608,7 +630,7 @@ def system_check():
             }
         
         return render_template(
-            'system-check.html',
+            'system_check.html',
             settings=settings_response.data[0] if settings_response.data else None,
             next_menu=next_menu
         )
@@ -754,14 +776,17 @@ def validate_settings(data):
 
 @bp.route('/api/settings', methods=['POST'])
 @login_required
+@debug_log("Save Settings", timing=True)
 def save_settings():
     try:
         data = request.get_json()
+        debug_print("Received settings data:", data)
         
         # Validate required fields
         required = ['start_date', 'days_in_advance', 'recipient_emails', 'season']
         missing = [f for f in required if not data.get(f)]
         if missing:
+            debug_print("Missing required fields:", missing)
             return jsonify({
                 'error': 'Missing required fields',
                 'details': missing
@@ -769,19 +794,29 @@ def save_settings():
             
         # Validate season
         if data['season'] not in ['summer', 'winter']:
+            debug_print(f"Invalid season: {data['season']}")
             return jsonify({
                 'error': 'Invalid season',
                 'details': 'Season must be summer or winter'
             }), 400
             
         # Save to database
-        result = supabase.table('menu_settings').insert({
+        settings_data = {
             'start_date': data['start_date'],
             'days_in_advance': data['days_in_advance'],
             'recipient_emails': data['recipient_emails'],
             'season': data['season'].lower(),  # Ensure lowercase
             'created_at': datetime.now().isoformat()
-        }).execute()
+        }
+        
+        # Add season change date if provided
+        if 'season_change_date' in data and data['season_change_date']:
+            settings_data['season_change_date'] = data['season_change_date']
+        
+        debug_print("Saving settings:", settings_data)
+        
+        # Save to database
+        result = supabase.table('menu_settings').insert(settings_data).execute()
         
         get_logger().log_activity(
             action="Settings Updated",
@@ -789,9 +824,11 @@ def save_settings():
             status="success"
         )
         
+        debug_print("Settings saved successfully")
         return jsonify({'success': True})
         
     except Exception as e:
+        debug_print(f"Settings save error: {str(e)}")
         get_logger().log_activity(
             action="Settings Update Failed",
             details=str(e),
@@ -810,18 +847,19 @@ def get_email_status():
 @bp.route('/api/toggle-email', methods=['POST'])
 def toggle_email():
     try:
-        # Get current state from Redis
-        current_state = redis_client.get('service_state')
-        if current_state is None:
-            # Initialize if not set
-            current_state = b'false'
-            redis_client.set('service_state', 'false')
+        if redis_client is None:
+            raise RuntimeError("Redis service is not available")
+            
+        # Get current state from Redis with fallback
+        current_state = get_redis_value('service_state', 'false')
         
         # Toggle state
-        new_state = 'false' if current_state == b'true' else 'true'
+        new_state = 'false' if current_state == 'true' else 'true'
         
         # Set new state
-        redis_client.set('service_state', new_state)
+        success = set_redis_value('service_state', new_state)
+        if not success:
+            raise RuntimeError("Failed to update service state")
         
         # Log the change
         get_logger().log_activity(
@@ -830,11 +868,8 @@ def toggle_email():
             status="success"
         )
         
-        print(f"Service state toggled to: {new_state}")  # Debug log
-        
         return jsonify({'active': new_state == 'true'})
     except Exception as e:
-        print(f"Toggle error: {str(e)}")  # Debug log
         get_logger().log_activity(
             action="Email Service Toggle Failed",
             details=str(e),
@@ -913,45 +948,6 @@ def send_test_email():
         error_msg = handle_error(e, "Test Email Failed")
         return jsonify({'error': error_msg}), 500
 
-@bp.route('/api/debug-mode', methods=['POST'])
-@login_required
-def debug_mode():
-    try:
-        data = request.get_json()
-        if data is None:
-            data = request.form  # Try form data if JSON fails
-            
-        active = data.get('active')
-        if active is None:
-            return jsonify({'error': 'Missing active state'}), 400
-            
-        # Convert to boolean and then string
-        active_bool = str(active).lower() in ['true', '1', 'yes', 'on']
-        redis_client.set('debug_mode', str(active_bool).lower())
-        
-        get_logger().log_activity(
-            action="Debug Mode",
-            details=f"Debug mode {'enabled' if active_bool else 'disabled'}",
-            status="info"
-        )
-        
-        return jsonify({
-            'success': True,
-            'active': active_bool,
-            'message': f"Debug mode {'enabled' if active_bool else 'disabled'}"
-        })
-        
-    except Exception as e:
-        get_logger().log_activity(
-            action="Debug Mode Error",
-            details=str(e),
-            status="error"
-        )
-        return jsonify({
-            'error': f'Failed to toggle debug mode: {str(e)}',
-            'details': traceback.format_exc()
-        }), 500
-
 def validate_force_send():
     """Validate force send requirements"""
     errors = []
@@ -976,17 +972,23 @@ def validate_force_send():
 
 @bp.route('/api/force-send', methods=['POST'])
 @login_required
+@debug_log("Force Send Menu", timing=True)
 def force_send():
     try:
         # Validate requirements
         errors, settings, next_menu = validate_force_send()
         if errors:
+            debug_print("Force send validation failed:", errors)
             return jsonify({
                 'success': False,
                 'message': 'Validation failed',
                 'errors': errors
             }), 400
             
+        debug_print("Force send validation passed")
+        debug_print("Settings:", settings)
+        debug_print("Next menu:", next_menu)
+        
         # Send menu
         success = send_menu_email(
             start_date=next_menu['period_start'],
@@ -996,6 +998,8 @@ def force_send():
         )
         
         message = "Test menu sent successfully!" if success else "Failed to send test menu"
+        debug_print(message)
+        
         get_logger().log_activity(
             action="Force Send Menu",
             details=message,
@@ -1009,6 +1013,7 @@ def force_send():
         
     except Exception as e:
         error_msg = handle_error(e, "Force Send Failed")
+        debug_print("Force send error:", error_msg)
         return jsonify({
             'success': False,
             'message': error_msg
@@ -1373,72 +1378,247 @@ def register_filters(app):
 # Export both bp and register_filters at the top
 __all__ = ['bp', 'register_filters']
 
-@bp.route('/health')
-def health_check():
-    """Basic health check endpoint"""
+@bp.route('/api/process-now', methods=['POST'])
+@login_required
+def process_emails_now():
+    """Trigger immediate processing of unread menu emails"""
     try:
-        # Check all services
-        redis_ok = check_redis()
-        db_ok = check_database()
-        smtp_ok = all([SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD])
+        from menu_monitor import MenuEmailMonitor
         
-        status = "healthy" if all([redis_ok, db_ok, smtp_ok]) else "unhealthy"
+        monitor = MenuEmailMonitor()
+        monitor.process_new_emails()
         
-        # Get more detailed status
-        details = {
-            'redis': {
-                'status': 'connected' if redis_ok else 'disconnected',
-                'last_check': datetime.now().isoformat()
-            },
-            'database': {
-                'status': 'connected' if db_ok else 'disconnected',
-                'last_check': datetime.now().isoformat()
-            },
-            'smtp': {
-                'status': 'configured' if smtp_ok else 'not_configured',
-                'server': SMTP_SERVER,
-                'port': SMTP_PORT
-            }
-        }
+        get_logger().log_activity(
+            action="Manual Email Processing",
+            details="Manually triggered menu email processing",
+            status="success"
+        )
         
-        return jsonify({
-            'status': status,
-            'services': details,
-            'timestamp': datetime.now().isoformat()
-        })
+        return jsonify({'success': True, 'message': 'Email processing completed'})
         
     except Exception as e:
-        error_msg = handle_error(e, "Health Check Failed")
-        return jsonify({
-            'status': 'error',
-            'error': error_msg,
-            'timestamp': datetime.now().isoformat()
-        }), 500
+        error_msg = handle_error(e, "Email Processing Failed")
+        return jsonify({'error': error_msg}), 500
 
-@bp.app_errorhandler(404)
-def page_not_found(e):
-    return render_template('error.html', 
-        error="The requested page was not found."), 404
+@bp.route('/health')
+def health_check():
+    """Health check endpoint for Render"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat()
+    })
 
-@bp.app_errorhandler(500)
-def internal_error(e):
-    return render_template('error.html',
-        error="An internal server error occurred."), 500
+@bp.route('/menus')
+@login_required
+def menu_management():
+    try:
+        # Get current settings
+        settings_response = supabase.table('menu_settings')\
+            .select('*')\
+            .order('created_at', desc=True)\
+            .limit(1)\
+            .execute()
+            
+        settings = settings_response.data[0] if settings_response.data else None
+        
+        # Get all menus
+        menus_response = supabase.table('menus')\
+            .select('*')\
+            .execute()
+            
+        # Convert to dictionary with menu_name as key
+        menus = {}
+        for menu in menus_response.data:
+            if 'file_path' in menu:
+                menu['file_url'] = supabase.storage.from_('menu-templates').get_public_url(menu['file_path'])
+            menus[menu['name']] = menu
+        
+        return render_template(
+            'menu_management.html',
+            settings=settings,
+            menus=menus
+        )
+        
+    except Exception as e:
+        logger.log_activity(
+            action="Menu Page Load Failed",
+            details=str(e),
+            status="error"
+        )
+        print(f"Error loading menus: {str(e)}")
+        return f"Error loading menus: {str(e)}", 500
 
-@bp.app_errorhandler(403)
-def forbidden_error(e):
-    return render_template('error.html',
-        error="You don't have permission to access this page."), 403
+@bp.route('/api/menus', methods=['GET', 'POST'])
+@login_required
+def handle_menus():
+    if request.method == 'GET':
+        try:
+            # Get current settings
+            settings = current_app.menu_service.get_settings()
+            
+            # Get all menus
+            menus_response = supabase.table('menus').select('*').execute()
+            menus = {}
+            
+            # Convert to dict with menu_name as key
+            for menu in menus_response.data:
+                # Get public URL for menu file
+                menu['file_url'] = supabase.storage.from_('menu-templates').get_public_url(menu['file_path'])
+                menus[menu['name']] = menu
+            
+            return jsonify({
+                'settings': settings,
+                'menus': menus
+            })
+            
+        except Exception as e:
+            logger.log_activity(
+                action="Menu Fetch Failed",
+                details=str(e),
+                status="error"
+            )
+            return str(e), 500
+            
+    elif request.method == 'POST':
+        try:
+            if 'file' not in request.files:
+                return "No file provided", 400
+                
+            file = request.files['file']
+            menu_name = request.form.get('name')
+            
+            if not file or not file.filename:
+                return "No file selected", 400
+                
+            if not menu_name:
+                return "Menu name required", 400
+                
+            # Get file extension
+            file_extension = file.filename.rsplit('.', 1)[1].lower()
+            if file_extension not in {'pdf', 'jpg', 'jpeg', 'png'}:
+                return "Invalid file type. Must be PDF or image.", 400
+                
+            # Read file bytes
+            file_bytes = file.read()
+            file.seek(0)
+            
+            try:
+                # Handle existing menu
+                existing = supabase.table('menus').select('*').eq('name', menu_name).execute()
+                if existing.data:
+                    # Delete old file if it exists
+                    supabase.storage.from_('menu-templates').remove([existing.data[0]['file_path']])
+                    supabase.table('menus').delete().eq('name', menu_name).execute()
+                    
+                # Generate unique filename
+                timestamp = int(datetime.now().timestamp())
+                file_path = f"menus/{menu_name}_{timestamp}.{file_extension}"
+                
+                # Upload new file
+                upload_response = supabase.storage.from_('menu-templates').upload(
+                    path=file_path,
+                    file=file_bytes,
+                    file_options={"content-type": file.content_type}
+                )
+                
+                # Get public URL
+                file_url = supabase.storage.from_('menu-templates').get_public_url(file_path)
+                
+                # Save to database
+                menu_data = {
+                    'name': menu_name,
+                    'file_path': file_path,
+                    'file_url': file_url,
+                    'created_at': datetime.now().isoformat()
+                }
+                
+                supabase.table('menus').insert(menu_data).execute()
+                
+                logger.log_activity(
+                    action="Menu Upload",
+                    details=f"Uploaded menu: {menu_name}",
+                    status="success"
+                )
+                
+                return jsonify({'success': True, 'url': file_url})
+                
+            except Exception as e:
+                logger.log_activity(
+                    action="Menu Upload Failed",
+                    details=str(e),
+                    status="error"
+                )
+                return str(e), 500
+                
+        except Exception as e:
+            logger.log_activity(
+                action="Menu Upload Failed",
+                details=str(e),
+                status="error"
+            )
+            return str(e), 500
 
-@bp.app_errorhandler(405)
-def method_not_allowed(e):
-    return render_template('error.html',
-        error="This method is not allowed for this endpoint."), 405
+@bp.route('/api/menus/<menu_name>', methods=['DELETE'])
+@login_required
+def delete_menu(menu_name):
+    try:
+        # Get the menu record
+        menu_response = supabase.table('menus')\
+            .select('*')\
+            .eq('name', menu_name)\
+            .execute()
+            
+        if not menu_response.data:
+            return "Menu not found", 404
+            
+        # Delete from storage first
+        menu = menu_response.data[0]
+        storage_path = f"menus/{menu['file_path'].split('/')[-1]}"
+        supabase.storage.from_('menu-templates').remove([storage_path])
+        
+        # Then delete the database record
+        supabase.table('menus')\
+            .delete()\
+            .eq('name', menu_name)\
+            .execute()
+            
+        logger.log_activity(
+            action="Menu Deleted",
+            details=f"Deleted menu: {menu_name}",
+            status="success"
+        )
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        logger.log_activity(
+            action="Menu Delete Failed",
+            details=str(e),
+            status="error"
+        )
+        return str(e), 500
 
-@bp.app_errorhandler(429)
-def too_many_requests(e):
-    return render_template('error.html',
-        error="Too many requests. Please try again later."), 429
+@bp.route('/api/menus/<menu_id>')
+def get_menu(menu_id):
+    try:
+        print(f"Fetching menu {menu_id}")  # Debug log
+        
+        response = supabase.table('menus')\
+            .select('*')\
+            .eq('id', menu_id)\
+            .execute()
+            
+        if not response.data:
+            return jsonify({'error': 'Menu not found'}), 404
+            
+        menu = response.data[0]
+        print(f"Menu found: {menu}")  # Debug log
+        
+        return jsonify(menu)
+        
+    except Exception as e:
+        print(f"Get menu error: {str(e)}")  # Debug log
+        return jsonify({'error': str(e)}), 500
 
 def check_maintenance_mode():
     """Check if system is in maintenance mode"""
@@ -1543,4 +1723,89 @@ def log_system_metrics():
             action="Metrics Logging Failed",
             details=str(e),
             status="error"
-        ) 
+        )
+
+@bp.route('/api/status')
+@login_required
+def status():
+    """API endpoint for service status"""
+    return jsonify(get_service_state())
+
+@bp.route('/api/status', methods=['POST'])
+@login_required
+def update_status():
+    """Update service status"""
+    data = request.get_json()
+    if not isinstance(data, dict):
+        return jsonify({
+            'success': False,
+            'message': 'Invalid request format'
+        }), 400
+    
+    state = {
+        'active': bool(data.get('active', False)),
+        'last_updated': datetime.now().isoformat(),
+        'message': data.get('message', 'Status updated')
+    }
+    
+    if save_service_state(state):
+        return jsonify({
+            'success': True,
+            'state': state
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'message': 'Failed to save state'
+        }), 500
+
+@bp.route('/api/debug-mode', methods=['POST'])
+@login_required
+def toggle_debug_mode():
+    """Toggle debug mode"""
+    try:
+        data = request.get_json()
+        if data is None:
+            return jsonify({'error': 'No JSON data provided'}), 400
+            
+        active = data.get('active')
+        if active is None:
+            return jsonify({'error': 'Missing active state'}), 400
+            
+        # Check Redis connection
+        if redis_client is None:
+            # In development, just return success without Redis
+            if os.environ.get('FLASK_ENV') == 'development':
+                get_logger().log_activity(
+                    action="Debug Mode",
+                    details="Debug mode toggled in development (no Redis)",
+                    status="info"
+                )
+                return jsonify({'success': True, 'active': active})
+            return jsonify({'error': 'Redis not available'}), 503
+            
+        try:
+            # Set debug mode in Redis
+            redis_client.set('debug_mode', str(active).lower())
+        except Exception as redis_error:
+            get_logger().log_activity(
+                action="Debug Mode Error",
+                details=f"Redis error: {str(redis_error)}",
+                status="error"
+            )
+            # In development, continue without Redis
+            if os.environ.get('FLASK_ENV') == 'development':
+                return jsonify({'success': True, 'active': active})
+            return jsonify({'error': 'Failed to update debug mode'}), 500
+        
+        get_logger().log_activity(
+            action="Debug Mode",
+            details=f"Debug mode {'enabled' if active else 'disabled'}",
+            status="info"
+        )
+        
+        return jsonify({'success': True, 'active': active})
+        
+    except Exception as e:
+        error_msg = handle_error(e, "Debug Mode Toggle Failed")
+        return jsonify({'error': error_msg}), 500 

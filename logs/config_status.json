@@ -1,0 +1,13 @@
+{
+  "timestamp": "2025-02-23T12:58:32.011506",
+  "status": "warning",
+  "errors": [],
+  "warnings": [
+    {
+      "key": "DASHBOARD_PASSWORD",
+      "value": "***",
+      "message": "Recommended to use at least 8 characters in production",
+      "severity": "warning"
+    }
+  ]
+}

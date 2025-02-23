@@ -4,55 +4,107 @@ import time
 import os
 from werkzeug.utils import secure_filename
 import traceback
+import random
+import string
 
 from app.utils.logger import get_logger
+from app.utils.debug import debug_log, debug_print, is_debug_mode
 
 class MenuService:
     def __init__(self, db, storage):
         self.db = db
         self.storage = storage
-        self.bucket = 'menu-templates'
+        self.template_bucket = 'menu-templates'
+        self.menus_bucket = 'menus'
         self._ensure_bucket_exists()
         
+    @debug_log("Bucket Check", timing=True)
     def _ensure_bucket_exists(self):
-        """Ensure the storage bucket exists"""
+        """Ensure storage bucket exists"""
         try:
-            # Try to get bucket info
-            buckets = self.storage.list_buckets()
-            bucket_exists = any(b['name'] == self.bucket for b in buckets)
+            debug_print("\n=== Checking Storage Bucket ===")
+            debug_print(f"Bucket name: {self.template_bucket}")
             
-            if not bucket_exists:
-                try:
-                    # Create the bucket with minimal config
-                    self.storage.create_bucket(self.bucket)
-                    
-                    get_logger().log_activity(
-                        action="Bucket Created",
-                        details=f"Created storage bucket: {self.bucket}",
-                        status="success"
-                    )
-                    
-                    # Wait a moment for bucket to be ready
-                    time.sleep(1)
-                    
-                except Exception as bucket_error:
-                    # Log but don't fail - bucket might exist but be inaccessible
-                    get_logger().log_activity(
-                        action="Bucket Creation Note",
-                        details=str(bucket_error),
-                        status="info"
-                    )
+            # Try to get bucket info first
+            try:
+                debug_print("Checking if bucket exists...")
+                bucket_info = self.storage.from_(self.template_bucket).list()
+                if bucket_info is not None:  # If we can list files, bucket exists
+                    debug_print("✅ Bucket exists and is accessible")
+                    return True
+            except Exception as e:
+                debug_print(f"⚠️ Bucket info check failed: {str(e)}")
+                debug_print("Attempting bucket creation...")
+            
+            try:
+                # Create bucket with required parameters
+                debug_print("Creating new bucket with parameters:")
+                debug_print("- public: True")
+                debug_print("- file_size_limit: 5MB")
+                debug_print("- allowed_mime_types: ['image/jpeg', 'image/png', 'application/pdf']")
                 
-            return True
+                self.storage.create_bucket(
+                    self.template_bucket,
+                    options={
+                        'public': True,
+                        'file_size_limit': 5242880,  # 5MB
+                        'allowed_mime_types': ['image/jpeg', 'image/png', 'application/pdf']
+                    }
+                )
+                
+                get_logger().log_activity(
+                    action="Bucket Created",
+                    details={
+                        "bucket": self.template_bucket,
+                        "options": {
+                            "public": True,
+                            "file_size_limit": "5MB",
+                            "allowed_mime_types": ["image/jpeg", "image/png", "application/pdf"]
+                        }
+                    },
+                    status="success"
+                )
+                
+                debug_print("✅ Created new bucket successfully")
+                time.sleep(1)  # Wait for bucket to be ready
+                
+                # Verify bucket was created
+                debug_print("Verifying new bucket...")
+                verify = self.storage.from_(self.template_bucket).list()
+                if verify is not None:
+                    debug_print("✅ New bucket verified and accessible")
+                    return True
+                else:
+                    debug_print("❌ Bucket creation succeeded but verification failed")
+                    return False
+                
+            except Exception as e:
+                debug_print(f"❌ Bucket creation failed: {str(e)}")
+                debug_print("Full error details:", traceback.format_exc())
+                get_logger().log_activity(
+                    action="Template Bucket Creation Failed",
+                    details={
+                        "error": str(e),
+                        "traceback": traceback.format_exc()
+                    },
+                    status="error"
+                )
+                return False
             
         except Exception as e:
+            debug_print(f"❌ Bucket check failed: {str(e)}")
+            debug_print("Full error details:", traceback.format_exc())
             get_logger().log_activity(
                 action="Bucket Check Failed",
-                details=str(e),
+                details={
+                    "error": str(e),
+                    "traceback": traceback.format_exc()
+                },
                 status="error"
             )
             return False
     
+    @debug_log("Calculate Next Menu", timing=True)
     def calculate_next_menu(self):
         """Calculate which menu should be sent next"""
         try:
@@ -64,7 +116,7 @@ class MenuService:
                 .execute()
 
             if not settings_response.data:
-                print("No menu settings found")
+                debug_print("No menu settings found")
                 return None
 
             settings = settings_response.data[0]
@@ -88,17 +140,21 @@ class MenuService:
             season = settings['season']
             week_pair = "1_2" if (current_period % 2 == 0) else "3_4"
 
-            return {
+            result = {
                 'send_date': send_date,
                 'period_start': next_period_start,
                 'season': season,
                 'menu_pair': week_pair
             }
+            
+            debug_print("Calculated next menu:", result)
+            return result
 
         except Exception as e:
-            print(f"Error calculating next menu: {str(e)}")
+            debug_print("Error calculating next menu:", str(e))
             return None
     
+    @debug_log("Get Settings", timing=True)
     def get_settings(self) -> Optional[Dict[str, Any]]:
         """Get current menu settings"""
         try:
@@ -109,6 +165,7 @@ class MenuService:
                 .execute()
                 
             if not response.data:
+                debug_print("No settings found")
                 return None
                 
             settings = response.data[0]
@@ -123,10 +180,11 @@ class MenuService:
                     settings['season_change_date'], '%Y-%m-%d'
                 ).date()
                 
+            debug_print("Retrieved settings:", settings)
             return settings
             
         except Exception as e:
-            print(f"Error getting settings: {str(e)}")
+            debug_print("Error getting settings:", str(e))
             return None
     
     def _determine_season(self, date: datetime.date, settings: Dict[str, Any]) -> str:
@@ -158,103 +216,187 @@ class MenuService:
         """Handle menu template retrieval"""
         pass
 
-    def save_template(self, file, season, week):
-        """Save menu template to storage and database"""
-        max_retries = 3
-        retry_count = 0
-        
-        while retry_count < max_retries:
+    @debug_log("Save Template", timing=True)
+    def save_template(self, file, season: str, week: str):
+        """Save a menu template to storage and database."""
+        try:
+            debug_print("\n=== Starting Template Save ===")
+            debug_print(f"Input parameters:")
+            debug_print(f"- File: {file.filename}")
+            debug_print(f"- Content Type: {file.content_type}")
+            debug_print(f"- Season: {season}")
+            debug_print(f"- Week: {week}")
+            
+            # Validate inputs
+            if not file or not season:
+                debug_print("❌ Missing required parameters")
+                raise ValueError("Missing required parameters")
+            
+            # Convert season to lowercase and validate EXACTLY against allowed values
+            season = season.strip().lower()  # Remove any whitespace and convert to lowercase
+            allowed_seasons = {'summer', 'winter', 'dates'}
+            if season not in allowed_seasons:
+                debug_print(f"❌ Invalid season: '{season}'")
+                raise ValueError(f"Invalid season: '{season}'. Must be exactly one of: summer, winter, dates")
+            
+            # Validate week based on season
+            debug_print("Validating week number...")
+            if season == 'dates':
+                week_num = 0  # Dates templates always use week 0
+                debug_print("Using week 0 for dates template")
+            else:
+                if not week:
+                    debug_print("❌ Week is required for summer/winter templates")
+                    raise ValueError("Week is required for summer/winter templates")
+                try:
+                    week_num = int(week)
+                    if not 1 <= week_num <= 4:
+                        debug_print(f"❌ Invalid week number: {week_num}")
+                        raise ValueError("Week must be between 1 and 4 for summer/winter templates")
+                    debug_print(f"Week number validated: {week_num}")
+                except ValueError:
+                    debug_print("❌ Invalid week number format")
+                    raise ValueError("Invalid week number")
+            
+            # Ensure storage bucket exists
+            debug_print("\nVerifying storage bucket...")
+            if not self._ensure_bucket_exists():
+                debug_print("❌ Failed to ensure storage bucket exists")
+                raise Exception("Failed to ensure storage bucket exists")
+            debug_print("✅ Storage bucket verified")
+            
+            # Clean up existing templates
+            debug_print("\nCleaning up existing templates...")
+            self._cleanup_old_template(season, week_num)
+            
+            # Generate unique filename
+            timestamp = int(time.time() * 1000)
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+            file_ext = os.path.splitext(file.filename)[1].lower()
+            if not file_ext:
+                file_ext = '.png'  # Default to .png if no extension
+            filename = f"{season}_{'header' if season == 'dates' else f'week_{week_num}'}_{timestamp}_{random_suffix}{file_ext}"
+            debug_print(f"Generated filename: {filename}")
+            
+            # Upload new template
+            debug_print("\nUploading new template...")
+            file_data = file.read()
+            file.seek(0)  # Reset file pointer
+            
             try:
-                # Validate file first
-                self._validate_file(file)
-                
-                # Ensure bucket exists
-                if not self._ensure_bucket_exists():
-                    raise ValueError("Failed to create or access storage bucket")
-                
-                # Clean up old template
-                self._cleanup_old_template(season, week)
-                
-                # Generate unique filename
-                filename = secure_filename(f"{season.lower()}_week{week}_{int(time.time())}{os.path.splitext(file.filename)[1]}")
-                file_path = f"{season}/{filename}"
-                
-                # Read file content
-                file_content = file.read()
-                file.seek(0)
-                
-                # Upload to storage
-                self.storage.from_(self.bucket).upload(
-                    file_path,
-                    file_content,
-                    {'content-type': file.content_type}
+                debug_print("Attempting storage upload...")
+                upload_response = self.storage.from_(self.template_bucket).upload(
+                    path=filename,
+                    file=file_data,
+                    file_options={"content-type": file.content_type}
                 )
                 
-                # Get public URL
-                file_url = self.storage.from_(self.bucket).get_public_url(file_path)
+                if not upload_response:
+                    debug_print("❌ Upload failed - no response from storage")
+                    raise Exception("Upload failed - no response from storage")
                 
-                # Save to database
-                self.db.table('menu_templates').upsert({
-                    'season': season.lower(),
-                    'week': int(week),
-                    'file_path': file_path,
-                    'file_url': file_url,
-                    'file_type': file.content_type,
-                    'file_size': len(file_content),
-                    'updated_at': datetime.now().isoformat()
-                }).execute()
+                debug_print("✅ Upload successful")
+                debug_print("Upload response:", upload_response)
                 
-                get_logger().log_activity(
-                    action="Template Upload",
-                    details={
-                        'season': season,
-                        'week': week,
-                        'file_type': file.content_type,
-                        'file_size': len(file_content),
-                        'path': file_path
-                    },
-                    status="success"
-                )
+                # Get public URL - retry up to 3 times
+                debug_print("\nGetting public URL...")
+                template_url = None
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        template_url = self.storage.from_(self.template_bucket).get_public_url(filename)
+                        if template_url:
+                            debug_print(f"Got public URL on attempt {attempt + 1}: {template_url}")
+                            break
+                        debug_print(f"No URL returned on attempt {attempt + 1}, retrying...")
+                        time.sleep(1)  # Wait before retry
+                    except Exception as url_error:
+                        debug_print(f"Error getting URL on attempt {attempt + 1}: {str(url_error)}")
+                        if attempt == max_retries - 1:
+                            raise Exception(f"Failed to get public URL after {max_retries} attempts: {str(url_error)}")
+                        time.sleep(1)  # Wait before retry
                 
-                return {'success': True, 'url': file_url}
+                if not template_url:
+                    debug_print("❌ Failed to get public URL")
+                    raise Exception("Failed to get public URL for uploaded file")
                 
-            except ValueError as e:
-                # Don't retry validation errors
-                get_logger().log_activity(
-                    action="Template Upload Failed",
-                    details=str(e),
-                    status="error"
-                )
-                return {'error': str(e)}
+                # Update database
+                debug_print("\nUpdating database...")
+                
+                # Ensure data matches schema constraints exactly
+                db_data = {
+                    'season': season,  # Will be exactly 'summer', 'winter', or 'dates'
+                    'week': week_num,  # Will be 0 for dates, 1-4 for summer/winter
+                    'template_url': template_url,
+                    'file_path': filename
+                }
+                
+                debug_print("Database data:", db_data)
+                
+                # Try to refresh schema cache first
+                try:
+                    debug_print("Refreshing schema cache...")
+                    self.db.table('menu_templates').select('*').limit(1).execute()
+                    time.sleep(0.5)  # Small delay to ensure cache is updated
+                    debug_print("Schema cache refreshed")
+                except Exception as e:
+                    debug_print(f"⚠️ Schema cache refresh warning: {str(e)}")
+                
+                # Now attempt the upsert
+                debug_print("Executing database upsert...")
+                db_response = self.db.table('menu_templates')\
+                    .upsert(db_data)\
+                    .execute()
+                
+                if not db_response.data:
+                    debug_print("❌ Database update failed - no response")
+                    raise Exception("Database update failed - no response")
+                
+                debug_print("✅ Database updated successfully")
+                debug_print("=== Template Save Complete ===\n")
+                
+                return {
+                    'success': True, 
+                    'message': 'Template saved successfully',
+                    'url': template_url
+                }
                 
             except Exception as e:
-                retry_count += 1
-                if retry_count >= max_retries:
-                    get_logger().log_activity(
-                        action="Template Upload Failed",
-                        details=f"Failed after {max_retries} attempts: {str(e)}",
-                        status="error"
-                    )
-                    return {'error': str(e)}
-                
-                time.sleep(1)
-                get_logger().log_activity(
-                    action="Template Upload Retry",
-                    details=f"Attempt {retry_count} of {max_retries}",
-                    status="warning"
-                )
+                debug_print(f"\n❌ Error during upload/database update: {str(e)}")
+                # Try to clean up failed upload
+                try:
+                    debug_print("Attempting to clean up failed upload...")
+                    self.storage.from_(self.template_bucket).remove([filename])
+                    debug_print("Cleanup successful")
+                except Exception as cleanup_error:
+                    debug_print(f"⚠️ Cleanup failed: {str(cleanup_error)}")
+                raise e
+            
+        except Exception as e:
+            debug_print("\n❌ Error in save_template:")
+            debug_print(f"Error message: {str(e)}")
+            debug_print("Full error details:", traceback.format_exc())
+            return {
+                'success': False, 
+                'error': str(e)
+            }
 
     def get_templates(self):
         """Get all templates organized by season"""
         try:
             response = self.db.table('menu_templates').select('*').execute()
-            templates = {'summer': {}, 'winter': {}}
+            templates = {
+                'summer': {}, 
+                'winter': {},
+                'dates': {}  # Add dates section
+            }
             
             for template in response.data:
                 season = template['season']
-                week = str(template['week'])
+                week = str(template['week']) if season not in ['dates'] else 'header'
                 templates[season][week] = {
                     'file_url': template.get('file_url'),
+                    'file_path': template.get('file_path'),
                     'updated_at': template['updated_at']
                 }
             
@@ -265,16 +407,22 @@ class MenuService:
                 details=str(e),
                 status="error"
             )
-            return {'summer': {}, 'winter': {}}
+            return {'summer': {}, 'winter': {}, 'dates': {}}
 
     def get_template(self, season, week):
         """Get a specific template"""
         try:
-            response = self.db.table('menu_templates')\
+            query = self.db.table('menu_templates')\
                 .select('*')\
-                .eq('season', season.lower())\
-                .eq('week', int(week))\
-                .execute()
+                .eq('season', season.lower())
+            
+            # Handle dates template differently
+            if season.lower() == 'dates':
+                query = query.eq('week', 0)  # For dates template, week should be 0
+            else:
+                query = query.eq('week', int(week))
+                
+            response = query.execute()
                 
             if not response.data:
                 return None
@@ -292,6 +440,10 @@ class MenuService:
     def generate_preview(self, template, start_date):
         """Generate a preview of the menu template"""
         try:
+            print("\n=== Starting Preview Generation ===")
+            print(f"Template: {template}")
+            print(f"Start Date: {start_date}")
+            
             # Input validation
             if not template:
                 raise ValueError("Template is required")
@@ -308,15 +460,30 @@ class MenuService:
             if missing:
                 raise ValueError(f"Missing template fields: {', '.join(missing)}")
             
-            # Validate URL
-            file_url = template.get('file_url')
-            if not file_url or not file_url.startswith('http'):
+            print("\n=== Fetching Dates Template ===")
+            # Get dates template
+            dates_template = self.get_template('dates', 'header')
+            if not dates_template:
+                print("Dates template not found")
+                raise ValueError("Dates template not found. Please upload a dates template first.")
+            print(f"Found dates template: {dates_template}")
+            
+            # Validate URLs
+            template_url = template.get('file_url')
+            dates_url = dates_template.get('file_url')
+            print(f"\nTemplate URL: {template_url}")
+            print(f"Dates URL: {dates_url}")
+            
+            if not template_url or not template_url.startswith('http'):
                 raise ValueError("Invalid template URL")
+            if not dates_url or not dates_url.startswith('http'):
+                raise ValueError("Invalid dates template URL")
             
             # Format dates
             try:
                 period_end = start_date + timedelta(days=13)  # 2 weeks
                 date_range = f"{start_date.strftime('%d %b')} - {period_end.strftime('%d %b %Y')}"
+                print(f"\nCalculated date range: {date_range}")
             except Exception as e:
                 raise ValueError(f"Error formatting dates: {str(e)}")
             
@@ -324,7 +491,8 @@ class MenuService:
             preview_data = {
                 'success': True,
                 'template': {
-                    'url': file_url,
+                    'url': template_url,
+                    'dates_url': dates_url,
                     'season': template['season'].title(),
                     'week': template['week'],
                     'date_range': date_range,
@@ -333,39 +501,17 @@ class MenuService:
                 }
             }
             
-            # Log success
-            get_logger().log_activity(
-                action="Preview Generated",
-                details={
-                    'season': template['season'],
-                    'week': template['week'],
-                    'start_date': start_date.strftime('%Y-%m-%d'),
-                    'success': True
-                },
-                status="success"
-            )
+            print("\n=== Preview Generation Complete ===")
+            print(f"Preview data: {preview_data}")
             
             return preview_data
             
         except ValueError as e:
-            # Log validation errors
-            get_logger().log_activity(
-                action="Preview Validation Failed",
-                details=str(e),
-                status="warning"
-            )
+            print(f"\n=== Preview Generation Failed ===\nError: {str(e)}")
             raise
             
         except Exception as e:
-            # Log unexpected errors
-            get_logger().log_activity(
-                action="Preview Generation Failed",
-                details={
-                    'error': str(e),
-                    'traceback': traceback.format_exc()
-                },
-                status="error"
-            )
+            print(f"\n=== Preview Generation Failed ===\nError: {str(e)}")
             raise ValueError(f"Failed to generate preview: {str(e)}")
 
     def _validate_file(self, file):
@@ -410,10 +556,10 @@ class MenuService:
                 elif file.content_type == 'image/png' and not content.startswith(b'\x89PNG'):
                     raise ValueError("Invalid PNG file")
                 
+                return True
+                
             except Exception as e:
                 raise ValueError(f"File content validation failed: {str(e)}")
-            
-            return True
             
         except ValueError as e:
             raise e
@@ -435,7 +581,7 @@ class MenuService:
                 
                 # Then delete
                 try:
-                    self.storage.from_(self.bucket).remove([old_template['file_path']])
+                    self.storage.from_(self.template_bucket).remove([old_template['file_path']])
                     get_logger().log_activity(
                         action="Template Cleanup",
                         details={
@@ -468,8 +614,8 @@ class MenuService:
             backup_path = f"backup/{template['season']}/{os.path.basename(template['file_path'])}"
             
             # Copy file to backup
-            content = self.storage.from_(self.bucket).download(template['file_path'])
-            self.storage.from_(self.bucket).upload(
+            content = self.storage.from_(self.template_bucket).download(template['file_path'])
+            self.storage.from_(self.template_bucket).upload(
                 backup_path,
                 content,
                 {'content-type': template.get('file_type', 'application/octet-stream')}
@@ -486,4 +632,70 @@ class MenuService:
                 action="Template Backup Failed",
                 details=str(e),
                 status="warning"
-            ) 
+            )
+
+    def delete_template(self, season: str, week: int) -> Dict[str, Any]:
+        """Delete a menu template"""
+        try:
+            print(f"\n=== Starting Template Deletion ===")
+            print(f"Season: {season}, Week: {week}")
+            
+            # Get the template first
+            template = self.get_template(season, week)
+            if not template:
+                print("Template not found")
+                return {'error': 'Template not found'}
+            
+            print(f"Found template: {template}")
+            
+            # Delete from storage first
+            try:
+                print("\n=== Deleting from Storage ===")
+                files = self.storage.from_('menu-templates').list()
+                pattern = f"templates/{season.lower()}_week_{week}"
+                matching_files = [f for f in files if f['name'].startswith(pattern)]
+                
+                print(f"Found {len(matching_files)} matching files to delete")
+                for file_obj in matching_files:
+                    print(f"Deleting: {file_obj['name']}")
+                    self.storage.from_('menu-templates').remove([file_obj['name']])
+                    time.sleep(0.5)
+                    print(f"Deleted: {file_obj['name']}")
+            except Exception as e:
+                print(f"Error deleting from storage: {str(e)}")
+            
+            # Wait for storage deletion
+            time.sleep(1)
+            
+            print("\n=== Deleting from Database ===")
+            # Delete from database
+            query = self.db.table('menu_templates')\
+                .delete()\
+                .eq('season', season.lower())
+                
+            # Handle dates template differently
+            if season.lower() == 'dates':
+                query = query.is_('week', None)
+            else:
+                query = query.eq('week', int(week))
+                
+            query.execute()
+            print("Database deletion complete")
+            
+            get_logger().log_activity(
+                action="Template Deleted",
+                details=f"Deleted template for {season} week {week}",
+                status="success"
+            )
+            
+            print("\n=== Deletion Complete ===")
+            return {'success': True}
+            
+        except Exception as e:
+            print(f"\n=== Deletion Failed ===\nError: {str(e)}")
+            get_logger().log_activity(
+                action="Template Delete Failed",
+                details=str(e),
+                status="error"
+            )
+            return {'error': str(e)} 

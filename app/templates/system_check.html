@@ -1,0 +1,45 @@
+async function toggleDebugMode() {
+    const debugSwitch = document.getElementById('debugModeSwitch');
+    const debugStatus = document.getElementById('debugStatus');
+    const debugActions = document.getElementById('debugActions');
+    const isDebug = debugSwitch.checked;
+    
+    // Disable switch during request
+    debugSwitch.disabled = true;
+    
+    try {
+        const response = await fetch('/api/debug-mode', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ active: isDebug })
+        });
+        
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || 'Failed to toggle debug mode');
+        }
+        
+        const data = await response.json();
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        debugStatus.innerHTML = `
+            <div class="alert alert-${isDebug ? 'warning' : 'info'}">
+                Debug Mode: ${isDebug ? 'Active' : 'Inactive'}
+            </div>`;
+        debugActions.style.display = isDebug ? 'block' : 'none';
+    } catch (error) {
+        console.error('Debug toggle error:', error);
+        debugStatus.innerHTML = `
+            <div class="alert alert-danger">
+                ⚠️ ${error.message}
+            </div>`;
+        // Revert switch state
+        debugSwitch.checked = !isDebug;
+    } finally {
+        debugSwitch.disabled = false;
+    }
+} 
