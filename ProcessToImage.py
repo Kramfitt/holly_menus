@@ -11,27 +11,95 @@ import platform
 def check_dependencies() -> bool:
     """
     Check if all required dependencies are installed and accessible.
+    Returns: bool indicating if all dependencies are properly installed
     """
+    print("\nChecking dependencies...")
+    all_ok = True
+
     # Check Tesseract installation
-    if not shutil.which('tesseract'):
-        print("Error: Tesseract is not installed or not in PATH")
+    print("\nChecking Tesseract OCR:")
+    try:
+        import pytesseract
+        tesseract_version = pytesseract.get_tesseract_version()
+        print(f"✓ Tesseract version: {tesseract_version}")
+        
+        # Test Tesseract functionality
+        from PIL import Image
+        import numpy as np
+        # Create a simple test image
+        test_img = Image.fromarray(np.zeros((50, 200), dtype=np.uint8))
+        try:
+            pytesseract.image_to_string(test_img)
+            print("✓ Tesseract OCR test successful")
+        except Exception as e:
+            print(f"✗ Tesseract OCR test failed: {e}")
+            all_ok = False
+            
+    except Exception as e:
+        print(f"✗ Tesseract error: {e}")
         print("Please install Tesseract from: https://github.com/UB-Mannheim/tesseract/wiki")
-        return False
+        all_ok = False
+
+    # Check Tesseract path
+    import shutil
+    tesseract_path = shutil.which('tesseract')
+    if tesseract_path:
+        print(f"✓ Tesseract found at: {tesseract_path}")
+    else:
+        print("✗ Tesseract not found in PATH")
+        # Check common installation paths
+        common_paths = [
+            '/usr/bin/tesseract',
+            '/usr/local/bin/tesseract',
+            '/opt/homebrew/bin/tesseract',
+            '/app/.apt/usr/bin/tesseract',  # Common path on Render
+            'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'  # Windows path
+        ]
+        for path in common_paths:
+            if os.path.exists(path):
+                print(f"✓ Found Tesseract at alternate location: {path}")
+                break
+        else:
+            print("✗ Tesseract not found in common locations")
+            all_ok = False
+
+    # Check Tesseract language data
+    try:
+        import subprocess
+        result = subprocess.run(['tesseract', '--list-langs'], capture_output=True, text=True)
+        if 'eng' in result.stdout:
+            print("✓ English language data installed")
+        else:
+            print("✗ English language data not found")
+            all_ok = False
+    except Exception as e:
+        print(f"✗ Could not verify language data: {e}")
+        all_ok = False
 
     # Check Poppler installation
+    print("\nChecking Poppler:")
     try:
         from pdf2image.exceptions import PDFPageCountError
         # Try to find pdftoppm in PATH
         if not shutil.which('pdftoppm') and platform.system() != 'Windows':
-            print("Error: Poppler (pdftoppm) is not installed or not in PATH")
+            print("✗ Poppler (pdftoppm) not found in PATH")
             print("Please install poppler-utils package")
-            return False
+            all_ok = False
+        else:
+            print("✓ Poppler installation verified")
     except ImportError:
-        print("Error: pdf2image package is not properly installed")
+        print("✗ pdf2image package not properly installed")
         print("Please run: pip install pdf2image==1.17.0")
-        return False
+        all_ok = False
 
-    return True
+    # Final status
+    print("\nDependency check summary:")
+    if all_ok:
+        print("✅ All dependencies are properly installed")
+    else:
+        print("❌ Some dependencies are missing or not properly configured")
+        
+    return all_ok
 
 def get_poppler_path() -> Optional[str]:
     """
