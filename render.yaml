@@ -2,8 +2,11 @@ services:
   # Web App
   - type: web
     name: menu-system
-    env: docker
-    dockerfilePath: ./Dockerfile
+    env: python
+    buildCommand: |
+      apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng poppler-utils
+      pip install -r requirements.txt
+    startCommand: gunicorn app:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
@@ -27,8 +30,13 @@ services:
   # Worker Service
   - type: worker
     name: menu-worker
-    env: docker
-    dockerfilePath: ./Dockerfile
+    env: python
+    buildCommand: |
+      apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng poppler-utils
+      pip install -r requirements.txt
+    startCommand: |
+      python test_tesseract.py
+      python worker.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
