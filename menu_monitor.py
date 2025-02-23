@@ -187,6 +187,14 @@ class MenuEmailMonitor:
         Returns a dictionary mapping day names to dates.
         """
         try:
+            # Set Tesseract path based on platform
+            if platform.system() == 'Windows':
+                pytesseract.pytesseract.tesseract_cmd = 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
+            else:
+                # On Linux, Tesseract should be in PATH
+                if not shutil.which('tesseract'):
+                    raise RuntimeError("Tesseract is not installed or not in PATH")
+
             # Read image
             image = cv2.imread(image_path)
             if image is None:
@@ -206,8 +214,14 @@ class MenuEmailMonitor:
             # Convert to PIL Image for Tesseract
             pil_image = Image.fromarray(binary)
 
-            # Extract text
-            text = pytesseract.image_to_string(pil_image)
+            # Extract text with improved configuration
+            text = pytesseract.image_to_string(
+                pil_image,
+                config='--psm 6'  # Assume uniform block of text
+            )
+            
+            # Log the extracted text for debugging
+            logger.info(f"Extracted text from header:\n{text}")
             
             # Define regex pattern for dates
             # Matches patterns like "Mon 3rd March", "Tue 4th March", etc.
