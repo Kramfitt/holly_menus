@@ -3,17 +3,10 @@ FROM python:3.11-slim
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
-    DEBIAN_FRONTEND=noninteractive \
     TESSERACT_PATH=/usr/bin/tesseract
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    poppler-utils \
-    tesseract-ocr \
-    tesseract-ocr-eng \
-    libtesseract-dev \
-    libleptonica-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Install Tesseract
+RUN apt-get update && apt-get install -y tesseract-ocr
 
 # Set working directory
 WORKDIR /app
@@ -26,7 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Verify Tesseract installation
-RUN python test_tesseract.py
+RUN tesseract --version
 
-# Default command (will be overridden by render.yaml)
+# Default command
 CMD ["gunicorn", "app:app"] 

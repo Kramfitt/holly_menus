@@ -3,8 +3,7 @@ services:
   - type: web
     name: menu-system
     env: docker
-    dockerfilePath: ./Dockerfile
-    dockerCommand: gunicorn app:app
+    dockerfilePath: Dockerfile
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
@@ -29,7 +28,7 @@ services:
   - type: worker
     name: menu-worker
     env: docker
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: Dockerfile
     dockerCommand: python worker.py
     envVars:
       - key: PYTHON_VERSION
