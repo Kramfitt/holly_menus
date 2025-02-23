@@ -8,6 +8,21 @@ from dataclasses import dataclass
 import json
 from datetime import datetime
 
+class MockRedis:
+    """Mock Redis client for development"""
+    def __init__(self):
+        self._data = {}
+        
+    def get(self, key):
+        return self._data.get(key, '').encode()
+        
+    def set(self, key, value):
+        self._data[key] = value
+        return True
+        
+    def ping(self):
+        return True
+
 # Move to top with other constants
 REQUIRED_CONFIG = {
     'SECRET_KEY': True,
@@ -233,42 +248,31 @@ try:
         supabase_url=os.getenv('SUPABASE_URL', ''),
         supabase_key=os.getenv('SUPABASE_KEY', '')
     )
-    
-    # Clean up proxy settings
-    if hasattr(supabase, '_http_client'):
-        if hasattr(supabase._http_client, 'proxies'):
-            delattr(supabase._http_client, 'proxies')
-            
-    # Initialize Redis (optional in development)
+
+    # Initialize Redis with fallback to MockRedis in development
     try:
-        redis_host = os.getenv('REDIS_HOST', 'localhost')
-        redis_port = int(os.getenv('REDIS_PORT', 6379))
-        redis_url = f"redis://{redis_host}:{redis_port}"
-        print(f"Connecting to Redis at {redis_url}")
-        redis_client = redis.from_url(redis_url, decode_responses=True)
-        # Test connection
-        redis_client.ping()
-        print("✅ Redis connection successful")
+        redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+        redis_client = redis.from_url(redis_url)
+        redis_client.ping()  # Test connection
+        print("✅ Redis connected successfully")
     except Exception as e:
-        print(f"⚠️ Redis connection error: {e}")
+        print(f"⚠️ Redis connection failed: {str(e)}")
         if os.getenv('FLASK_ENV') == 'development':
-            print("⚠️ Redis not available - some features will be disabled")
-            redis_client = None
+            print("🔄 Using MockRedis for development")
+            redis_client = MockRedis()
         else:
             raise
-    
 except Exception as e:
-    raise RuntimeError(f"Failed to initialize services: {str(e)}")
+    print(f"❌ Service initialization error: {str(e)}")
+    raise
 
-# Email settings
+# Export constants
+SECRET_KEY = os.getenv('SECRET_KEY')
+DASHBOARD_PASSWORD = os.getenv('DASHBOARD_PASSWORD')
 SMTP_SERVER = os.getenv('SMTP_SERVER')
-SMTP_PORT = int(os.getenv('SMTP_PORT', 587))
+SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
 SMTP_USERNAME = os.getenv('SMTP_USERNAME')
 SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
-
-# Security settings
-SECRET_KEY = os.getenv('SECRET_KEY', 'dev-key-please-change')
-DASHBOARD_PASSWORD = os.getenv('DASHBOARD_PASSWORD', 'admin')
 
 # Export in __all__
 __all__ = [

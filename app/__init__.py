@@ -45,6 +45,9 @@ def create_app():
             DEBUG=os.getenv('FLASK_DEBUG', '0') == '1'
         )
         
+        # Store Redis client in app config
+        app.config['redis_client'] = redis_client
+        
         # Verify required configuration
         missing_config = []
         for key, required in REQUIRED_CONFIG.items():
@@ -64,7 +67,16 @@ def create_app():
         register_filters(app)
         
         # Initialize services
-        app.menu_service = MenuService(db=supabase, storage=supabase.storage)
+        try:
+            app.menu_service = MenuService(db=supabase, storage=supabase.storage)
+            print("✅ Menu service initialized successfully")
+        except Exception as e:
+            print(f"❌ Failed to initialize menu service: {e}")
+            if app.config['FLASK_ENV'] == 'development':
+                print("⚠️ Development mode - continuing without menu service")
+            else:
+                raise
+        
         app.email_service = EmailService(config={
             'SMTP_SERVER': SMTP_SERVER,
             'SMTP_PORT': SMTP_PORT,

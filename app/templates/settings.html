@@ -183,11 +183,6 @@
                         <div class="template-status">
                             <span class="text-success">✓ Template uploaded</span>
                             <div class="btn-group btn-group-sm mt-2">
-                                <button class="btn btn-outline-primary preview-template" 
-                                        data-url="{{ templates.dates.header.file_url }}"
-                                        title="Preview template" aria-label="Preview template">
-                                    <span class="nav-icon" aria-hidden="true">👀</span> Preview
-                                </button>
                                 <button class="btn btn-outline-danger delete-template"
                                         data-season="dates" data-week="header"
                                         title="Delete template" aria-label="Delete template">
@@ -234,11 +229,6 @@
                                 <div class="template-status">
                                     <span class="text-success">✓ Template uploaded</span>
                                     <div class="btn-group btn-group-sm mt-2">
-                                        <button class="btn btn-outline-primary preview-template" 
-                                                data-url="{{ templates.summer[week|string].file_url }}"
-                                                title="Preview template" aria-label="Preview template">
-                                            <span class="nav-icon" aria-hidden="true">👀</span> Preview
-                                        </button>
                                         <button class="btn btn-outline-danger delete-template"
                                                 data-season="summer" data-week="{{ week }}"
                                                 title="Delete template" aria-label="Delete template">
@@ -270,11 +260,6 @@
                                 <div class="template-status">
                                     <span class="text-success">✓ Template uploaded</span>
                                     <div class="btn-group btn-group-sm mt-2">
-                                        <button class="btn btn-outline-primary preview-template" 
-                                                data-url="{{ templates.winter[week|string].file_url }}"
-                                                title="Preview template" aria-label="Preview template">
-                                            <span class="nav-icon" aria-hidden="true">👀</span> Preview
-                                        </button>
                                         <button class="btn btn-outline-danger delete-template"
                                                 data-season="winter" data-week="{{ week }}"
                                                 title="Delete template" aria-label="Delete template">
@@ -434,6 +419,18 @@ $(document).ready(function() {
         const season = zone.data('season');
         const week = zone.data('week');
         
+        // Validate season
+        if (!season || !['summer', 'winter', 'dates'].includes(season.toLowerCase())) {
+            showAlert('danger', '😅 Invalid season value. Must be summer or winter.');
+            return;
+        }
+
+        // Validate week
+        if (season !== 'dates' && (!week || isNaN(week) || week < 1 || week > 4)) {
+            showAlert('danger', '😅 Invalid week value. Must be between 1 and 4.');
+            return;
+        }
+        
         // Check if template already exists by looking for success checkmark
         const templateExists = zone.find('.text-success').length > 0;
         
@@ -445,7 +442,7 @@ $(document).ready(function() {
         
         const formData = new FormData();
         formData.append('template', file);
-        formData.append('season', season);
+        formData.append('season', season.toLowerCase());  // Ensure lowercase
         formData.append('week', week);
         
         // Show loading state
@@ -459,6 +456,13 @@ $(document).ready(function() {
             </div>
         `);
         
+        // Log what we're sending
+        console.log('Uploading template:', {
+            season: season,
+            week: week,
+            filename: file.name
+        });
+        
         $.ajax({
             url: '/api/upload-template',
             type: 'POST',
@@ -467,12 +471,15 @@ $(document).ready(function() {
             contentType: false,
             success: function(response) {
                 showAlert('success', '✨ Template uploaded successfully!');
-                location.reload();
+                // Force a complete page reload from the server
+                window.location.href = window.location.href;
             },
             error: function(xhr, status, error) {
                 zone.find('.upload-loading').remove();
                 zone.find('.upload-prompt, .template-status').show();
-                showAlert('danger', '😅 Upload failed: ' + (xhr.responseJSON?.error || error));
+                const errorMsg = xhr.responseJSON?.error || error;
+                console.error('Upload failed:', errorMsg);
+                showAlert('danger', '😅 Upload failed: ' + errorMsg);
             }
         });
     }

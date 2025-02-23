@@ -3,7 +3,7 @@
 {% block title %}Preview - Menu System{% endblock %}
 
 {% block styles %}
-/* Preview-specific styles */
+<style>
 .preview-container {
     position: relative;
     min-height: 300px;
@@ -17,18 +17,6 @@
     text-align: center;
 }
 
-.preview-emoji {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-    display: inline-block;
-    animation: bounce 1s infinite;
-}
-
-@keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-20px); }
-}
-
 .preview-card {
     opacity: 0;
     transform: translateY(20px);
@@ -38,12 +26,6 @@
 .preview-card.show {
     opacity: 1;
     transform: translateY(0);
-}
-
-.date-range {
-    color: #8b5cf6;
-    font-weight: 600;
-    margin: 1rem 0;
 }
 
 .template-info {
@@ -61,53 +43,85 @@
     align-items: center;
     gap: 0.5rem;
 }
+
+.preview-image {
+    max-height: 800px;
+    width: 100%;
+    object-fit: contain;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    background: #fff;
+}
+
+.date-range {
+    text-align: center;
+    font-size: 1.1em;
+    color: #495057;
+    margin: 1rem 0;
+    padding: 0.5rem;
+    background: #e9ecef;
+    border-radius: 0.25rem;
+}
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <div class="card mb-4">
-            <div class="card-header">
-                <span class="nav-icon">👀</span> Menu Preview
+<div class="container">
+    <!-- Navigation -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="d-flex gap-3">
+                <a href="/" class="btn btn-outline-primary">
+                    <i class="fas fa-home"></i> Dashboard
+                </a>
+                <a href="/settings" class="btn btn-outline-primary">
+                    <i class="fas fa-cog"></i> Settings
+                </a>
+                <a href="/preview" class="btn btn-outline-primary active">
+                    <i class="fas fa-eye"></i> Preview
+                </a>
             </div>
-            <div class="card-body">
-                <form id="previewForm" class="mb-4">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Season</label>
-                                <select class="form-control" name="season" required
-                                        title="Select menu season" aria-label="Menu season">
-                                    <option value="summer">Summer</option>
-                                    <option value="winter">Winter</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Week</label>
-                                <select class="form-control" name="week" required
-                                        title="Select menu week" aria-label="Menu week">
-                                    <option value="1">Week 1</option>
-                                    <option value="2">Week 2</option>
-                                    <option value="3">Week 3</option>
-                                    <option value="4">Week 4</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary">
-                        <span class="preview-icon">🎨</span> Generate Preview
-                    </button>
-                </form>
+        </div>
+    </div>
 
-                <div class="preview-container">
-                    <div class="preview-loading d-none">
-                        <div class="preview-emoji">🎨</div>
-                        <div class="preview-text">Generating preview...</div>
+    <!-- Menu Preview Section -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Menu Preview</h5>
+        </div>
+        <div class="card-body">
+            <form id="previewForm" class="mb-4">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Template Type</label>
+                            <select class="form-control" name="season" id="seasonSelect" required
+                                    title="Select template type" aria-label="Template type">
+                                <option value="summer">Summer Menu</option>
+                                <option value="winter">Winter Menu</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="preview-content"></div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Week</label>
+                            <select class="form-control" name="week" id="weekSelect" required
+                                    title="Select menu week" aria-label="Menu week">
+                                <option value="1">Week 1</option>
+                                <option value="2">Week 2</option>
+                                <option value="3">Week 3</option>
+                                <option value="4">Week 4</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-eye"></i> Generate Preview
+                </button>
+            </form>
+            
+            <div id="previewContent" class="preview-container">
+                <!-- Preview content will be loaded here -->
             </div>
         </div>
     </div>
@@ -116,134 +130,118 @@
 
 {% block scripts %}
 <script>
-$(document).ready(function() {
-    $('#previewForm').on('submit', function(e) {
-        e.preventDefault();
-        
-        const form = $(this);
-        const loading = $('.preview-loading');
-        const content = $('.preview-content');
-        
-        // Show loading
-        loading.removeClass('d-none');
-        content.empty();
-        
-        // Get form data
-        const season = form.find('[name="season"]').val();
-        const week = form.find('[name="week"]').val();
-        
-        $.get('/api/preview', {
-            season: season,
-            week: week
-        })
-        .done(function(response) {
-            // Create preview card
-            const card = $(`
-                <div class="preview-card">
-                    <div class="template-info">
-                        <span><span class="nav-icon">${season === 'summer' ? '🌞' : '❄️'}</span> ${response.template.season}</span>
-                        <span><span class="nav-icon">📅</span> Week ${response.template.week}</span>
-                        <span><span class="nav-icon">📆</span> ${response.template.date_range}</span>
-                    </div>
-                    <div class="preview-image-container">
-                        <img src="${response.template.url}" 
-                             class="img-fluid" 
-                             alt="Menu Preview"
-                             onerror="handleImageError(this)">
-                    </div>
-                </div>
-            `);
-            
-            content.html(card);
-            setTimeout(() => card.addClass('show'), 100);
-        })
-        .fail(function(xhr) {
-            const response = xhr.responseJSON || {};
-            const error = response.error || 'Failed to generate preview';
-            const details = response.details || {};
-            const suggestions = response.suggestions || {};
-            
-            let errorHtml = `
-                <div class="alert alert-danger">
-                    <h5 class="alert-heading">😅 ${error}</h5>
-                    <div class="mt-2">
-            `;
-            
-            // Add specific error messages with suggestions
-            if (typeof details === 'object') {
-                Object.keys(details).forEach(key => {
-                    if (details[key]) {
-                        errorHtml += `
-                            <div class="mb-2">
-                                <div class="text-danger">${details[key]}</div>
-                                ${suggestions[key] ? `
-                                    <small class="text-muted">
-                                        <span class="nav-icon">💡</span> ${suggestions[key]}
-                                    </small>
-                                ` : ''}
-                            </div>
-                        `;
-                    }
-                });
-            } else if (details.message) {
-                errorHtml += `
-                    <div class="mb-2">
-                        <div>${details.message}</div>
-                        ${details.suggestion ? `
-                            <small class="text-muted">
-                                <span class="nav-icon">💡</span> ${details.suggestion}
-                            </small>
-                        ` : ''}
-                    </div>
-                `;
-            }
-            
-            // Add help text if available
-            if (response.help) {
-                errorHtml += `
-                    <hr>
-                    <div class="text-muted">
-                        <span class="nav-icon">💡</span> ${response.help}
-                    </div>
-                `;
-            }
-            
-            // Add retry button
-            errorHtml += `
-                <div class="mt-3">
-                    <button class="btn btn-outline-primary btn-sm retry-preview">
-                        <span class="nav-icon">🔄</span> Try Again
-                    </button>
-                </div>
-            `;
-            
-            errorHtml += '</div></div>';
-            content.html(errorHtml);
-            
-            // Add retry handler
-            $('.retry-preview').click(function() {
-                $('#previewForm').submit();
-            });
-        })
-        .always(function() {
-            loading.addClass('d-none');
-        });
-    });
+// Show loading state
+function showLoading() {
+    const content = document.getElementById('previewContent');
+    content.innerHTML = `
+        <div class="preview-loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading preview...</span>
+            </div>
+            <p class="mt-3">Generating preview...</p>
+        </div>
+    `;
+}
 
-    // Handle image load errors
-    function handleImageError(img) {
-        $(img).replaceWith(`
-            <div class="alert alert-warning">
-                <span class="nav-icon">⚠️</span> Failed to load preview image
-                <div class="mt-2">
-                    <small class="text-muted">
-                        The template file might be inaccessible or corrupted.
-                        Try uploading it again from Settings.
-                    </small>
+// Show error message
+function showError(message, details = '') {
+    const content = document.getElementById('previewContent');
+    content.innerHTML = `
+        <div class="alert alert-danger">
+            <h5 class="alert-heading"><i class="fas fa-exclamation-circle"></i> Error</h5>
+            <p class="mb-0">${message}</p>
+            ${details ? `<small class="d-block mt-2">${details}</small>` : ''}
+        </div>
+    `;
+}
+
+// Handle form submission
+document.getElementById('previewForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const season = document.getElementById('seasonSelect').value;
+    const week = document.getElementById('weekSelect').value;
+    
+    showLoading();
+    
+    try {
+        const response = await fetch(`/api/preview?season=${season}&week=${week}`);
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || data.details?.message || 'Failed to generate preview');
+        }
+        
+        const content = document.getElementById('previewContent');
+        content.innerHTML = `
+            <div class="preview-card">
+                <div class="template-info">
+                    <span>
+                        <i class="fas fa-${data.template.season.toLowerCase() === 'summer' ? 'sun' : 'snowflake'}"></i>
+                        ${data.template.season} Menu
+                    </span>
+                    <span>
+                        <i class="fas fa-calendar-week"></i>
+                        Week ${data.template.week}
+                    </span>
+                </div>
+                <div class="date-range">
+                    <i class="fas fa-calendar-alt"></i>
+                    ${data.template.date_range}
+                </div>
+                <div class="text-center">
+                    <img 
+                        src="${data.template.template_url}" 
+                        alt="Menu Template" 
+                        class="preview-image"
+                        onload="handleImageLoad(this)"
+                        onerror="handleImageError(this)"
+                    >
                 </div>
             </div>
-        `);
+        `;
+        
+        // Trigger animation
+        setTimeout(() => {
+            document.querySelector('.preview-card').classList.add('show');
+        }, 100);
+        
+    } catch (error) {
+        showError('Failed to generate preview', error.message);
     }
+});
+
+// Handle image load errors
+function handleImageError(img) {
+    console.error('Failed to load image:', img.src);
+    img.style.display = 'none';
+    img.parentElement.innerHTML = `
+        <div class="alert alert-warning">
+            <h5 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> Image Load Error</h5>
+            <p class="mb-0">Failed to load the preview image.</p>
+            <small>Please ensure both the menu template and dates header template are uploaded.</small>
+            <div class="mt-3">
+                <a href="/settings" class="btn btn-primary btn-sm">
+                    <i class="fas fa-upload"></i> Upload Templates
+                </a>
+            </div>
+        </div>
+    `;
+}
+
+function handleImageLoad(img) {
+    // Remove any existing error messages
+    const errorDiv = img.parentElement.querySelector('.alert');
+    if (errorDiv) {
+        errorDiv.remove();
+    }
+    img.style.display = 'block';
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    // Trigger initial preview
+    document.getElementById('previewForm').dispatchEvent(new Event('submit'));
 });
 </script>
 {% endblock %} 

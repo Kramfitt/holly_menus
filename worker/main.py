@@ -20,6 +20,7 @@ from app.services.menu_service import MenuService
 from app.services.email_service import EmailService
 from app.utils.logger import Logger
 from worker.scheduler import MenuScheduler
+import requests
 
 # Force load from .env file
 load_dotenv(override=True)
@@ -148,36 +149,21 @@ def get_menu_settings():
     return settings_response.data[0] if settings_response.data else None
 
 def get_menu_template(season, week_number):
-    """Get the correct menu template from Supabase"""
+    """Get menu template from storage"""
     try:
-        menu_name = f"{season.lower()}_week_{week_number}"
-        print(f"Looking for menu template: {menu_name}")  # Debug log
-        
-        response = supabase.table('menus')\
+        template = supabase.table('menu_templates')\
             .select('*')\
-            .eq('name', menu_name)\
+            .eq('season', season.lower())\
+            .eq('week', int(week_number) if season.lower() != 'dates' else 0)\
             .execute()
             
-        if not response.data:
-            logger.log_activity(
-                action="Menu Check",
-                details=f"Menu template missing for {season.lower()} week {week_number}",
-                status="warning"
-            )
+        if not template.data:
             return None
-        
-        # Get the file from storage
-        file_path = response.data[0]['file_path']
-        file_data = supabase.storage.from_('menu-templates').download(file_path)
-        
-        return file_data
+            
+        return template.data[0]
         
     except Exception as e:
-        logger.log_activity(
-            action="Menu Template Error",
-            details=str(e),
-            status="error"
-        )
+        print(f"Error getting template: {e}")
         return None
 
 def calculate_next_menu():
@@ -338,55 +324,88 @@ def draw_dates_on_menu(image_data, start_date):
 def send_menu_email(start_date, recipient_list, season, week_number):
     """Send menu email to recipients"""
     try:
-        print(f"Starting menu email send process...")  # Debug log
-        print(f"Parameters: start_date={start_date}, season={season}, week={week_number}")
-        print(f"Recipients: {recipient_list}")
-        
         # Get menu template
-        menu_data = get_menu_template(season, week_number)
-        print(f"Menu template retrieved, size: {len(menu_data)} bytes")
+        menu_template = get_menu_template(season, week_number)
+        if not menu_template:
+            raise ValueError(f"No template found for {season} week {week_number}")
+
+        # Get dates template
+        dates_template = get_menu_template('dates', 0)  # Use week=0 for dates template
+        if not dates_template:
+            raise ValueError("Dates header template not found")
         
-        # Draw dates on menu
-        menu_with_dates = draw_dates_on_menu(menu_data, start_date)
-        print("Dates drawn on menu successfully")
-        
-        # Create email
+        dates_template_url = dates_template.get('template_url')
+        if not dates_template_url:
+            raise ValueError("Invalid dates template URL")
+
+        # Create MenuService instance
+        menu_service = MenuService(db=supabase, storage=supabase.storage)
+
+        # Merge the templates
+        merged_template = menu_service.merge_header_with_template(
+            source_image=dates_template_url,
+            template_path=menu_template['template_url'],
+            header_proportion=0.20  # Header takes up 20% of the height
+        )
+
+        if not merged_template:
+            raise ValueError("Failed to merge templates")
+
+        # Format dates
+        period_start = start_date
+        period_end = period_start + timedelta(days=13)  # 2 weeks
+        date_range = f"{period_start.strftime('%d %b')} - {period_end.strftime('%d %b %Y')}"
+
+        # Create email message
         msg = MIMEMultipart()
-        msg['Subject'] = f'Menu for week starting {start_date.strftime("%d %B %Y")}'
-        msg['From'] = SMTP_USERNAME
+        msg['From'] = os.getenv('SMTP_USERNAME')
         msg['To'] = ', '.join(recipient_list)
-        
-        # Add body text
-        body = f"""
-        Please find attached the menu for:
-        {start_date.strftime('%d %B')} - {(start_date + timedelta(days=6)).strftime('%d %B %Y')}
-        
-        Season: {season}
-        Week: {week_number}
-        """
+        msg['Subject'] = f"Menu for week starting {period_start.strftime('%B %d, %Y')}"
+
+        # Email body
+        body = f"""Hello,
+
+Please find attached the menu for the period:
+{date_range}
+
+Menu Type: {season} Week {week_number}
+
+Best regards,
+Menu System"""
+
         msg.attach(MIMEText(body, 'plain'))
-        
-        # Attach menu image
-        img_attachment = MIMEImage(menu_with_dates)
-        img_attachment.add_header('Content-Disposition', 'attachment', 
-                                filename=f'menu_{start_date.strftime("%Y%m%d")}.png')
-        msg.attach(img_attachment)
-        
+
+        # Download and attach the merged template
+        response = requests.get(merged_template)
+        if response.status_code == 200:
+            attachment = MIMEApplication(response.content, _subtype='png')
+            attachment.add_header('Content-Disposition', 'attachment', 
+                                filename=f"Menu_{period_start.strftime('%Y-%m-%d')}.png")
+            msg.attach(attachment)
+        else:
+            raise ValueError("Failed to download merged template")
+
         # Send email
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
             server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.login(os.getenv('SMTP_USERNAME'), os.getenv('SMTP_PASSWORD'))
             server.send_message(msg)
-            
-        logger.log_activity(
+
+        get_logger().log_activity(
             action="Menu Email Sent",
-            details=f"Menu sent to {len(recipient_list)} recipients",
+            details={
+                'recipients': recipient_list,
+                'season': season,
+                'week': week_number,
+                'date_range': date_range
+            },
             status="success"
         )
+
         return True
-        
+
     except Exception as e:
-        logger.log_activity(
+        get_logger().log_activity(
             action="Menu Email Failed",
             details=str(e),
             status="error"
@@ -482,18 +501,36 @@ def test_menu_processing():
         
         print(f"Testing menu processing for {season} week {week}")
         
-        # Get template
-        menu_data = get_menu_template(season, week)
-        print(f"Template retrieved: {len(menu_data)} bytes")
+        # Get templates
+        template = get_menu_template(season, week)
+        if not template:
+            raise ValueError(f"No template found for {season} week {week}")
+            
+        dates_template = get_menu_template('dates', 0)
+        if not dates_template:
+            raise ValueError("Dates header template not found")
         
-        # Test date drawing
-        processed = draw_dates_on_menu(menu_data, start_date)
-        print(f"Date drawing successful: {len(processed)} bytes")
+        # Test template merging
+        menu_service = MenuService(db=supabase, storage=supabase.storage)
+        merged_template = menu_service.merge_header_with_template(
+            source_image=dates_template['template_url'],
+            template_path=template['template_url'],
+            header_proportion=0.20
+        )
         
-        # Save test output
-        with open('test_menu.png', 'wb') as f:
-            f.write(processed)
-        print("Test file saved as test_menu.png")
+        if not merged_template:
+            raise ValueError("Failed to merge templates")
+            
+        print(f"Template merging successful: {merged_template}")
+        
+        # Download and save test output
+        response = requests.get(merged_template)
+        if response.status_code == 200:
+            with open('test_menu.png', 'wb') as f:
+                f.write(response.content)
+            print("Test file saved as test_menu.png")
+        else:
+            raise ValueError("Failed to download merged template")
         
         return True
     except Exception as e:

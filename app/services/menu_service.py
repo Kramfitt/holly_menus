@@ -265,17 +265,35 @@ class MenuService:
                 raise Exception("Failed to ensure storage bucket exists")
             debug_print("✅ Storage bucket verified")
             
-            # Clean up existing templates
-            debug_print("\nCleaning up existing templates...")
+            # First, check if a template already exists and delete it from the database
+            debug_print("\nChecking for existing template...")
+            try:
+                existing = self.db.table('menu_templates')\
+                    .delete()\
+                    .eq('season', season)\
+                    .eq('week', week_num)\
+                    .execute()
+                if existing.data:
+                    debug_print(f"Deleted existing template record")
+            except Exception as e:
+                debug_print(f"⚠️ Error checking/deleting existing template: {str(e)}")
+            
+            # Clean up existing files in storage
+            debug_print("\nCleaning up existing files...")
             self._cleanup_old_template(season, week_num)
             
-            # Generate unique filename
+            # Generate unique filename with organized folder structure
             timestamp = int(time.time() * 1000)
             random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
             file_ext = os.path.splitext(file.filename)[1].lower()
             if not file_ext:
                 file_ext = '.png'  # Default to .png if no extension
-            filename = f"{season}_{'header' if season == 'dates' else f'week_{week_num}'}_{timestamp}_{random_suffix}{file_ext}"
+
+            # Organize files into season-specific folders
+            if season == 'dates':
+                filename = f"dates/header_{timestamp}_{random_suffix}{file_ext}"
+            else:
+                filename = f"{season}/week_{week_num}_{timestamp}_{random_suffix}{file_ext}"
             debug_print(f"Generated filename: {filename}")
             
             # Upload new template
@@ -320,8 +338,8 @@ class MenuService:
                     debug_print("❌ Failed to get public URL")
                     raise Exception("Failed to get public URL for uploaded file")
                 
-                # Update database
-                debug_print("\nUpdating database...")
+                # Insert new record into database
+                debug_print("\nInserting into database...")
                 
                 # Ensure data matches schema constraints exactly
                 db_data = {
@@ -333,24 +351,15 @@ class MenuService:
                 
                 debug_print("Database data:", db_data)
                 
-                # Try to refresh schema cache first
-                try:
-                    debug_print("Refreshing schema cache...")
-                    self.db.table('menu_templates').select('*').limit(1).execute()
-                    time.sleep(0.5)  # Small delay to ensure cache is updated
-                    debug_print("Schema cache refreshed")
-                except Exception as e:
-                    debug_print(f"⚠️ Schema cache refresh warning: {str(e)}")
-                
-                # Now attempt the upsert
-                debug_print("Executing database upsert...")
+                # Insert new record
+                debug_print("Executing database insert...")
                 db_response = self.db.table('menu_templates')\
-                    .upsert(db_data)\
+                    .insert(db_data)\
                     .execute()
                 
                 if not db_response.data:
-                    debug_print("❌ Database update failed - no response")
-                    raise Exception("Database update failed - no response")
+                    debug_print("❌ Database insert failed - no response")
+                    raise Exception("Database insert failed - no response")
                 
                 debug_print("✅ Database updated successfully")
                 debug_print("=== Template Save Complete ===\n")
@@ -395,7 +404,7 @@ class MenuService:
                 season = template['season']
                 week = str(template['week']) if season not in ['dates'] else 'header'
                 templates[season][week] = {
-                    'file_url': template.get('file_url'),
+                    'template_url': template.get('template_url'),
                     'file_path': template.get('file_path'),
                     'updated_at': template['updated_at']
                 }
@@ -438,81 +447,47 @@ class MenuService:
             return None
 
     def generate_preview(self, template, start_date):
-        """Generate a preview of the menu template"""
-        try:
-            print("\n=== Starting Preview Generation ===")
-            print(f"Template: {template}")
-            print(f"Start Date: {start_date}")
-            
-            # Input validation
-            if not template:
-                raise ValueError("Template is required")
-            
-            if not start_date:
-                raise ValueError("Start date is required")
-            
-            if not isinstance(start_date, datetime):
-                raise ValueError("Invalid start date format")
-            
-            # Required template fields
-            required_fields = ['season', 'week', 'file_url']
-            missing = [f for f in required_fields if not template.get(f)]
-            if missing:
-                raise ValueError(f"Missing template fields: {', '.join(missing)}")
-            
-            print("\n=== Fetching Dates Template ===")
-            # Get dates template
-            dates_template = self.get_template('dates', 'header')
-            if not dates_template:
-                print("Dates template not found")
-                raise ValueError("Dates template not found. Please upload a dates template first.")
-            print(f"Found dates template: {dates_template}")
-            
-            # Validate URLs
-            template_url = template.get('file_url')
-            dates_url = dates_template.get('file_url')
-            print(f"\nTemplate URL: {template_url}")
-            print(f"Dates URL: {dates_url}")
-            
-            if not template_url or not template_url.startswith('http'):
-                raise ValueError("Invalid template URL")
-            if not dates_url or not dates_url.startswith('http'):
-                raise ValueError("Invalid dates template URL")
-            
-            # Format dates
-            try:
-                period_end = start_date + timedelta(days=13)  # 2 weeks
-                date_range = f"{start_date.strftime('%d %b')} - {period_end.strftime('%d %b %Y')}"
-                print(f"\nCalculated date range: {date_range}")
-            except Exception as e:
-                raise ValueError(f"Error formatting dates: {str(e)}")
-            
-            # Create preview data
-            preview_data = {
-                'success': True,
-                'template': {
-                    'url': template_url,
-                    'dates_url': dates_url,
-                    'season': template['season'].title(),
-                    'week': template['week'],
-                    'date_range': date_range,
-                    'period_start': start_date.strftime('%Y-%m-%d'),
-                    'period_end': period_end.strftime('%Y-%m-%d')
-                }
+        """Generate a preview of the menu template."""
+        if not template or not start_date:
+            raise ValueError("Template and start date are required")
+
+        required_fields = ['season', 'week', 'template_url']
+        for field in required_fields:
+            if field not in template:
+                raise ValueError(f"Template is missing required field: {field}")
+
+        # Get the dates template
+        dates_template = self.get_template('dates', 0)
+        if not dates_template:
+            raise ValueError("Dates header template not found")
+        
+        dates_template_url = dates_template.get('template_url')
+        if not dates_template_url:
+            raise ValueError("Invalid dates template URL")
+
+        # Calculate date range
+        period_start = start_date.date()
+        period_end = period_start + timedelta(days=13)
+        date_range = f"{period_start.strftime('%d %b')} - {period_end.strftime('%d %b %Y')}"
+
+        # Merge the templates
+        merged_template = self.merge_header_with_template(
+            source_image=dates_template_url,
+            template_path=template['template_url'],
+            header_proportion=0.20  # Header takes up 20% of the height
+        )
+
+        if not merged_template:
+            raise ValueError("Failed to merge templates")
+
+        return {
+            'template': {
+                'season': template['season'],
+                'week': template['week'],
+                'template_url': merged_template,
+                'date_range': date_range
             }
-            
-            print("\n=== Preview Generation Complete ===")
-            print(f"Preview data: {preview_data}")
-            
-            return preview_data
-            
-        except ValueError as e:
-            print(f"\n=== Preview Generation Failed ===\nError: {str(e)}")
-            raise
-            
-        except Exception as e:
-            print(f"\n=== Preview Generation Failed ===\nError: {str(e)}")
-            raise ValueError(f"Failed to generate preview: {str(e)}")
+        }
 
     def _validate_file(self, file):
         """Validate uploaded file"""
@@ -579,9 +554,22 @@ class MenuService:
                 # Backup first
                 self._backup_template(old_template)
                 
-                # Then delete
+                # Then delete from original location
                 try:
-                    self.storage.from_(self.template_bucket).remove([old_template['file_path']])
+                    # Delete both from potential locations (old and new structure)
+                    paths_to_check = [
+                        old_template['file_path'],
+                        f"{season}/week_{week}_{os.path.basename(old_template['file_path'])}",
+                        f"templates/{season}_week_{week}_{os.path.basename(old_template['file_path'])}"
+                    ]
+                    
+                    for path in paths_to_check:
+                        try:
+                            self.storage.from_(self.template_bucket).remove([path])
+                            debug_print(f"Cleaned up file: {path}")
+                        except Exception as e:
+                            debug_print(f"Note: Could not delete {path}: {str(e)}")
+                    
                     get_logger().log_activity(
                         action="Template Cleanup",
                         details={
@@ -610,8 +598,15 @@ class MenuService:
             if not template or not template.get('file_path'):
                 return
             
-            # Create backup path
-            backup_path = f"backup/{template['season']}/{os.path.basename(template['file_path'])}"
+            # Create backup path with organized structure
+            season = template['season']
+            week = template['week']
+            filename = os.path.basename(template['file_path'])
+            
+            if season == 'dates':
+                backup_path = f"backup/dates/header_{filename}"
+            else:
+                backup_path = f"backup/{season}/week_{week}_{filename}"
             
             # Copy file to backup
             content = self.storage.from_(self.template_bucket).download(template['file_path'])
@@ -698,4 +693,108 @@ class MenuService:
                 details=str(e),
                 status="error"
             )
-            return {'error': str(e)} 
+            return {'error': str(e)}
+
+    def merge_header_with_template(self, source_image: str, template_path: str, header_proportion: float = 0.20) -> Optional[str]:
+        """
+        Merge the dates header with the menu template.
+        
+        Args:
+            source_image: URL of the dates header image
+            template_path: URL of the menu template image
+            header_proportion: Proportion of image height to use for header
+        
+        Returns:
+            URL of the merged image
+        """
+        try:
+            import cv2
+            import numpy as np
+            import requests
+            from io import BytesIO
+            
+            # Download images from URLs
+            header_response = requests.get(source_image)
+            template_response = requests.get(template_path)
+            
+            # Convert to numpy arrays
+            header_array = np.frombuffer(header_response.content, np.uint8)
+            template_array = np.frombuffer(template_response.content, np.uint8)
+            
+            # Decode images
+            source = cv2.imdecode(header_array, cv2.IMREAD_COLOR)
+            template = cv2.imdecode(template_array, cv2.IMREAD_COLOR)
+            
+            if source is None or template is None:
+                raise ValueError("Failed to read source or template image")
+            
+            # Get dimensions
+            source_height = source.shape[0]
+            template_height = template.shape[0]
+            template_width = template.shape[1]
+            
+            # Calculate header heights
+            header_height = int(source_height * header_proportion)
+            template_header_height = int(template_height * header_proportion)
+            
+            # Extract and resize header
+            header = source[0:header_height, :]
+            header_aspect_ratio = header.shape[1] / header.shape[0]
+            new_header_width = int(template_header_height * header_aspect_ratio)
+            header_resized = cv2.resize(header, (new_header_width, template_header_height))
+            
+            # Create result image
+            result = template.copy()
+            
+            # Center the header
+            x_offset = (template_width - new_header_width) // 2
+            
+            # Handle wide headers
+            if new_header_width > template_width:
+                crop_start = (new_header_width - template_width) // 2
+                header_resized = header_resized[:, crop_start:crop_start + template_width]
+                x_offset = 0
+            
+            # Create header region with white background
+            header_region = np.full((template_header_height, template_width, 3), 255, dtype=np.uint8)
+            
+            # Place header in center
+            if x_offset >= 0:
+                header_region[:, x_offset:x_offset + header_resized.shape[1]] = header_resized
+            
+            # Copy header to template
+            result[0:template_header_height, :] = header_region
+            
+            # Save to temporary file
+            temp_path = os.path.join('temp_images', f'merged_menu_{int(time.time() * 1000)}.png')
+            os.makedirs('temp_images', exist_ok=True)
+            
+            # Save merged image
+            success = cv2.imwrite(temp_path, result)
+            if not success:
+                raise ValueError("Failed to save merged image")
+            
+            # Upload to storage
+            with open(temp_path, 'rb') as f:
+                file_path = f"previews/merged_{int(time.time() * 1000)}.png"
+                self.storage.from_(self.template_bucket).upload(
+                    path=file_path,
+                    file=f,
+                    file_options={"content-type": "image/png"}
+                )
+            
+            # Get public URL
+            public_url = self.storage.from_(self.template_bucket).get_public_url(file_path)
+            
+            # Clean up temporary file
+            os.remove(temp_path)
+            
+            return public_url
+            
+        except Exception as e:
+            get_logger().log_activity(
+                action="Template Merge Failed",
+                details=str(e),
+                status="error"
+            )
+            return None 
