@@ -6,7 +6,7 @@ from supabase import create_client, Client
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class MockRedis:
     """Mock Redis client for development"""
@@ -22,6 +22,35 @@ class MockRedis:
         
     def ping(self):
         return True
+
+class Config:
+    """Configuration class for the application"""
+    def __init__(self):
+        # Email settings
+        self.SMTP_SERVER = os.getenv('SMTP_SERVER')
+        self.SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
+        self.SMTP_USERNAME = os.getenv('SMTP_USERNAME')
+        self.SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
+
+        # Security settings
+        self.SECRET_KEY = os.getenv('SECRET_KEY')
+        self.DASHBOARD_PASSWORD = os.getenv('DASHBOARD_PASSWORD')
+
+        # Database settings
+        self.SUPABASE_URL = os.getenv('SUPABASE_URL')
+        self.SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+
+        # Redis settings
+        self.REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379')
+        self.REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+        self.REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
+
+        # Application settings
+        self.FLASK_ENV = os.getenv('FLASK_ENV', 'production')
+        self.DEBUG = os.getenv('FLASK_DEBUG', '0') == '1'
+        self.SESSION_COOKIE_SECURE = self.FLASK_ENV != 'development'
+        self.SESSION_COOKIE_HTTPONLY = True
+        self.PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
 
 # Move to top with other constants
 REQUIRED_CONFIG = {

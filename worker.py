@@ -10,23 +10,28 @@ import time
 import redis
 from supabase import create_client
 from app.utils.logger import get_logger
-from config import Config
+from config import Config, supabase, redis_client
 
 # Create minimal Flask app for context
 app = Flask(__name__)
-app.config.from_object(Config)
+config = Config()
+app.config.from_object(config)
 
-# Initialize clients
-supabase = create_client(
-    supabase_url=os.getenv('SUPABASE_URL'),
-    supabase_key=os.getenv('SUPABASE_KEY')
-)
+# Initialize Redis if not already initialized
+if not redis_client:
+    redis_host = config.REDIS_HOST
+    redis_port = config.REDIS_PORT
+    redis_url = config.REDIS_URL
+    print(f"Connecting to Redis at {redis_url}")
+    redis_client = redis.from_url(redis_url, decode_responses=True)
 
-redis_host = os.getenv('REDIS_HOST', 'localhost')
-redis_port = int(os.getenv('REDIS_PORT', 6379))
-redis_url = f"redis://{redis_host}:{redis_port}"
-print(f"Connecting to Redis at {redis_url}")
-redis_client = redis.from_url(redis_url, decode_responses=True)
+# Set initial state if none exists
+if redis_client.get('service_state') is None:
+    print("📝 Setting initial Redis state to: false")
+    redis_client.set('service_state', 'false')  # Start paused
+
+# Initialize logger
+logger = get_logger()
 
 def calculate_next_menu():
     """Calculate which menu should be sent next"""
@@ -39,7 +44,7 @@ def calculate_next_menu():
             .execute()
 
         if not settings_response.data:
-            get_logger().log_activity(
+            logger.log_activity(
                 action="Menu Calculation",
                 details="No menu settings found",
                 status="warning"
@@ -75,7 +80,7 @@ def calculate_next_menu():
         }
 
     except Exception as e:
-        get_logger().log_activity(
+        logger.log_activity(
             action="Menu Calculation Failed",
             details=str(e),
             status="error"
@@ -103,7 +108,7 @@ def send_menu_email(start_date, recipient_list, season, week_number=None):
         
         # Send email (implement your email sending logic here)
         # For now, just log it
-        get_logger().log_activity(
+        logger.log_activity(
             action="Menu Email Sent",
             details={
                 'recipients': recipient_list,
@@ -118,7 +123,7 @@ def send_menu_email(start_date, recipient_list, season, week_number=None):
         return True
         
     except Exception as e:
-        get_logger().log_activity(
+        logger.log_activity(
             action="Menu Email Failed",
             details=str(e),
             status="error"
@@ -165,7 +170,7 @@ def run_worker():
                 time.sleep(3600)  # Check every hour
                 
             except Exception as e:
-                get_logger().log_activity(
+                logger.log_activity(
                     action="Worker Error",
                     details=str(e),
                     status="error"
