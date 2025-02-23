@@ -1,14 +1,10 @@
 services:
-  # Web App
+  # Web App (Docker-based)
   - type: web
     name: menu-system
-    env: python
-    buildCommand: |
-      # Install system packages first
-      sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-eng poppler-utils
-      # Run build script
-      bash ./build.sh
-    startCommand: gunicorn app:app
+    env: docker
+    dockerfilePath: Dockerfile.web
+    dockerCommand: gunicorn app:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
