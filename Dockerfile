@@ -1,12 +1,9 @@
-# Use an official Python runtime as a parent image
-FROM python:3.11-slim
+# Use Render's pre-built image that includes Tesseract
+FROM render/python:3.11
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     TESSERACT_PATH=/usr/bin/tesseract
-
-# Install Tesseract
-RUN apt-get update && apt-get install -y tesseract-ocr
 
 # Set working directory
 WORKDIR /app
