@@ -6,6 +6,7 @@ import pytesseract
 import os
 import argparse
 from typing import List, Optional
+import platform
 
 def check_dependencies() -> bool:
     """
@@ -20,6 +21,11 @@ def check_dependencies() -> bool:
     # Check Poppler installation
     try:
         from pdf2image.exceptions import PDFPageCountError
+        # Try to find pdftoppm in PATH
+        if not shutil.which('pdftoppm') and platform.system() != 'Windows':
+            print("Error: Poppler (pdftoppm) is not installed or not in PATH")
+            print("Please install poppler-utils package")
+            return False
     except ImportError:
         print("Error: pdf2image package is not properly installed")
         print("Please run: pip install pdf2image==1.17.0")
@@ -27,14 +33,24 @@ def check_dependencies() -> bool:
 
     return True
 
-def convert_pdf_to_images(pdf_path: str, output_folder: str, poppler_path: str) -> List[str]:
+def get_poppler_path() -> Optional[str]:
+    """
+    Get the appropriate Poppler path based on the operating system.
+    """
+    if platform.system() == 'Windows':
+        return "C:\\Poppler\\Release-24.08.0-0\\poppler-24.08.0\\Library\\bin"
+    else:
+        # On Linux/Unix, Poppler should be in the system PATH
+        return None
+
+def convert_pdf_to_images(pdf_path: str, output_folder: str, poppler_path: Optional[str] = None) -> List[str]:
     """
     Convert a PDF into images.
     
     Args:
         pdf_path (str): Path to the PDF file
         output_folder (str): Directory to save the images
-        poppler_path (str): Path to Poppler binaries
+        poppler_path (str, optional): Path to Poppler binaries, not needed on Linux if installed system-wide
         
     Returns:
         List[str]: List of paths to the generated images
@@ -48,10 +64,18 @@ def convert_pdf_to_images(pdf_path: str, output_folder: str, poppler_path: str) 
     print(f"\nOutput directory: {output_folder}")
 
     try:
-        images = convert_from_path(pdf_path, poppler_path=poppler_path)
+        # On Linux, we don't need to specify poppler_path if it's installed system-wide
+        if platform.system() != 'Windows':
+            images = convert_from_path(pdf_path)
+        else:
+            images = convert_from_path(pdf_path, poppler_path=poppler_path)
     except Exception as e:
         print(f"Error converting PDF: {e}")
         print("Please check if Poppler is properly installed and the path is correct")
+        if platform.system() == 'Windows':
+            print(f"Windows Poppler path: {poppler_path}")
+        else:
+            print("On Linux, ensure poppler-utils is installed")
         return []
 
     image_paths = []
@@ -123,8 +147,8 @@ def main():
     parser.add_argument("--output_folder", type=str, default="./output_images", 
                        help="Folder to save images")
     parser.add_argument("--poppler_path", type=str, 
-                       default="C:\\Poppler\\Release-24.08.0-0\\poppler-24.08.0\\Library\\bin", 
-                       help="Path to Poppler binaries")
+                       default=get_poppler_path(),
+                       help="Path to Poppler binaries (not needed on Linux if installed system-wide)")
 
     args = parser.parse_args()
 

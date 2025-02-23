@@ -19,8 +19,8 @@ email:
   password: "" # Will be overridden by environment variable
 
 processing:
-  poppler_path: "C:\\Poppler\\Release-24.08.0-0\\poppler-24.08.0\\Library\\bin"
-  tesseract_path: "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
+  poppler_path: "/usr/bin"  # Linux system path for Poppler
+  tesseract_path: "/usr/bin/tesseract"  # Linux system path for Tesseract
 
 logging:
   level: "INFO"
@@ -31,7 +31,3 @@ temp_dir: "temp_images"
 output_dir: "output_images"
 templates_dir: "menu_templates"
 logs_dir: "logs"
-
-# Processing settings
-poppler_path: "C:\\Poppler\\Release-24.08.0-0\\poppler-24.08.0\\Library\\bin"
-tesseract_path: "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
