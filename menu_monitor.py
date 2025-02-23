@@ -187,13 +187,37 @@ class MenuEmailMonitor:
         Returns a dictionary mapping day names to dates.
         """
         try:
+            # Check if image exists
+            if not os.path.exists(image_path):
+                logger.error(f"Image file does not exist: {image_path}")
+                return None
+
             # Set Tesseract path based on platform
             if platform.system() == 'Windows':
-                pytesseract.pytesseract.tesseract_cmd = 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
+                tesseract_cmd = 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
+                if os.path.exists(tesseract_cmd):
+                    pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+                else:
+                    logger.error(f"Tesseract not found at expected Windows path: {tesseract_cmd}")
             else:
-                # On Linux, Tesseract should be in PATH
-                if not shutil.which('tesseract'):
-                    raise RuntimeError("Tesseract is not installed or not in PATH")
+                # On Linux, check multiple common paths
+                possible_paths = [
+                    '/usr/bin/tesseract',
+                    '/usr/local/bin/tesseract',
+                    '/opt/homebrew/bin/tesseract'
+                ]
+                
+                tesseract_found = False
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        tesseract_found = True
+                        break
+                
+                if not tesseract_found and not shutil.which('tesseract'):
+                    logger.error("Tesseract not found in PATH or common locations")
+                    logger.error("Please ensure Tesseract is installed and in PATH")
+                    logger.error("On Debian/Ubuntu: apt-get install tesseract-ocr tesseract-ocr-eng")
+                    return None
 
             # Read image
             image = cv2.imread(image_path)
@@ -208,20 +232,38 @@ class MenuEmailMonitor:
             height = gray.shape[0]
             header = gray[0:int(height * 0.15), :]
 
-            # Threshold to get black text
-            _, binary = cv2.threshold(header, 200, 255, cv2.THRESH_BINARY)
+            # Enhance image for better OCR
+            # Apply adaptive thresholding
+            binary = cv2.adaptiveThreshold(
+                header,
+                255,
+                cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY,
+                11,  # Block size
+                2    # C constant
+            )
 
             # Convert to PIL Image for Tesseract
             pil_image = Image.fromarray(binary)
 
+            try:
+                # Test Tesseract installation
+                pytesseract.get_tesseract_version()
+            except Exception as e:
+                logger.error(f"Failed to get Tesseract version: {e}")
+                logger.error("This usually indicates Tesseract is not properly installed")
+                return None
+
             # Extract text with improved configuration
-            text = pytesseract.image_to_string(
-                pil_image,
-                config='--psm 6'  # Assume uniform block of text
-            )
-            
-            # Log the extracted text for debugging
-            logger.info(f"Extracted text from header:\n{text}")
+            try:
+                text = pytesseract.image_to_string(
+                    pil_image,
+                    config='--psm 6 -c tessedit_char_whitelist="MonTueWdThFriSat0123456789thsnrdJanuaryFebuchApilMJgSptOcNovDmb "'
+                )
+                logger.info(f"Extracted text from header:\n{text}")
+            except Exception as e:
+                logger.error(f"Failed to perform OCR: {e}")
+                return None
             
             # Define regex pattern for dates
             # Matches patterns like "Mon 3rd March", "Tue 4th March", etc.
@@ -232,6 +274,7 @@ class MenuEmailMonitor:
             
             if not matches:
                 logger.warning("No dates found in header")
+                logger.debug(f"OCR text output: {text}")
                 return None
 
             # Create dictionary of day -> date
@@ -243,7 +286,8 @@ class MenuEmailMonitor:
             return dates
 
         except Exception as e:
-            logger.error(f"Error extracting dates: {e}")
+            logger.error(f"Error extracting dates: {str(e)}")
+            logger.error("Stack trace:", exc_info=True)
             return None
 
     def combine_with_master_menu(self, dates: Dict[str, str], master_menu_path: str) -> str:
@@ -532,9 +576,15 @@ class MenuEmailMonitor:
             try:
                 # On Linux (Render), don't specify poppler_path
                 if platform.system() != 'Windows':
+                    logger.info("Running on Linux, using system Poppler")
+                    if not shutil.which('pdftoppm'):
+                        logger.error("Poppler (pdftoppm) not found in PATH")
+                        logger.error("Please ensure poppler-utils is installed")
+                        return [], None
                     images = convert_from_path(temp_pdf)
                 else:
                     poppler_path = os.getenv('POPPLER_PATH', 'C:\\Poppler\\Release-24.08.0-0\\poppler-24.08.0\\Library\\bin')
+                    logger.info(f"Running on Windows, using Poppler from: {poppler_path}")
                     images = convert_from_path(temp_pdf, poppler_path=poppler_path)
                 
                 image_paths = []
@@ -547,22 +597,39 @@ class MenuEmailMonitor:
                 
                 # Extract dates from the first page
                 if image_paths:
-                    dates = self.extract_dates_from_image(image_paths[0])
-                    if dates:
-                        logger.info(f"✅ Successfully extracted dates: {dates}")
-                        return image_paths, dates
-                    else:
-                        logger.warning("⚠️ No dates found in the image")
+                    # Try multiple times with different preprocessing if needed
+                    dates = None
+                    for attempt in range(2):
+                        dates = self.extract_dates_from_image(image_paths[0])
+                        if dates:
+                            logger.info(f"✅ Successfully extracted dates on attempt {attempt + 1}: {dates}")
+                            break
+                        elif attempt == 0:
+                            # If first attempt failed, try to enhance the image
+                            logger.info("First date extraction attempt failed, trying with enhanced image...")
+                            img = cv2.imread(image_paths[0])
+                            if img is not None:
+                                # Enhance image
+                                img = cv2.convertScaleAbs(img, alpha=1.5, beta=0)  # Increase contrast
+                                enhanced_path = os.path.join(temp_dir, f'enhanced_page_1.png')
+                                cv2.imwrite(enhanced_path, img)
+                                image_paths[0] = enhanced_path
+                    
+                    if not dates:
+                        logger.warning("⚠️ Could not extract dates after multiple attempts")
+                        logger.info("Proceeding with image processing without dates")
                         
-                return image_paths, None
+                return image_paths, dates
                 
             except Exception as e:
                 logger.error(f"Error converting PDF: {str(e)}")
                 logger.error("Please check if Poppler is properly installed and in PATH")
+                logger.error("Stack trace:", exc_info=True)
                 return [], None
                 
         except Exception as e:
             logger.error(f"Error processing PDF attachment: {str(e)}")
+            logger.error("Stack trace:", exc_info=True)
             return [], None
         finally:
             # Cleanup temporary files
@@ -571,6 +638,7 @@ class MenuEmailMonitor:
                     os.remove(temp_pdf)
             except Exception as e:
                 logger.error(f"Error cleaning up temporary files: {str(e)}")
+                logger.error("Stack trace:", exc_info=True)
 
     def send_response_email(self, recipient: str, processed_images: List[str]):
         """
