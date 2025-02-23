@@ -4,7 +4,7 @@ services:
     name: menu-system
     env: python
     buildCommand: |
-      apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng poppler-utils
+      sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-eng poppler-utils libtesseract-dev libleptonica-dev
       pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
@@ -32,7 +32,7 @@ services:
     name: menu-worker
     env: python
     buildCommand: |
-      apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng poppler-utils
+      sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-eng poppler-utils libtesseract-dev libleptonica-dev
       pip install -r requirements.txt
     startCommand: |
       python test_tesseract.py
