@@ -211,7 +211,8 @@ def correct_orientation(image_path: str, output_path: str) -> None:
 def main():
     """Main function to handle the PDF processing workflow."""
     parser = argparse.ArgumentParser(description="Convert PDF to images and correct orientation")
-    parser.add_argument("pdf_path", type=str, help="Path to the input PDF file")
+    parser.add_argument("--check-deps", action="store_true", help="Run dependency check only")
+    parser.add_argument("pdf_path", nargs="?", type=str, help="Path to the input PDF file")
     parser.add_argument("--output_folder", type=str, default="./output_images", 
                        help="Folder to save images")
     parser.add_argument("--poppler_path", type=str, 
@@ -219,6 +220,14 @@ def main():
                        help="Path to Poppler binaries (not needed on Linux if installed system-wide)")
 
     args = parser.parse_args()
+
+    # If --check-deps is specified, only run dependency check
+    if args.check_deps:
+        sys.exit(0 if check_dependencies() else 1)
+
+    # Regular processing requires pdf_path
+    if not args.pdf_path:
+        parser.error("pdf_path is required unless --check-deps is specified")
 
     # Check dependencies before proceeding
     if not check_dependencies():
