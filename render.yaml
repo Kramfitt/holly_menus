@@ -2,18 +2,8 @@ services:
   # Web App
   - type: web
     name: menu-system
-    env: python
-    buildCommand: |
-      # Add Tesseract repository
-      apt-get update -y
-      apt-get install -y software-properties-common
-      add-apt-repository -y ppa:alex-p/tesseract-ocr
-      apt-get update -y
-      # Install packages
-      apt-get install -y poppler-utils tesseract-ocr tesseract-ocr-eng libtesseract-dev libleptonica-dev
-      # Install Python dependencies
-      pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    env: docker
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
@@ -37,20 +27,8 @@ services:
   # Worker Service
   - type: worker
     name: menu-worker
-    env: python
-    buildCommand: |
-      # Add Tesseract repository
-      apt-get update -y
-      apt-get install -y software-properties-common
-      add-apt-repository -y ppa:alex-p/tesseract-ocr
-      apt-get update -y
-      # Install packages
-      apt-get install -y poppler-utils tesseract-ocr tesseract-ocr-eng libtesseract-dev libleptonica-dev
-      # Install Python dependencies
-      pip install -r requirements.txt
-    startCommand: |
-      python test_tesseract.py
-      python worker.py
+    env: docker
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
