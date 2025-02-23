@@ -1,58 +1,33 @@
 import os
 import sys
-import subprocess
+import pytesseract
 from PIL import Image
 import numpy as np
-import pytesseract
 
-def check_tesseract():
-    print("\n=== Tesseract Installation Check ===\n")
+def test_tesseract():
+    print('🔍 Testing Tesseract configuration...')
     
-    # Check environment variable
-    tesseract_path = os.getenv('TESSERACT_PATH', 'Not set')
-    print(f"TESSERACT_PATH env var: {tesseract_path}")
+    # Check environment and configuration
+    print(f'Environment TESSERACT_PATH: {os.getenv("TESSERACT_PATH")}')
+    print(f'Python Tesseract path: {pytesseract.get_tesseract_cmd()}')
+    print(f'Tesseract version: {pytesseract.get_tesseract_version()}')
+    print(f'Available languages: {pytesseract.get_languages()}')
     
-    # Check pytesseract path
-    print(f"pytesseract command: {pytesseract.get_tesseract_cmd()}")
+    # Create a test image with text
+    print('\n📝 Creating test image...')
+    img = Image.new('RGB', (100, 30), color='white')
+    img_array = np.array(img)
     
-    # Check binary location
     try:
-        result = subprocess.run(['which', 'tesseract'], capture_output=True, text=True)
-        print(f"Binary location: {result.stdout.strip() if result.stdout else 'Not found'}")
+        # Attempt OCR on the test image
+        print('🔄 Running OCR test...')
+        text = pytesseract.image_to_string(img_array)
+        print('✅ OCR Test successful')
+        return True
     except Exception as e:
-        print(f"Error checking binary: {e}")
-    
-    # Check version
-    try:
-        version = pytesseract.get_tesseract_version()
-        print(f"Tesseract version: {version}")
-    except Exception as e:
-        print(f"Error getting version: {e}")
-    
-    # Check languages
-    try:
-        langs = pytesseract.get_languages()
-        print(f"Available languages: {langs}")
-    except Exception as e:
-        print(f"Error getting languages: {e}")
-    
-    # Test OCR
-    print("\nTesting OCR functionality:")
-    try:
-        # Create a test image with text
-        img = Image.new('RGB', (200, 50), color='white')
-        from PIL import ImageDraw
-        d = ImageDraw.Draw(img)
-        d.text((10,10), "Testing 123", fill='black')
-        
-        # Try OCR
-        text = pytesseract.image_to_string(img)
-        print(f"OCR Test result: {text.strip()}")
-        print("✅ OCR test successful")
-    except Exception as e:
-        print(f"❌ OCR test failed: {e}")
-    
-    print("\n=== End of Test ===")
+        print(f'❌ OCR Test failed: {str(e)}')
+        return False
 
-if __name__ == "__main__":
-    check_tesseract() 
+if __name__ == '__main__':
+    success = test_tesseract()
+    sys.exit(0 if success else 1) 

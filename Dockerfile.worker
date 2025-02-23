@@ -3,20 +3,25 @@ FROM python:3.11-slim
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
-    DEBIAN_FRONTEND=noninteractive
+    DEBIAN_FRONTEND=noninteractive \
+    TESSERACT_PATH=/usr/bin/tesseract
 
 # Install system dependencies and Tesseract
 RUN apt-get update && \
     apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-eng \
+    libtesseract-dev \
+    libleptonica-dev \
     poppler-utils \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && tesseract --version
+    && rm -rf /var/lib/apt/lists/*
 
-# Set Tesseract path
-ENV TESSERACT_PATH=/usr/bin/tesseract
+# Verify Tesseract installation
+RUN echo "Verifying Tesseract installation..." && \
+    tesseract --version && \
+    tesseract --list-langs && \
+    echo "Tesseract verified successfully"
 
 # Set working directory
 WORKDIR /app
@@ -25,13 +30,15 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy only the worker-related files
-COPY worker.py .
-COPY app/ app/
-COPY config/ config/
+# Copy application files
+COPY . .
 
-# Verify Tesseract is working
-RUN python -c "import pytesseract; print(pytesseract.get_tesseract_version())"
+# Copy test script for verification
+COPY test_tesseract.py .
+
+# Final verification with Python
+RUN echo "Testing Tesseract with Python..." && \
+    python test_tesseract.py
 
 # Command to run the worker
 CMD ["python", "worker.py"] 
