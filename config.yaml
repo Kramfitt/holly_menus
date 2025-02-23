@@ -5,14 +5,16 @@ schedule:
   send_time: "09:00"  # When to send on scheduled day
 
 paths:
-  output: "output"  # Where to save generated menus
-  logs: "logs"      # Where to save log files
-  templates: "menu_templates"  # Directory for menu templates
+  temp_dir: "temp_images"  # Where to save temporary files
+  output_dir: "output_images"  # Where to save generated menus
+  logs_dir: "logs"      # Where to save log files
+  templates_dir: "menu_templates"  # Directory for menu templates
 
 email:
   smtp_server: "smtp.gmail.com"
   smtp_port: 587
   imap_server: "imap.gmail.com"
+  sender_name: "Holly Lodge Menu System"
   sender_email: "" # Will be overridden by environment variable
   password: "" # Will be overridden by environment variable
 
@@ -23,3 +25,13 @@ processing:
 logging:
   level: "INFO"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Directory paths
+temp_dir: "temp_images"
+output_dir: "output_images"
+templates_dir: "menu_templates"
+logs_dir: "logs"
+
+# Processing settings
+poppler_path: "C:\\Poppler\\Release-24.08.0-0\\poppler-24.08.0\\Library\\bin"
+tesseract_path: "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"

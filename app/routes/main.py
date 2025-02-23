@@ -371,43 +371,20 @@ def preview():
 def api_preview_menu():
     """Generate a preview of a menu template"""
     try:
+        print("Starting preview generation...")
         season = request.args.get('season')
         week = request.args.get('week')
         
-        errors = {}
-        suggestions = {}
-        
-        # Validate inputs
-        if not season:
-            errors['season'] = '🌞 Season is required'
-            suggestions['season'] = 'Please select summer or winter'
-        elif season.lower() not in ['summer', 'winter']:
-            errors['season'] = '❌ Invalid season'
-            suggestions['season'] = 'Season must be summer or winter'
-            
-        if not week:
-            errors['week'] = '📅 Week is required'
-            suggestions['week'] = 'Please select a week number'
-        else:
-            try:
-                week = int(week)
-                if week < 1 or week > 4:
-                    errors['week'] = '❌ Invalid week number'
-                    suggestions['week'] = 'Week must be between 1 and 4'
-            except ValueError:
-                errors['week'] = '❌ Invalid week format'
-                suggestions['week'] = 'Week must be a number between 1 and 4'
-                
-        if errors:
+        if not season or not week:
             return jsonify({
-                'error': 'Validation failed',
-                'details': errors,
-                'suggestions': suggestions,
-                'help': 'Please correct the errors and try again'
+                'error': 'Missing parameters',
+                'details': {
+                    'message': 'Season and week are required',
+                    'suggestion': 'Please provide both season and week'
+                }
             }), 400
             
-        # Get template
-        menu_service = MenuService(db=supabase, storage=supabase.storage)
+        print(f"Getting template for {season} week {week}...")
         template = menu_service.get_template(season, week)
         
         if not template:
@@ -420,7 +397,7 @@ def api_preview_menu():
                 }
             }), 404
             
-        # Get dates template
+        print("Getting dates template...")
         dates_template = menu_service.get_template('dates', 0)  # Use week=0 for dates template
         if not dates_template:
             return jsonify({
@@ -432,7 +409,7 @@ def api_preview_menu():
                 }
             }), 404
             
-        # Generate preview with current date
+        print("Generating preview...")
         preview = menu_service.generate_preview(
             template={
                 'season': season,
@@ -442,9 +419,12 @@ def api_preview_menu():
             start_date=datetime.now()
         )
         
+        print("Preview generated successfully")
         return jsonify(preview)
             
     except Exception as e:
+        error_msg = f"Preview generation failed: {str(e)}"
+        print(error_msg)
         get_logger().log_activity(
             action="Preview API Error",
             details=str(e),
@@ -1423,9 +1403,15 @@ __all__ = ['bp', 'register_filters']
 def process_emails_now():
     """Trigger immediate processing of unread menu emails"""
     try:
+        print("Starting manual email processing...")
         from menu_monitor import MenuEmailMonitor
         
+        # Initialize monitor with debug output
+        print("Initializing MenuEmailMonitor...")
         monitor = MenuEmailMonitor()
+        
+        # Process emails with debug output
+        print("Processing new emails...")
         monitor.process_new_emails()
         
         get_logger().log_activity(
@@ -1436,8 +1422,18 @@ def process_emails_now():
         
         return jsonify({'success': True, 'message': 'Email processing completed'})
         
+    except ImportError as e:
+        error_msg = f"Failed to import MenuEmailMonitor: {str(e)}"
+        print(error_msg)
+        return jsonify({'error': error_msg}), 500
     except Exception as e:
-        error_msg = handle_error(e, "Email Processing Failed")
+        error_msg = f"Email processing failed: {str(e)}"
+        print(error_msg)
+        get_logger().log_activity(
+            action="Email Processing Failed",
+            details=str(e),
+            status="error"
+        )
         return jsonify({'error': error_msg}), 500
 
 @bp.route('/health')

@@ -21,6 +21,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.mime.application import MIMEApplication
+import yaml
 
 # Configure logging with more detailed format
 logging.basicConfig(
@@ -35,51 +36,50 @@ logger = logging.getLogger(__name__)
 
 class MenuEmailMonitor:
     def __init__(self):
-        self.config = load_config()
-        self.imap_server = self.config['email'].get('imap_server', 'imap.gmail.com')
-        self.email = os.getenv('SMTP_USERNAME')
-        self.password = os.getenv('SMTP_PASSWORD')
-        self.poppler_path = "C:\\Poppler\\Release-24.08.0-0\\poppler-24.08.0\\Library\\bin"
-        
-        # Create directories if they don't exist
-        self.temp_dir = 'temp_images'
-        self.templates_dir = 'menu_templates'
-        os.makedirs(self.temp_dir, exist_ok=True)
-        os.makedirs(self.templates_dir, exist_ok=True)
-        os.makedirs('output_images', exist_ok=True)
-        os.makedirs('temp_menus', exist_ok=True)
-        
-        # Set up dedicated temp directory
-        os.makedirs(os.path.join(tempfile.gettempdir(), 'menu_system'), exist_ok=True)
-        tempfile.tempdir = os.path.join(tempfile.gettempdir(), 'menu_system')
-        
-        logger.info(f"Initialized MenuEmailMonitor with email: {self.email}")
-        logger.info(f"Templates directory: {os.path.abspath(self.templates_dir)}")
-        
-        # Initial cleanup of old files
-        self.cleanup_old_files()
-        
-        # Ensure we have our Menus folder
-        self.ensure_folders()
+        """Initialize the menu email monitor"""
+        try:
+            print("Initializing MenuEmailMonitor...")
+            
+            # Load configuration
+            print("Loading configuration...")
+            with open('config.yaml', 'r') as f:
+                self.config = yaml.safe_load(f)
+            
+            # Set up email credentials
+            print("Setting up email credentials...")
+            self.email = os.getenv('SMTP_USERNAME')
+            self.password = os.getenv('SMTP_PASSWORD')
+            
+            if not self.email or not self.password:
+                raise ValueError("Email credentials not found in environment variables")
+            
+            # Create required directories
+            print("Setting up directories...")
+            self.ensure_folders()
+            
+            print("MenuEmailMonitor initialized successfully")
+            
+        except Exception as e:
+            print(f"Failed to initialize MenuEmailMonitor: {str(e)}")
+            raise
 
     def ensure_folders(self):
-        """Ensure Menus folder exists"""
+        """Ensure required folders exist"""
         try:
-            mail = self.connect()
+            required_folders = [
+                'temp_images',
+                'output_images',
+                'menu_templates'
+            ]
             
-            # List all folders
-            _, folders = mail.list()
-            folder_names = [f.decode().split('"/"')[-1].strip() for f in folders]
+            for folder in required_folders:
+                if not os.path.exists(folder):
+                    print(f"Creating folder: {folder}")
+                    os.makedirs(folder)
             
-            # Create Menus folder if it doesn't exist
-            menus_folder = '"Menus"'
-            if menus_folder not in folder_names:
-                mail.create('Menus')
-                logger.info("Created 'Menus' folder")
-            
-            mail.logout()
         except Exception as e:
-            logger.error(f"Error ensuring Menus folder exists: {e}")
+            print(f"Failed to create required folders: {str(e)}")
+            raise
 
     def is_email_processed(self, mail: imaplib.IMAP4_SSL, message_id: str) -> bool:
         """Check if an email has already been processed (marked as read)"""
@@ -103,7 +103,7 @@ class MenuEmailMonitor:
             
             # Directories to clean
             temp_dirs = [
-                self.temp_dir,  # temp_images
+                'temp_images',  # temp_images
                 'output_images',  # processed outputs
                 'temp_menus',    # temporary menu files
                 os.path.join(tempfile.gettempdir(), 'menu_system')  # system temp files
@@ -171,7 +171,7 @@ class MenuEmailMonitor:
         """Connect to the IMAP server"""
         try:
             logger.info("Connecting to IMAP server...")
-            mail = imaplib.IMAP4_SSL(self.imap_server)
+            mail = imaplib.IMAP4_SSL(self.config['email'].get('imap_server', 'imap.gmail.com'))
             mail.login(self.email, self.password)
             logger.info("Successfully connected to IMAP server")
             return mail
@@ -274,12 +274,12 @@ class MenuEmailMonitor:
         """Find the appropriate template for the given week number"""
         try:
             # List all templates
-            templates = [f for f in os.listdir(self.templates_dir) if f.endswith('.png')]
+            templates = [f for f in os.listdir(self.config['templates_dir']) if f.endswith('.png')]
             
             # Look for template matching the week number
             for template in templates:
                 if f"Week{week_number}" in template:
-                    return os.path.join(self.templates_dir, template)
+                    return os.path.join(self.config['templates_dir'], template)
             
             logger.error(f"No template found for week {week_number}")
             return None
@@ -351,7 +351,7 @@ class MenuEmailMonitor:
             # Save result with unique timestamp to avoid conflicts
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
             output_path = os.path.join(
-                self.temp_dir,
+                self.config['temp_dir'],
                 f'merged_menu_{timestamp}.png'
             )
             
@@ -441,7 +441,7 @@ class MenuEmailMonitor:
         """Find the appropriate template for the given season and week number"""
         try:
             # List all templates
-            templates = [f for f in os.listdir(self.templates_dir) if f.endswith('.png')]
+            templates = [f for f in os.listdir(self.config['templates_dir']) if f.endswith('.png')]
             logger.info(f"Available templates: {templates}")
             
             # Try different filename formats
@@ -455,7 +455,7 @@ class MenuEmailMonitor:
             # Try each possible name
             for template_name in possible_names:
                 if template_name in templates:
-                    template_path = os.path.join(self.templates_dir, template_name)
+                    template_path = os.path.join(self.config['templates_dir'], template_name)
                     # Verify template file is accessible and valid
                     if os.path.exists(template_path) and os.path.getsize(template_path) > 0:
                         # Try to read the template to verify it's a valid image
@@ -475,7 +475,7 @@ class MenuEmailMonitor:
             template_name_lower = f"{season.lower()}week{week_number}".replace(" ", "")
             for template in templates:
                 if template_name_lower in template.lower().replace(" ", ""):
-                    template_path = os.path.join(self.templates_dir, template)
+                    template_path = os.path.join(self.config['templates_dir'], template)
                     # Verify template file is accessible and valid
                     if os.path.exists(template_path) and os.path.getsize(template_path) > 0:
                         try:
@@ -506,11 +506,11 @@ class MenuEmailMonitor:
 
         try:
             # Convert to images
-            output_folder = os.path.join(self.temp_dir, datetime.now().strftime('%Y%m%d_%H%M%S'))
+            output_folder = os.path.join(self.config['temp_dir'], datetime.now().strftime('%Y%m%d_%H%M%S'))
             os.makedirs(output_folder, exist_ok=True)
             logger.info(f"Converting PDF to images in folder: {output_folder}")
             
-            image_paths = convert_pdf_to_images(pdf_path, output_folder, self.poppler_path)
+            image_paths = convert_pdf_to_images(pdf_path, output_folder, self.config['poppler_path'])
             
             if not image_paths:
                 logger.error("No images were generated from PDF")
