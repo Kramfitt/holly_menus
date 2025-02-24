@@ -35,6 +35,7 @@ from dotenv import load_dotenv
 import re
 from werkzeug.exceptions import HTTPException
 import json
+from app.utils.tesseract_config import configure_tesseract, perform_ocr
 
 # Load environment variables
 load_dotenv()
@@ -1885,4 +1886,54 @@ def toggle_debug_mode():
         return jsonify({
             'error': 'System error occurred',
             'details': error_msg
+        }), 500
+
+@bp.route('/health/ocr')
+def ocr_health_check():
+    """Health check endpoint for OCR functionality"""
+    try:
+        # Verify Tesseract configuration
+        if not configure_tesseract():
+            return jsonify({
+                'status': 'error',
+                'message': 'Tesseract configuration failed'
+            }), 500
+
+        # Create a simple test image
+        from app.utils.template_generator import create_test_image
+        test_image_path = create_test_image()
+        
+        if not test_image_path or not os.path.exists(test_image_path):
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to create test image'
+            }), 500
+
+        # Perform OCR on test image
+        with Image.open(test_image_path) as img:
+            text = perform_ocr(img)
+            
+        if not text or 'February' not in text:
+            return jsonify({
+                'status': 'error',
+                'message': 'OCR test failed - could not extract expected text',
+                'extracted_text': text
+            }), 500
+
+        # Clean up
+        try:
+            os.remove(test_image_path)
+        except Exception as e:
+            pass  # Non-critical error
+
+        return jsonify({
+            'status': 'healthy',
+            'message': 'OCR system is functioning correctly',
+            'extracted_text': text
+        })
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'OCR health check failed: {str(e)}'
         }), 500 

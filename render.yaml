@@ -4,36 +4,21 @@ services:
     name: menu-system
     env: python
     buildCommand: |
-      # Install system packages
-      apt-get update && apt-get install -y \
-        tesseract-ocr \
-        tesseract-ocr-eng \
-        libtesseract-dev \
-        libleptonica-dev \
-        poppler-utils
-      
-      # Install Python dependencies
-      pip install -r requirements.txt
-      
-      # Verify Tesseract installation
-      tesseract --version
-      tesseract --list-langs
-      
-      # Test with Python
-      python test_tesseract.py
+      chmod +x build.sh
+      ./build.sh
     startCommand: gunicorn --timeout 120 --workers 2 --threads 2 --worker-class gthread app:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
-      - key: WEB_CONCURRENCY
-        value: "2"
+      - key: RENDER
+        value: "true"
       - key: TESSDATA_PREFIX
-        value: /usr/share/tesseract-ocr/4.00/tessdata
+        value: /app/.apt/usr/share/tesseract-ocr/4.00/tessdata
       - key: TESSERACT_PATH
-        value: /usr/bin/tesseract
+        value: /app/.apt/usr/bin/tesseract
       - key: LD_LIBRARY_PATH
         value: /usr/lib/x86_64-linux-gnu
-    healthCheckPath: /
+    healthCheckPath: /health/ocr
     plan: starter
 
   # Worker Service
@@ -41,32 +26,17 @@ services:
     name: menu-worker
     env: python
     buildCommand: |
-      # Install system packages
-      apt-get update && apt-get install -y \
-        tesseract-ocr \
-        tesseract-ocr-eng \
-        libtesseract-dev \
-        libleptonica-dev \
-        poppler-utils
-      
-      # Install Python dependencies
-      pip install -r requirements.txt
-      
-      # Verify Tesseract installation
-      tesseract --version
-      tesseract --list-langs
-      
-      # Test with Python
-      python test_tesseract.py
+      chmod +x build.sh
+      ./build.sh
     startCommand: python worker.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
-      - key: WEB_CONCURRENCY
-        value: "2"
+      - key: RENDER
+        value: "true"
       - key: TESSDATA_PREFIX
-        value: /usr/share/tesseract-ocr/4.00/tessdata
+        value: /app/.apt/usr/share/tesseract-ocr/4.00/tessdata
       - key: TESSERACT_PATH
-        value: /usr/bin/tesseract
+        value: /app/.apt/usr/bin/tesseract
       - key: LD_LIBRARY_PATH
         value: /usr/lib/x86_64-linux-gnu 

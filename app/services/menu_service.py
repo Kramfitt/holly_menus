@@ -6,9 +6,12 @@ from werkzeug.utils import secure_filename
 import traceback
 import random
 import string
+import re
+from PIL import Image
 
 from app.utils.logger import get_logger
 from app.utils.debug import debug_log, debug_print, is_debug_mode
+from app.utils.tesseract_config import optimize_image_for_ocr, perform_ocr
 
 class MenuService:
     def __init__(self, db, storage):
@@ -797,4 +800,30 @@ class MenuService:
                 details=str(e),
                 status="error"
             )
+            return None 
+
+    def extract_dates_from_image(self, image_path: str) -> Optional[Dict[str, str]]:
+        """Extract dates from the image using OCR"""
+        try:
+            # Open image
+            with Image.open(image_path) as img:
+                # Perform OCR with custom config
+                text = perform_ocr(img, config='--psm 6 --oem 1')
+                
+                # Process text to extract dates
+                dates = {}
+                lines = text.split('\n')
+                for line in lines:
+                    # Process one line at a time
+                    match = re.search(r'(Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*\s+(\d+(?:st|nd|rd|th)?\s+[A-Za-z]+)', line)
+                    if match:
+                        day = match.group(1)[:3]  # Standardize to 3 letters
+                        date = match.group(2)
+                        dates[day] = date
+                
+                logger.info(f"Extracted dates: {dates}")
+                return dates if dates else None
+                
+        except Exception as e:
+            logger.error(f"Error extracting dates: {str(e)}")
             return None 

@@ -1,32 +1,21 @@
-2025-02-22 20:36:48,859 ERROR: Exception on / [GET]
+2025-02-22 21:38:23,309 INFO: Menu Dashboard startup
+2025-02-22 21:38:25,157 INFO: Menu Dashboard startup
+2025-02-22 21:38:25,157 INFO: Menu Dashboard startup
+2025-02-23 07:58:48,342 INFO: Menu Dashboard startup
+2025-02-23 07:59:00,396 INFO: Menu Dashboard startup
+2025-02-23 07:59:00,396 INFO: Menu Dashboard startup
+2025-02-23 08:08:02,230 INFO: Menu Dashboard startup
+2025-02-23 08:08:04,072 INFO: Menu Dashboard startup
+2025-02-23 08:08:04,072 INFO: Menu Dashboard startup
+2025-02-23 08:21:47,662 INFO: Menu Dashboard startup
+2025-02-23 08:21:49,554 INFO: Menu Dashboard startup
+2025-02-23 08:21:49,554 INFO: Menu Dashboard startup
+2025-02-23 08:22:10,523 ERROR: Exception on /status [GET]
 Traceback (most recent call last):
-  File "C:\Dev\HollyMenus\app\routes\main.py", line 320, in index
-    return render_template('index.html',
-        settings=settings,
-    ...<5 lines>...
-        debug_mode=debug_mode
-    )
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 150, in render_template
-    return _render(app, template, context)
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 131, in _render
-    rv = template.render(context)
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
-    self.environment.handle_exception()
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
-    raise rewrite_traceback_stack(source=source)
-  File "C:\Dev\HollyMenus\app\templates\index.html", line 1, in top-level template code
-    {% extends "base.html" %}
-  File "C:\Dev\HollyMenus\app\templates\base.html", line 144, in top-level template code
-    {% block content %}{% endblock %}
-    ^^^^^^^^^^^^^^^^^
-  File "C:\Dev\HollyMenus\app\templates\index.html", line 332, in block 'content'
-    <div class="health-status {{ 'good' if all([db_status, redis_status, smtp_status]) else 'warning' if any([db_status, redis_status, smtp_status]) else 'error' }}"></div>
-    ^^^^^^^^^^^^^
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\utils.py", line 92, in from_obj
-    if hasattr(obj, "jinja_pass_arg"):
-       ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-jinja2.exceptions.UndefinedError: 'all' is undefined
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 1157, in system_status
+    email_active = redis_client.get('service_state') == b'true'
+                   ^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'get'
 
 During handling of the above exception, another exception occurred:
 
@@ -42,68 +31,33 @@ Traceback (most recent call last):
            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
   File "C:\Dev\HollyMenus\app\routes\main.py", line 144, in decorated_function
     return f(*args, **kwargs)
-  File "C:\Dev\HollyMenus\app\routes\main.py", line 337, in index
-    return render_template('index.html',
-        settings=None,
-    ...<5 lines>...
-        debug_mode=False
-    )
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 150, in render_template
-    return _render(app, template, context)
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 131, in _render
-    rv = template.render(context)
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
-    self.environment.handle_exception()
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
-    raise rewrite_traceback_stack(source=source)
-  File "C:\Dev\HollyMenus\app\templates\index.html", line 1, in top-level template code
-    {% extends "base.html" %}
-  File "C:\Dev\HollyMenus\app\templates\base.html", line 144, in top-level template code
-    {% block content %}{% endblock %}
-    ^^^^^^^^^^^^^^^^^
-  File "C:\Dev\HollyMenus\app\templates\index.html", line 332, in block 'content'
-    <div class="health-status {{ 'good' if all([db_status, redis_status, smtp_status]) else 'warning' if any([db_status, redis_status, smtp_status]) else 'error' }}"></div>
-    ^^^^^^^^^^^^^
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\utils.py", line 92, in from_obj
-    if hasattr(obj, "jinja_pass_arg"):
-       ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-jinja2.exceptions.UndefinedError: 'all' is undefined
-2025-02-22 21:31:41,026 INFO: Menu Dashboard startup
-2025-02-22 21:31:45,566 INFO: Menu Dashboard startup
-2025-02-22 21:31:45,566 INFO: Menu Dashboard startup
-2025-02-22 21:32:50,928 INFO: Menu Dashboard startup
-2025-02-22 21:32:53,717 INFO: Menu Dashboard startup
-2025-02-22 21:32:53,717 INFO: Menu Dashboard startup
-2025-02-22 21:33:01,327 ERROR: Exception on / [GET]
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 1177, in system_status
+    return render_template('status.html', error=error_msg)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 149, in render_template
+    template = app.jinja_env.get_or_select_template(template_name_or_list)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1087, in get_or_select_template
+    return self.get_template(template_name_or_list, parent, globals)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1016, in get_template
+    return self._load_template(name, globals)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 975, in _load_template
+    template = self.loader.load(self, name, self.make_globals(globals))
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\loaders.py", line 126, in load
+    source, filename, uptodate = self.get_source(environment, name)
+                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 65, in get_source
+    return self._get_source_fast(environment, template)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 99, in _get_source_fast
+    raise TemplateNotFound(template)
+jinja2.exceptions.TemplateNotFound: status.html
+2025-02-23 08:22:10,523 ERROR: Exception on /status [GET]
 Traceback (most recent call last):
-  File "C:\Dev\HollyMenus\app\routes\main.py", line 320, in index
-    return render_template('index.html',
-        settings=settings,
-    ...<5 lines>...
-        debug_mode=debug_mode
-    )
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 150, in render_template
-    return _render(app, template, context)
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 131, in _render
-    rv = template.render(context)
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
-    self.environment.handle_exception()
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
-    raise rewrite_traceback_stack(source=source)
-  File "C:\Dev\HollyMenus\app\templates\index.html", line 1, in top-level template code
-    {% extends "base.html" %}
-  File "C:\Dev\HollyMenus\app\templates\base.html", line 144, in top-level template code
-    {% block content %}{% endblock %}
-    ^^^^^^^^^^^^^^^^^
-  File "C:\Dev\HollyMenus\app\templates\index.html", line 332, in block 'content'
-    <div class="health-status {{ 'good' if all([db_status, redis_status, smtp_status]) else 'warning' if any([db_status, redis_status, smtp_status]) else 'error' }}"></div>
-    ^^^^^^^^^^^^^
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\utils.py", line 92, in from_obj
-    if hasattr(obj, "jinja_pass_arg"):
-       ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-jinja2.exceptions.UndefinedError: 'all' is undefined
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 1157, in system_status
+    email_active = redis_client.get('service_state') == b'true'
+                   ^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'get'
 
 During handling of the above exception, another exception occurred:
 
@@ -119,62 +73,45 @@ Traceback (most recent call last):
            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
   File "C:\Dev\HollyMenus\app\routes\main.py", line 144, in decorated_function
     return f(*args, **kwargs)
-  File "C:\Dev\HollyMenus\app\routes\main.py", line 337, in index
-    return render_template('index.html',
-        settings=None,
-    ...<5 lines>...
-        debug_mode=False
-    )
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 150, in render_template
-    return _render(app, template, context)
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 131, in _render
-    rv = template.render(context)
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
-    self.environment.handle_exception()
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
-    raise rewrite_traceback_stack(source=source)
-  File "C:\Dev\HollyMenus\app\templates\index.html", line 1, in top-level template code
-    {% extends "base.html" %}
-  File "C:\Dev\HollyMenus\app\templates\base.html", line 144, in top-level template code
-    {% block content %}{% endblock %}
-    ^^^^^^^^^^^^^^^^^
-  File "C:\Dev\HollyMenus\app\templates\index.html", line 332, in block 'content'
-    <div class="health-status {{ 'good' if all([db_status, redis_status, smtp_status]) else 'warning' if any([db_status, redis_status, smtp_status]) else 'error' }}"></div>
-    ^^^^^^^^^^^^^
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\utils.py", line 92, in from_obj
-    if hasattr(obj, "jinja_pass_arg"):
-       ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-jinja2.exceptions.UndefinedError: 'all' is undefined
-2025-02-22 21:33:01,327 ERROR: Exception on / [GET]
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 1177, in system_status
+    return render_template('status.html', error=error_msg)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 149, in render_template
+    template = app.jinja_env.get_or_select_template(template_name_or_list)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1087, in get_or_select_template
+    return self.get_template(template_name_or_list, parent, globals)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1016, in get_template
+    return self._load_template(name, globals)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 975, in _load_template
+    template = self.loader.load(self, name, self.make_globals(globals))
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\loaders.py", line 126, in load
+    source, filename, uptodate = self.get_source(environment, name)
+                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 65, in get_source
+    return self._get_source_fast(environment, template)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 99, in _get_source_fast
+    raise TemplateNotFound(template)
+jinja2.exceptions.TemplateNotFound: status.html
+2025-02-23 08:23:52,164 INFO: Menu Dashboard startup
+2025-02-23 08:24:08,742 INFO: Menu Dashboard startup
+2025-02-23 08:24:08,742 INFO: Menu Dashboard startup
+2025-02-23 08:26:25,219 INFO: Menu Dashboard startup
+2025-02-23 08:26:26,899 INFO: Menu Dashboard startup
+2025-02-23 08:26:26,899 INFO: Menu Dashboard startup
+2025-02-23 08:44:57,655 INFO: Menu Dashboard startup
+2025-02-23 08:45:00,947 INFO: Menu Dashboard startup
+2025-02-23 08:45:00,947 INFO: Menu Dashboard startup
+2025-02-23 08:45:57,794 INFO: Menu Dashboard startup
+2025-02-23 08:45:59,355 INFO: Menu Dashboard startup
+2025-02-23 08:45:59,355 INFO: Menu Dashboard startup
+2025-02-23 08:47:28,074 ERROR: Exception on /status [GET]
 Traceback (most recent call last):
-  File "C:\Dev\HollyMenus\app\routes\main.py", line 320, in index
-    return render_template('index.html',
-        settings=settings,
-    ...<5 lines>...
-        debug_mode=debug_mode
-    )
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 150, in render_template
-    return _render(app, template, context)
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 131, in _render
-    rv = template.render(context)
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
-    self.environment.handle_exception()
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
-    raise rewrite_traceback_stack(source=source)
-  File "C:\Dev\HollyMenus\app\templates\index.html", line 1, in top-level template code
-    {% extends "base.html" %}
-  File "C:\Dev\HollyMenus\app\templates\base.html", line 144, in top-level template code
-    {% block content %}{% endblock %}
-    ^^^^^^^^^^^^^^^^^
-  File "C:\Dev\HollyMenus\app\templates\index.html", line 332, in block 'content'
-    <div class="health-status {{ 'good' if all([db_status, redis_status, smtp_status]) else 'warning' if any([db_status, redis_status, smtp_status]) else 'error' }}"></div>
-    ^^^^^^^^^^^^^
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\utils.py", line 92, in from_obj
-    if hasattr(obj, "jinja_pass_arg"):
-       ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-jinja2.exceptions.UndefinedError: 'all' is undefined
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 1125, in system_status
+    email_active = redis_client.get('service_state') == b'true'
+                   ^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'get'
 
 During handling of the above exception, another exception occurred:
 
@@ -190,30 +127,66 @@ Traceback (most recent call last):
            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
   File "C:\Dev\HollyMenus\app\routes\main.py", line 144, in decorated_function
     return f(*args, **kwargs)
-  File "C:\Dev\HollyMenus\app\routes\main.py", line 337, in index
-    return render_template('index.html',
-        settings=None,
-    ...<5 lines>...
-        debug_mode=False
-    )
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 150, in render_template
-    return _render(app, template, context)
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 131, in _render
-    rv = template.render(context)
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1295, in render
-    self.environment.handle_exception()
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 942, in handle_exception
-    raise rewrite_traceback_stack(source=source)
-  File "C:\Dev\HollyMenus\app\templates\index.html", line 1, in top-level template code
-    {% extends "base.html" %}
-  File "C:\Dev\HollyMenus\app\templates\base.html", line 144, in top-level template code
-    {% block content %}{% endblock %}
-    ^^^^^^^^^^^^^^^^^
-  File "C:\Dev\HollyMenus\app\templates\index.html", line 332, in block 'content'
-    <div class="health-status {{ 'good' if all([db_status, redis_status, smtp_status]) else 'warning' if any([db_status, redis_status, smtp_status]) else 'error' }}"></div>
-    ^^^^^^^^^^^^^
-  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\utils.py", line 92, in from_obj
-    if hasattr(obj, "jinja_pass_arg"):
-       ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-jinja2.exceptions.UndefinedError: 'all' is undefined
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 1145, in system_status
+    return render_template('status.html', error=error_msg)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 149, in render_template
+    template = app.jinja_env.get_or_select_template(template_name_or_list)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1087, in get_or_select_template
+    return self.get_template(template_name_or_list, parent, globals)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1016, in get_template
+    return self._load_template(name, globals)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 975, in _load_template
+    template = self.loader.load(self, name, self.make_globals(globals))
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\loaders.py", line 126, in load
+    source, filename, uptodate = self.get_source(environment, name)
+                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 65, in get_source
+    return self._get_source_fast(environment, template)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 99, in _get_source_fast
+    raise TemplateNotFound(template)
+jinja2.exceptions.TemplateNotFound: status.html
+2025-02-23 08:47:28,074 ERROR: Exception on /status [GET]
+Traceback (most recent call last):
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 1125, in system_status
+    email_active = redis_client.get('service_state') == b'true'
+                   ^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'get'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 144, in decorated_function
+    return f(*args, **kwargs)
+  File "C:\Dev\HollyMenus\app\routes\main.py", line 1145, in system_status
+    return render_template('status.html', error=error_msg)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 149, in render_template
+    template = app.jinja_env.get_or_select_template(template_name_or_list)
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1087, in get_or_select_template
+    return self.get_template(template_name_or_list, parent, globals)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 1016, in get_template
+    return self._load_template(name, globals)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\environment.py", line 975, in _load_template
+    template = self.loader.load(self, name, self.make_globals(globals))
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\jinja2\loaders.py", line 126, in load
+    source, filename, uptodate = self.get_source(environment, name)
+                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 65, in get_source
+    return self._get_source_fast(environment, template)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Dev\HollyMenus\venv\Lib\site-packages\flask\templating.py", line 99, in _get_source_fast
+    raise TemplateNotFound(template)
+jinja2.exceptions.TemplateNotFound: status.html

@@ -14,6 +14,7 @@ from config import (  # Import from config package
 from app.services.menu_service import MenuService
 from app.services.email_service import EmailService
 from app.utils.logger import Logger
+from app.utils.tesseract_config import configure_tesseract
 import traceback
 import logging
 from logging.handlers import RotatingFileHandler
@@ -58,6 +59,17 @@ def create_app():
         
         # Set up logging
         configure_logging(app)
+        
+        # Configure Tesseract
+        tesseract_success = configure_tesseract()
+        if not tesseract_success:
+            if os.environ.get('RENDER'):
+                # Critical error on Render - OCR is required
+                raise RuntimeError("Failed to configure Tesseract on Render. Check system dependencies and TESSDATA_PREFIX.")
+            else:
+                app.logger.warning("⚠️ Tesseract configuration failed - OCR functionality may be limited")
+        else:
+            app.logger.info("✅ Tesseract configured successfully")
         
         # Register blueprint
         from app.routes.main import bp as main_bp, register_filters
