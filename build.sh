@@ -7,9 +7,9 @@ echo "🚀 Starting build process..."
 if [ -n "$RENDER" ] || [ -d "/app" ]; then
     echo "📦 Running on Render - installing system dependencies..."
     
-    # Install system packages
-    apt-get update
-    apt-get install -y \
+    # Install system packages with sudo
+    sudo apt-get update
+    sudo apt-get install -y \
         tesseract-ocr \
         tesseract-ocr-eng \
         libtesseract-dev \
@@ -17,8 +17,8 @@ if [ -n "$RENDER" ] || [ -d "/app" ]; then
         poppler-utils
     
     # Set up Tesseract paths
-    export TESSDATA_PREFIX="/app/.apt/usr/share/tesseract-ocr/4.00/tessdata"
-    export TESSERACT_PATH="/app/.apt/usr/bin/tesseract"
+    export TESSDATA_PREFIX="/usr/share/tesseract-ocr/4.00/tessdata"
+    export TESSERACT_PATH="/usr/bin/tesseract"
     export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
     
     echo "✅ System packages installed"
