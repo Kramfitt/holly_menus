@@ -11,6 +11,11 @@ services:
       sudo apt-get install -y tesseract-ocr tesseract-ocr-eng libtesseract-dev libleptonica-dev poppler-utils
       
       # Verify Tesseract installation
+      which tesseract || {
+        echo "Tesseract not found in PATH after installation"
+        exit 1
+      }
+      
       tesseract --version || {
         echo "Tesseract installation failed"
         exit 1
@@ -22,11 +27,16 @@ services:
       }
       
       # Set up Tesseract path
-      export TESSERACT_PATH=/usr/bin/tesseract
+      TESSERACT_PATH=$(which tesseract)
+      echo "Found Tesseract at: $TESSERACT_PATH"
       echo "TESSERACT_PATH=$TESSERACT_PATH" >> $RENDER_ENV_FILE
       
-      # Add Tesseract to PATH
-      echo "PATH=/usr/bin:$PATH" >> $RENDER_ENV_FILE
+      # Ensure Tesseract is executable
+      sudo chmod +x $TESSERACT_PATH
+      
+      # Add Tesseract directory to PATH
+      TESSERACT_DIR=$(dirname $TESSERACT_PATH)
+      echo "PATH=$TESSERACT_DIR:$PATH" >> $RENDER_ENV_FILE
       
       # Install Python dependencies
       pip install -r requirements.txt
@@ -72,6 +82,11 @@ services:
       sudo apt-get install -y tesseract-ocr tesseract-ocr-eng libtesseract-dev libleptonica-dev poppler-utils
       
       # Verify Tesseract installation
+      which tesseract || {
+        echo "Tesseract not found in PATH after installation"
+        exit 1
+      }
+      
       tesseract --version || {
         echo "Tesseract installation failed"
         exit 1
@@ -83,11 +98,16 @@ services:
       }
       
       # Set up Tesseract path
-      export TESSERACT_PATH=/usr/bin/tesseract
+      TESSERACT_PATH=$(which tesseract)
+      echo "Found Tesseract at: $TESSERACT_PATH"
       echo "TESSERACT_PATH=$TESSERACT_PATH" >> $RENDER_ENV_FILE
       
-      # Add Tesseract to PATH
-      echo "PATH=/usr/bin:$PATH" >> $RENDER_ENV_FILE
+      # Ensure Tesseract is executable
+      sudo chmod +x $TESSERACT_PATH
+      
+      # Add Tesseract directory to PATH
+      TESSERACT_DIR=$(dirname $TESSERACT_PATH)
+      echo "PATH=$TESSERACT_DIR:$PATH" >> $RENDER_ENV_FILE
       
       # Install Python dependencies
       pip install -r requirements.txt

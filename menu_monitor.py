@@ -812,9 +812,37 @@ Holly Lodge Menu System"""
             tesseract_path = os.getenv('TESSERACT_PATH', '/usr/bin/tesseract')
             print(f"Using Tesseract path: {tesseract_path}")
             
+            # If we're in Render environment, check the .apt directory
+            if is_render:
+                apt_dir = os.path.join(cwd, '.apt')
+                if os.path.exists(apt_dir):
+                    print(f"Found .apt directory: {apt_dir}")
+                    print(f"Contents: {os.listdir(apt_dir)}")
+                    
+                    # Check usr/bin in .apt
+                    apt_usr_bin = os.path.join(apt_dir, 'usr', 'bin')
+                    if os.path.exists(apt_usr_bin):
+                        print(f"Found usr/bin in .apt: {apt_usr_bin}")
+                        print(f"Contents: {os.listdir(apt_usr_bin)}")
+                        
+                        # Update tesseract path if found in .apt
+                        apt_tesseract = os.path.join(apt_usr_bin, 'tesseract')
+                        if os.path.exists(apt_tesseract):
+                            print(f"Found Tesseract in .apt: {apt_tesseract}")
+                            tesseract_path = apt_tesseract
+                            os.environ['TESSERACT_PATH'] = tesseract_path
+                            print(f"Updated Tesseract path to: {tesseract_path}")
+            
             # Check if Tesseract exists at the specified path
             if os.path.exists(tesseract_path):
                 print(f"Found Tesseract at: {tesseract_path}")
+                # Ensure the binary is executable
+                try:
+                    os.chmod(tesseract_path, 0o755)
+                    print("Set executable permissions on Tesseract binary")
+                except Exception as e:
+                    print(f"Warning: Could not set permissions on Tesseract binary: {e}")
+                
                 pytesseract.pytesseract.tesseract_cmd = tesseract_path
                 
                 # Verify version and languages
@@ -884,7 +912,9 @@ Holly Lodge Menu System"""
             common_paths = [
                 '/usr/bin/tesseract',
                 '/usr/local/bin/tesseract',
-                '/opt/tesseract/bin/tesseract'
+                '/opt/tesseract/bin/tesseract',
+                '/app/.apt/usr/bin/tesseract',  # Common Render path
+                os.path.join(cwd, '.apt', 'usr', 'bin', 'tesseract')  # Local .apt path
             ]
             
             for path in common_paths:
