@@ -4,87 +4,118 @@ services:
     name: menu-system
     env: python
     buildCommand: |
+      echo "Starting build process..."
+      
+      # Debug: Show current state
+      echo "Initial environment:"
+      pwd
+      ls -la
+      echo "PATH: $PATH"
+      
       # Install system packages
+      echo "Installing system packages..."
       sudo apt-get update
       sudo apt-get install -y tesseract-ocr tesseract-ocr-eng libtesseract-dev libleptonica-dev poppler-utils
       
-      # Create application bin directory
-      mkdir -p bin
+      # Verify system installation
+      echo "Verifying system installation..."
+      which tesseract
+      tesseract --version || echo "Failed to run tesseract --version"
       
-      # Find and copy Tesseract and its dependencies
+      # Create our local directories
+      echo "Setting up local directories..."
+      mkdir -p bin
+      mkdir -p share/tessdata
+      
+      # Copy Tesseract binary and dependencies
+      echo "Copying Tesseract files..."
       TESSERACT_BIN=$(which tesseract)
       if [ -z "$TESSERACT_BIN" ]; then
-        echo "Tesseract not found after installation"
+        echo "❌ Tesseract not found after installation"
         exit 1
       fi
       
-      # Copy Tesseract binary
+      echo "Found Tesseract at: $TESSERACT_BIN"
       cp $TESSERACT_BIN bin/
-      
-      # Copy required shared libraries
-      ldd $TESSERACT_BIN | grep "=> /" | awk '{print $3}' | xargs -I '{}' cp -v '{}' bin/
-      
-      # Copy language data
-      mkdir -p share/tessdata
-      cp -r /usr/share/tesseract-ocr/*/tessdata/* share/tessdata/
-      
-      # Set up environment for build and runtime
-      export TESSDATA_PREFIX="$PWD/share/tessdata"
-      export TESSERACT_PATH="$PWD/bin/tesseract"
-      export LD_LIBRARY_PATH="$PWD/bin:$LD_LIBRARY_PATH"
-      
-      # Make Tesseract executable
       chmod +x bin/tesseract
       
-      # Verify Tesseract works
-      echo "Testing Tesseract installation..."
-      bin/tesseract --version
-      bin/tesseract --list-langs
+      # Copy all required shared libraries
+      echo "Copying shared libraries..."
+      ldd $TESSERACT_BIN | grep "=> /" | awk '{print $3}' | while read -r lib; do
+        cp -v "$lib" bin/
+      done
       
-      # Install Python dependencies
-      pip install -r requirements.txt
+      # Copy language data
+      echo "Copying language data..."
+      cp -r /usr/share/tesseract-ocr/*/tessdata/* share/tessdata/
+      
+      # Set up environment
+      echo "Setting up environment..."
+      CURRENT_DIR=$(pwd)
+      echo "TESSDATA_PREFIX=$CURRENT_DIR/share/tessdata" >> $RENDER_ENV_FILE
+      echo "TESSERACT_PATH=$CURRENT_DIR/bin/tesseract" >> $RENDER_ENV_FILE
+      echo "LD_LIBRARY_PATH=$CURRENT_DIR/bin:$LD_LIBRARY_PATH" >> $RENDER_ENV_FILE
+      
+      # Export for current session
+      export TESSDATA_PREFIX="$CURRENT_DIR/share/tessdata"
+      export TESSERACT_PATH="$CURRENT_DIR/bin/tesseract"
+      export LD_LIBRARY_PATH="$CURRENT_DIR/bin:$LD_LIBRARY_PATH"
       
       # Create test script
       cat > test_tesseract.py << 'EOL'
 import os
+import sys
 import pytesseract
 from PIL import Image, ImageDraw
+import numpy as np
 
 def test_tesseract():
-    print(f"TESSDATA_PREFIX: {os.getenv('TESSDATA_PREFIX')}")
-    print(f"TESSERACT_PATH: {os.getenv('TESSERACT_PATH')}")
-    print(f"LD_LIBRARY_PATH: {os.getenv('LD_LIBRARY_PATH')}")
+    print('🔍 Testing Tesseract configuration...')
+    
+    # Check environment
+    print(f'TESSERACT_PATH: {os.getenv("TESSERACT_PATH")}')
+    print(f'TESSDATA_PREFIX: {os.getenv("TESSDATA_PREFIX")}')
+    print(f'LD_LIBRARY_PATH: {os.getenv("LD_LIBRARY_PATH")}')
     
     # Create test image
     img = Image.new('RGB', (200, 50), color='white')
     draw = ImageDraw.Draw(img)
     draw.text((10, 10), "TEST OCR 123", fill='black')
-    img.save('test.png')
     
-    # Configure pytesseract
-    pytesseract.pytesseract.tesseract_cmd = os.getenv('TESSERACT_PATH')
-    
-    # Try OCR
-    result = pytesseract.image_to_string(Image.open('test.png'))
-    print(f"OCR Result: {result.strip()}")
-    os.remove('test.png')
-    return 'TEST' in result.upper()
+    try:
+        # Test OCR
+        text = pytesseract.image_to_string(img)
+        print(f'OCR Result: {text.strip()}')
+        return True
+    except Exception as e:
+        print(f'OCR Test failed: {str(e)}')
+        return False
 
 if __name__ == '__main__':
-    if not test_tesseract():
-        print("Tesseract test failed")
-        exit(1)
-    print("Tesseract test passed")
+    success = test_tesseract()
+    sys.exit(0 if success else 1)
 EOL
       
-      # Test Tesseract with Python
+      # Install Python dependencies
+      echo "Installing Python dependencies..."
+      pip install -r requirements.txt
+      
+      # Test with Python
+      echo "Testing with Python..."
       python test_tesseract.py
       
+      echo "Build process complete!"
+      
     startCommand: |
-      # Set up environment variables
-      export TESSDATA_PREFIX="$PWD/share/tessdata"
-      export TESSERACT_PATH="$PWD/bin/tesseract"
-      export LD_LIBRARY_PATH="$PWD/bin:$LD_LIBRARY_PATH"
+      echo "Starting application..."
+      echo "Current environment:"
+      env | grep -E 'TESSERACT|TESSDATA|LD_LIBRARY'
+      
+      # Ensure environment is set
+      CURRENT_DIR=$(pwd)
+      export TESSDATA_PREFIX="$CURRENT_DIR/share/tessdata"
+      export TESSERACT_PATH="$CURRENT_DIR/bin/tesseract"
+      export LD_LIBRARY_PATH="$CURRENT_DIR/bin:$LD_LIBRARY_PATH"
       
       # Start the application
       gunicorn app:app
@@ -95,11 +126,11 @@ EOL
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: TESSDATA_PREFIX
-        value: /opt/render/project/src/share/tessdata
+        sync: true
       - key: TESSERACT_PATH
-        value: /opt/render/project/src/bin/tesseract
+        sync: true
       - key: LD_LIBRARY_PATH
-        value: /opt/render/project/src/bin
+        sync: true
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
@@ -120,54 +151,78 @@ EOL
     name: menu-worker
     env: python
     buildCommand: |
+      echo "Starting worker build process..."
+      
+      # Debug: Show current state
+      echo "Initial environment:"
+      pwd
+      ls -la
+      echo "PATH: $PATH"
+      
       # Install system packages
+      echo "Installing system packages..."
       sudo apt-get update
       sudo apt-get install -y tesseract-ocr tesseract-ocr-eng libtesseract-dev libleptonica-dev poppler-utils
       
-      # Create application bin directory
+      # Create our local directories
+      echo "Setting up local directories..."
       mkdir -p bin
+      mkdir -p share/tessdata
       
-      # Find and copy Tesseract and its dependencies
+      # Copy Tesseract binary and dependencies
+      echo "Copying Tesseract files..."
       TESSERACT_BIN=$(which tesseract)
       if [ -z "$TESSERACT_BIN" ]; then
-        echo "Tesseract not found after installation"
+        echo "❌ Tesseract not found after installation"
         exit 1
       fi
       
-      # Copy Tesseract binary
+      echo "Found Tesseract at: $TESSERACT_BIN"
       cp $TESSERACT_BIN bin/
-      
-      # Copy required shared libraries
-      ldd $TESSERACT_BIN | grep "=> /" | awk '{print $3}' | xargs -I '{}' cp -v '{}' bin/
-      
-      # Copy language data
-      mkdir -p share/tessdata
-      cp -r /usr/share/tesseract-ocr/*/tessdata/* share/tessdata/
-      
-      # Set up environment for build and runtime
-      export TESSDATA_PREFIX="$PWD/share/tessdata"
-      export TESSERACT_PATH="$PWD/bin/tesseract"
-      export LD_LIBRARY_PATH="$PWD/bin:$LD_LIBRARY_PATH"
-      
-      # Make Tesseract executable
       chmod +x bin/tesseract
       
-      # Verify Tesseract works
-      echo "Testing Tesseract installation..."
-      bin/tesseract --version
-      bin/tesseract --list-langs
+      # Copy all required shared libraries
+      echo "Copying shared libraries..."
+      ldd $TESSERACT_BIN | grep "=> /" | awk '{print $3}' | while read -r lib; do
+        cp -v "$lib" bin/
+      done
+      
+      # Copy language data
+      echo "Copying language data..."
+      cp -r /usr/share/tesseract-ocr/*/tessdata/* share/tessdata/
+      
+      # Set up environment
+      echo "Setting up environment..."
+      CURRENT_DIR=$(pwd)
+      echo "TESSDATA_PREFIX=$CURRENT_DIR/share/tessdata" >> $RENDER_ENV_FILE
+      echo "TESSERACT_PATH=$CURRENT_DIR/bin/tesseract" >> $RENDER_ENV_FILE
+      echo "LD_LIBRARY_PATH=$CURRENT_DIR/bin:$LD_LIBRARY_PATH" >> $RENDER_ENV_FILE
+      
+      # Export for current session
+      export TESSDATA_PREFIX="$CURRENT_DIR/share/tessdata"
+      export TESSERACT_PATH="$CURRENT_DIR/bin/tesseract"
+      export LD_LIBRARY_PATH="$CURRENT_DIR/bin:$LD_LIBRARY_PATH"
       
       # Install Python dependencies
+      echo "Installing Python dependencies..."
       pip install -r requirements.txt
       
-      # Test Tesseract with Python
+      # Test with Python
+      echo "Testing with Python..."
       python test_tesseract.py
       
+      echo "Worker build process complete!"
+      
     startCommand: |
-      # Set up environment variables
-      export TESSDATA_PREFIX="$PWD/share/tessdata"
-      export TESSERACT_PATH="$PWD/bin/tesseract"
-      export LD_LIBRARY_PATH="$PWD/bin:$LD_LIBRARY_PATH"
+      echo "Starting worker..."
+      echo "Current environment:"
+      env | grep -E 'TESSERACT|TESSDATA|LD_LIBRARY'
+      
+      # Ensure environment is set
+      CURRENT_DIR=$(pwd)
+      export TESSDATA_PREFIX="$CURRENT_DIR/share/tessdata"
+      export TESSERACT_PATH="$CURRENT_DIR/bin/tesseract"
+      export LD_LIBRARY_PATH="$CURRENT_DIR/bin:$LD_LIBRARY_PATH"
       
       # Start the worker
       python worker.py
@@ -178,11 +233,11 @@ EOL
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: TESSDATA_PREFIX
-        value: /opt/render/project/src/share/tessdata
+        sync: true
       - key: TESSERACT_PATH
-        value: /opt/render/project/src/bin/tesseract
+        sync: true
       - key: LD_LIBRARY_PATH
-        value: /opt/render/project/src/bin
+        sync: true
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY

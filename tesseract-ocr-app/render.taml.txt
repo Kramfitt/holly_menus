@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: tesseract-ocr-app
+    env: docker
+    repo: https://github.com/Kramfitt/tesseract-ocr-app
+    branch: main
+    dockerfilePath: Dockerfile
+    buildCommand: ""
+    startCommand: ""
+    plan: free

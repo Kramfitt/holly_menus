@@ -13,7 +13,7 @@ from menu_scheduler import load_config
 from menu_utils import add_dates_to_menu
 import re
 import pytesseract
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageEnhance
 import cv2
 import numpy as np
 import smtplib
@@ -26,6 +26,7 @@ import yaml
 import platform
 from pdf2image import convert_from_path
 import subprocess
+import gc
 
 # Configure logging with more detailed format
 logging.basicConfig(
@@ -188,124 +189,56 @@ class MenuEmailMonitor:
             raise
 
     def extract_dates_from_image(self, image_path: str) -> Optional[Dict[str, str]]:
-        """
-        Extract dates from the menu header using OCR.
-        Returns a dictionary mapping day names to dates.
-        """
+        """Extract dates from the image using OCR"""
         try:
-            # Check if image exists
-            if not os.path.exists(image_path):
-                logger.error(f"Image file does not exist: {image_path}")
-                return None
-
-            # Initialize Tesseract with the same path used in verify_tesseract_installation
-            tesseract_path = os.getenv('TESSERACT_PATH', '/usr/bin/tesseract')
-            logger.info(f"Using Tesseract path: {tesseract_path}")
-
-            # Verify Tesseract binary exists
-            if not os.path.exists(tesseract_path):
-                logger.error(f"Tesseract binary not found at: {tesseract_path}")
-                # Try finding it in PATH
-                tesseract_in_path = shutil.which('tesseract')
-                if tesseract_in_path:
-                    tesseract_path = tesseract_in_path
-                    logger.info(f"Found Tesseract in PATH: {tesseract_path}")
-                else:
-                    logger.error("Tesseract not found in PATH")
-                    return None
-
-            # Set Tesseract command path
-            pytesseract.pytesseract.tesseract_cmd = tesseract_path
-
-            # Verify Tesseract is accessible by checking version
-            try:
-                version = pytesseract.get_tesseract_version()
-                logger.info(f"Using Tesseract version: {version}")
-            except Exception as e:
-                logger.error(f"Failed to get Tesseract version: {e}")
-                # Try running tesseract directly to get more info
-                try:
-                    import subprocess
-                    result = subprocess.run([tesseract_path, '--version'], capture_output=True, text=True)
-                    logger.error(f"Direct tesseract call output: {result.stdout}")
-                except Exception as sub_e:
-                    logger.error(f"Failed to run tesseract directly: {sub_e}")
-                return None
-
-            # Read image
-            image = cv2.imread(image_path)
-            if image is None:
-                logger.error(f"Failed to read image: {image_path}")
-                return None
-
-            # Convert to grayscale
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-            # Crop to just the header area (approximately top 15% of image)
-            height = gray.shape[0]
-            header = gray[0:int(height * 0.15), :]
-
-            # Enhance image for better OCR
-            # Apply adaptive thresholding
-            binary = cv2.adaptiveThreshold(
-                header,
-                255,
-                cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                cv2.THRESH_BINARY,
-                11,  # Block size
-                2    # C constant
-            )
-
-            # Additional preprocessing
-            # Denoise
-            denoised = cv2.fastNlMeansDenoising(binary)
-            
-            # Convert to PIL Image for Tesseract
-            pil_image = Image.fromarray(denoised)
-
-            # Extract text with improved configuration
-            try:
-                # Log current working directory and file permissions
-                logger.info(f"Current working directory: {os.getcwd()}")
-                logger.info(f"Tesseract binary permissions: {oct(os.stat(tesseract_path).st_mode)[-3:]}")
+            # Open and optimize image for OCR
+            with Image.open(image_path) as img:
+                # Convert to RGB if needed
+                if img.mode not in ('L', 'RGB'):
+                    img = img.convert('RGB')
                 
-                # Try OCR with explicit options
-                text = pytesseract.image_to_string(
-                    pil_image,
-                    config='--psm 6 -c tessedit_char_whitelist="MonTueWdThFriSat0123456789thsnrdJanuaryFebuchApilMJgSptOcNovDmb "'
-                )
-                logger.info(f"Extracted text from header:\n{text}")
-            except Exception as e:
-                logger.error(f"Failed to perform OCR: {e}")
-                # Log environment for debugging
-                logger.error(f"Environment PATH: {os.environ.get('PATH')}")
-                logger.error(f"Tesseract command: {pytesseract.pytesseract.tesseract_cmd}")
-                return None
-            
-            # Define regex pattern for dates
-            # Matches patterns like "Mon 3rd March", "Tue 4th March", etc.
-            date_pattern = r'(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(\d+(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December))'
-            
-            # Find all matches
-            matches = re.findall(date_pattern, text)
-            
-            if not matches:
-                logger.warning("No dates found in header")
-                logger.debug(f"OCR text output: {text}")
-                return None
-
-            # Create dictionary of day -> date
+                # Resize if too large (max dimension 2400px)
+                max_dimension = 2400
+                if max(img.size) > max_dimension:
+                    ratio = max_dimension / max(img.size)
+                    new_size = tuple(int(dim * ratio) for dim in img.size)
+                    img = img.resize(new_size, Image.Resampling.LANCZOS)
+                
+                # Enhance image for OCR
+                img = ImageEnhance.Contrast(img).enhance(1.5)
+                img = ImageEnhance.Sharpness(img).enhance(1.5)
+                
+                # Convert to grayscale for OCR
+                img = img.convert('L')
+                
+                # Use custom OCR config for better memory usage
+                custom_config = '--psm 6 --oem 1'
+                text = pytesseract.image_to_string(img, config=custom_config)
+                
+                # Clean up memory
+                img = None
+                
+            # Process text to extract dates
             dates = {}
-            for day, date in matches:
-                dates[day] = date.strip()
-
-            logger.info(f"Extracted dates: {dates}")
-            return dates
-
+            lines = text.split('\n')
+            for line in lines:
+                # Process one line at a time
+                match = re.search(r'(Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*\s+(\d+(?:st|nd|rd|th)?\s+[A-Za-z]+)', line)
+                if match:
+                    day = match.group(1)[:3]  # Standardize to 3 letters
+                    date = match.group(2)
+                    dates[day] = date
+            
+            return dates if dates else None
+            
         except Exception as e:
-            logger.error(f"Error extracting dates: {str(e)}")
-            logger.error("Stack trace:", exc_info=True)
+            print(f"Error extracting dates: {str(e)}")
             return None
+        finally:
+            # Ensure we clean up any temporary files
+            if 'img' in locals():
+                del img
+            gc.collect()
 
     def combine_with_master_menu(self, dates: Dict[str, str], master_menu_path: str) -> str:
         """
@@ -575,87 +508,62 @@ class MenuEmailMonitor:
             return None
 
     def process_pdf_attachment(self, attachment_data: bytes, original_filename: str) -> Tuple[List[str], Optional[Dict[str, str]]]:
-        """Process a PDF attachment and extract menu information."""
+        """Process a PDF attachment and extract dates"""
+        temp_dir = None
+        processed_images = []
+        dates = None
+        
         try:
-            logger.info("🔄 Processing PDF attachment...")
-            
-            # Create a unique temp directory for this processing
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            temp_dir = os.path.join(self.config['temp_dir'], timestamp)
+            # Create temporary directory
+            temp_dir = os.path.join(os.getcwd(), 'temp_images')
             os.makedirs(temp_dir, exist_ok=True)
             
-            # Save the PDF temporarily
-            temp_pdf = os.path.join(temp_dir, f"temp_{timestamp}.pdf")
-            with open(temp_pdf, 'wb') as f:
+            # Save PDF to temp file
+            pdf_path = os.path.join(temp_dir, 'temp.pdf')
+            with open(pdf_path, 'wb') as f:
                 f.write(attachment_data)
             
             # Convert PDF to images
-            try:
-                # On Linux (Render), don't specify poppler_path
-                if platform.system() != 'Windows':
-                    logger.info("Running on Linux, using system Poppler")
-                    if not shutil.which('pdftoppm'):
-                        logger.error("Poppler (pdftoppm) not found in PATH")
-                        logger.error("Please ensure poppler-utils is installed")
-                        return [], None
-                    images = convert_from_path(temp_pdf)
-                else:
-                    poppler_path = os.getenv('POPPLER_PATH', 'C:\\Poppler\\Release-24.08.0-0\\poppler-24.08.0\\Library\\bin')
-                    logger.info(f"Running on Windows, using Poppler from: {poppler_path}")
-                    images = convert_from_path(temp_pdf, poppler_path=poppler_path)
-                
-                image_paths = []
-                for i, image in enumerate(images):
-                    image_path = os.path.join(temp_dir, f'page_{i+1}.png')
-                    image.save(image_path, 'PNG')
-                    image_paths.append(image_path)
+            print(f"Converting PDF: {original_filename}")
+            poppler_path = None if platform.system() != 'Windows' else r'C:\Poppler\Release-24.08.0-0\poppler-24.08.0\Library\bin'
+            
+            # Process one page at a time
+            images = convert_from_path(pdf_path, poppler_path=poppler_path)
+            for i, image in enumerate(images):
+                try:
+                    # Save image with optimized settings
+                    image_path = os.path.join(temp_dir, f'page_{i + 1}.png')
+                    image.save(image_path, 'PNG', optimize=True)
+                    processed_images.append(image_path)
                     
-                logger.info(f"✅ Converted {len(image_paths)} pages to images")
-                
-                # Extract dates from the first page
-                if image_paths:
-                    # Try multiple times with different preprocessing if needed
-                    dates = None
-                    for attempt in range(2):
-                        dates = self.extract_dates_from_image(image_paths[0])
-                        if dates:
-                            logger.info(f"✅ Successfully extracted dates on attempt {attempt + 1}: {dates}")
-                            break
-                        elif attempt == 0:
-                            # If first attempt failed, try to enhance the image
-                            logger.info("First date extraction attempt failed, trying with enhanced image...")
-                            img = cv2.imread(image_paths[0])
-                            if img is not None:
-                                # Enhance image
-                                img = cv2.convertScaleAbs(img, alpha=1.5, beta=0)  # Increase contrast
-                                enhanced_path = os.path.join(temp_dir, f'enhanced_page_1.png')
-                                cv2.imwrite(enhanced_path, img)
-                                image_paths[0] = enhanced_path
+                    # Try to extract dates from this image
+                    if dates is None:
+                        dates = self.extract_dates_from_image(image_path)
                     
-                    if not dates:
-                        logger.warning("⚠️ Could not extract dates after multiple attempts")
-                        logger.info("Proceeding with image processing without dates")
-                        
-                return image_paths, dates
-                
-            except Exception as e:
-                logger.error(f"Error converting PDF: {str(e)}")
-                logger.error("Please check if Poppler is properly installed and in PATH")
-                logger.error("Stack trace:", exc_info=True)
-                return [], None
-                
+                    # Clean up memory after each page
+                    image = None
+                    gc.collect()
+                    
+                except Exception as e:
+                    print(f"Error processing page {i + 1}: {str(e)}")
+                    continue
+            
+            return processed_images, dates
+            
         except Exception as e:
-            logger.error(f"Error processing PDF attachment: {str(e)}")
-            logger.error("Stack trace:", exc_info=True)
+            print(f"Error processing PDF: {str(e)}")
             return [], None
+            
         finally:
-            # Cleanup temporary files
+            # Clean up temporary files
             try:
-                if os.path.exists(temp_pdf):
-                    os.remove(temp_pdf)
+                if temp_dir and os.path.exists(temp_dir):
+                    for file in os.listdir(temp_dir):
+                        if file != 'temp.pdf' and not any(file in img for img in processed_images):
+                            os.remove(os.path.join(temp_dir, file))
             except Exception as e:
-                logger.error(f"Error cleaning up temporary files: {str(e)}")
-                logger.error("Stack trace:", exc_info=True)
+                print(f"Error cleaning up temp files: {str(e)}")
+            gc.collect()
 
     def send_response_email(self, recipient: str, processed_images: List[str]):
         """

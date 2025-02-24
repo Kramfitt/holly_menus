@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: tesseract-ocr-app
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --timeout 120 --workers 2 --threads 2 --worker-class gthread app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.0
+      - key: WEB_CONCURRENCY
+        value: "2"
+    healthCheckPath: /
+    autoDeploy: true
+    plan: starter # Using starter plan for more resources 

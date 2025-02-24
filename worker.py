@@ -1,5 +1,6 @@
 import sys
 import os
+import gc
 
 # Add the project root to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -139,43 +140,67 @@ def run_worker():
                 if redis_client.get('service_state') != b'true':
                     time.sleep(60)  # Check every minute
                     continue
-                    
-                # Calculate next menu
-                next_menu = calculate_next_menu()
+                
+                # Clean up memory before processing
+                gc.collect()
+                
+                # Calculate next menu with memory management
+                next_menu = None
+                try:
+                    next_menu = calculate_next_menu()
+                except Exception as e:
+                    print(f"Error calculating next menu: {e}")
+                    time.sleep(300)  # Wait 5 minutes on error
+                    continue
+                
                 if not next_menu:
                     time.sleep(300)  # Wait 5 minutes if no menu
                     continue
-                    
+                
                 # Check if it's time to send
                 now = datetime.now().date()
                 if now == next_menu['send_date']:
-                    # Get settings for recipients
-                    settings = supabase.table('menu_settings')\
-                        .select('*')\
-                        .order('created_at', desc=True)\
-                        .limit(1)\
-                        .execute()
+                    try:
+                        # Get settings for recipients
+                        settings = supabase.table('menu_settings')\
+                            .select('*')\
+                            .order('created_at', desc=True)\
+                            .limit(1)\
+                            .execute()
                         
-                    if settings.data:
-                        recipient_list = settings.data[0].get('recipient_emails', [])
-                        if recipient_list:
-                            send_menu_email(
-                                start_date=next_menu['period_start'],
-                                recipient_list=recipient_list,
-                                season=next_menu['season'],
-                                week_number=next_menu['menu_pair'].split('_')[0]  # Use first week of pair
-                            )
+                        if settings.data:
+                            recipient_list = settings.data[0].get('recipient_emails', [])
+                            if recipient_list:
+                                # Process one recipient at a time
+                                for recipient in recipient_list:
+                                    try:
+                                        send_menu_email(
+                                            start_date=next_menu['period_start'],
+                                            recipient_list=[recipient],  # Send to one recipient
+                                            season=next_menu['season'],
+                                            week_number=next_menu['menu_pair'].split('_')[0]
+                                        )
+                                        # Small delay between emails
+                                        time.sleep(2)
+                                    except Exception as e:
+                                        print(f"Error sending to {recipient}: {e}")
+                                        continue
+                                    finally:
+                                        # Clean up after each email
+                                        gc.collect()
+                    except Exception as e:
+                        print(f"Error processing recipients: {e}")
                 
-                # Sleep for a while
+                # Clean up and sleep
+                gc.collect()
                 time.sleep(3600)  # Check every hour
                 
             except Exception as e:
-                logger.log_activity(
-                    action="Worker Error",
-                    details=str(e),
-                    status="error"
-                )
+                print(f"Worker error: {e}")
                 time.sleep(300)  # Wait 5 minutes on error
+            finally:
+                # Final cleanup
+                gc.collect()
 
 if __name__ == '__main__':
     run_worker() 
