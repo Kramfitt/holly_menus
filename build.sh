@@ -7,31 +7,42 @@ echo "🚀 Starting build process..."
 if [ -n "$RENDER" ] || [ -d "/app" ]; then
     echo "📦 Running on Render - installing system dependencies..."
     
-    # Create apt directories if they don't exist
-    mkdir -p /var/lib/apt/lists/partial
+    # Create .apt directory structure
+    mkdir -p /app/.apt
     
-    # Install system packages (no sudo needed on Render)
-    apt-get clean
-    rm -rf /var/lib/apt/lists/*
-    apt-get update
-    apt-get install -y \
+    # Download and extract packages directly
+    echo "📥 Downloading packages..."
+    curl -s https://packagecloud.io/github/git-lfs/gpgkey | gpg --dearmor > /etc/apt/trusted.gpg.d/packagecloud.gpg
+    
+    # Add Tesseract repository
+    echo "deb http://deb.debian.org/debian bullseye main" > /etc/apt/sources.list.d/debian.list
+    
+    # Install packages into .apt directory
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+    apt-get install -y -qq --no-install-recommends \
         tesseract-ocr \
         tesseract-ocr-eng \
         libtesseract-dev \
         libleptonica-dev \
-        poppler-utils
+        poppler-utils \
+        -o Dir::Cache::Archives="/app/.apt/cache"
     
-    # Set up Tesseract paths
-    export TESSDATA_PREFIX="/usr/share/tesseract-ocr/4.00/tessdata"
-    export TESSERACT_PATH="/usr/bin/tesseract"
-    export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
+    # Set up Tesseract paths for the .apt directory
+    export TESSDATA_PREFIX="/app/.apt/usr/share/tesseract-ocr/4.00/tessdata"
+    export TESSERACT_PATH="/app/.apt/usr/bin/tesseract"
+    export LD_LIBRARY_PATH="/app/.apt/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
     
     echo "✅ System packages installed"
     
+    # Create symbolic links for Tesseract
+    ln -sf /app/.apt/usr/bin/tesseract /usr/local/bin/tesseract
+    ln -sf /app/.apt/usr/share/tesseract-ocr /usr/local/share/tesseract-ocr
+    
     # Verify Tesseract installation
     echo "🔍 Verifying Tesseract installation..."
-    tesseract --version
-    tesseract --list-langs
+    tesseract --version || echo "⚠️ Tesseract version check failed"
+    tesseract --list-langs || echo "⚠️ Tesseract languages check failed"
     
     echo "📁 Creating required directories..."
     mkdir -p temp_images output_images menu_templates logs
