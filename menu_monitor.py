@@ -807,9 +807,12 @@ Holly Lodge Menu System"""
             print(f"Directory contents: {os.listdir(cwd)}")
             print(f"PATH environment: {os.environ.get('PATH', '')}")
             
-            # Get Tesseract path from environment or use default
+            # Get Tesseract path from environment
             tesseract_path = os.getenv('TESSERACT_PATH')
-            if not tesseract_path:
+            print(f"TESSERACT_PATH from env: {tesseract_path}")
+            
+            if not tesseract_path or not os.path.exists(tesseract_path):
+                print("Tesseract path not found in environment or doesn't exist")
                 # Check common locations
                 common_paths = [
                     '/opt/tesseract/tesseract',  # Our custom Render location
@@ -820,11 +823,14 @@ Holly Lodge Menu System"""
                 
                 for path in common_paths:
                     if path and os.path.exists(path):
+                        print(f"Found Tesseract at: {path}")
                         tesseract_path = path
+                        # Set environment variable for future use
+                        os.environ['TESSERACT_PATH'] = tesseract_path
                         break
                         
                 if not tesseract_path:
-                    print("❌ Could not find Tesseract in any common location")
+                    print("❌ Could not find Tesseract in any location")
                     return False
             
             print(f"Using Tesseract path: {tesseract_path}")
@@ -880,7 +886,17 @@ Holly Lodge Menu System"""
             except Exception as e:
                 print(f"❌ Error testing Tesseract: {e}")
                 print("Stack trace:", exc_info=True)
-                return False
+                
+                # Try running tesseract directly
+                try:
+                    print("\nAttempting to run tesseract directly...")
+                    subprocess.run(['which', 'tesseract'], check=True, capture_output=True, text=True)
+                    subprocess.run([tesseract_path, '--version'], check=True, capture_output=True, text=True)
+                    print("✓ Tesseract is available in PATH")
+                    return True
+                except subprocess.CalledProcessError as sub_e:
+                    print(f"❌ Error running tesseract directly: {sub_e}")
+                    return False
             
         except Exception as e:
             print(f"\n❌ Error during Tesseract verification: {e}")

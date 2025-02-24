@@ -14,21 +14,43 @@ services:
       sudo chmod +x /opt/tesseract/tesseract
       
       # Set up environment
-      TESSERACT_PATH=/opt/tesseract/tesseract
-      echo "TESSERACT_PATH=$TESSERACT_PATH" >> $RENDER_ENV_FILE
+      echo "export TESSERACT_PATH=/opt/tesseract/tesseract" >> ~/.bashrc
+      echo "export PATH=/opt/tesseract:$PATH" >> ~/.bashrc
+      source ~/.bashrc
+      
+      # Set for current session and Render environment
+      export TESSERACT_PATH=/opt/tesseract/tesseract
+      export PATH=/opt/tesseract:$PATH
+      
+      # Add to Render environment file
+      echo "TESSERACT_PATH=/opt/tesseract/tesseract" >> $RENDER_ENV_FILE
       echo "PATH=/opt/tesseract:$PATH" >> $RENDER_ENV_FILE
       
       # Verify Tesseract installation
-      $TESSERACT_PATH --version
-      $TESSERACT_PATH --list-langs
+      $TESSERACT_PATH --version || {
+        echo "Tesseract verification failed"
+        exit 1
+      }
+      
+      $TESSERACT_PATH --list-langs || {
+        echo "Tesseract languages verification failed"
+        exit 1
+      }
       
       # Install Python dependencies
       pip install -r requirements.txt
       
       # Verify Tesseract works with Python
-      TESSERACT_PATH=$TESSERACT_PATH python test_tesseract.py
+      TESSERACT_PATH=$TESSERACT_PATH python test_tesseract.py || {
+        echo "Python Tesseract verification failed"
+        exit 1
+      }
       
-    startCommand: gunicorn app:app
+    startCommand: |
+      # Ensure environment is set before starting
+      export TESSERACT_PATH=/opt/tesseract/tesseract
+      export PATH=/opt/tesseract:$PATH
+      gunicorn app:app
     envVars:
       - key: RENDER
         value: "true"
@@ -36,6 +58,8 @@ services:
         value: 3.11.0
       - key: TESSERACT_PATH
         value: /opt/tesseract/tesseract
+      - key: PATH
+        value: /opt/tesseract:/opt/render/project/src/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
@@ -66,21 +90,43 @@ services:
       sudo chmod +x /opt/tesseract/tesseract
       
       # Set up environment
-      TESSERACT_PATH=/opt/tesseract/tesseract
-      echo "TESSERACT_PATH=$TESSERACT_PATH" >> $RENDER_ENV_FILE
+      echo "export TESSERACT_PATH=/opt/tesseract/tesseract" >> ~/.bashrc
+      echo "export PATH=/opt/tesseract:$PATH" >> ~/.bashrc
+      source ~/.bashrc
+      
+      # Set for current session and Render environment
+      export TESSERACT_PATH=/opt/tesseract/tesseract
+      export PATH=/opt/tesseract:$PATH
+      
+      # Add to Render environment file
+      echo "TESSERACT_PATH=/opt/tesseract/tesseract" >> $RENDER_ENV_FILE
       echo "PATH=/opt/tesseract:$PATH" >> $RENDER_ENV_FILE
       
       # Verify Tesseract installation
-      $TESSERACT_PATH --version
-      $TESSERACT_PATH --list-langs
+      $TESSERACT_PATH --version || {
+        echo "Tesseract verification failed"
+        exit 1
+      }
+      
+      $TESSERACT_PATH --list-langs || {
+        echo "Tesseract languages verification failed"
+        exit 1
+      }
       
       # Install Python dependencies
       pip install -r requirements.txt
       
       # Verify Tesseract works with Python
-      TESSERACT_PATH=$TESSERACT_PATH python test_tesseract.py
+      TESSERACT_PATH=$TESSERACT_PATH python test_tesseract.py || {
+        echo "Python Tesseract verification failed"
+        exit 1
+      }
       
-    startCommand: python worker.py
+    startCommand: |
+      # Ensure environment is set before starting
+      export TESSERACT_PATH=/opt/tesseract/tesseract
+      export PATH=/opt/tesseract:$PATH
+      python worker.py
     envVars:
       - key: RENDER
         value: "true"
@@ -88,6 +134,8 @@ services:
         value: 3.11.0
       - key: TESSERACT_PATH
         value: /opt/tesseract/tesseract
+      - key: PATH
+        value: /opt/tesseract:/opt/render/project/src/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
