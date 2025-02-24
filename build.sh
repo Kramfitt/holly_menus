@@ -7,9 +7,14 @@ echo "🚀 Starting build process..."
 if [ -n "$RENDER" ] || [ -d "/app" ]; then
     echo "📦 Running on Render - installing system dependencies..."
     
-    # Install system packages with sudo
-    sudo apt-get update
-    sudo apt-get install -y \
+    # Create apt directories if they don't exist
+    mkdir -p /var/lib/apt/lists/partial
+    
+    # Install system packages (no sudo needed on Render)
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+    apt-get update
+    apt-get install -y \
         tesseract-ocr \
         tesseract-ocr-eng \
         libtesseract-dev \
