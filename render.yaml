@@ -3,7 +3,17 @@ services:
   - type: web
     name: menu-system
     env: docker
-    buildCommand: docker build -t menu-system .
+    buildCommand: |
+      # Debug output
+      echo "Starting build process..."
+      pwd
+      ls -la
+      
+      # Build the Docker image
+      docker build -t menu-system .
+      
+      # Test Tesseract in the container
+      docker run menu-system python test_tesseract.py
     startCommand: docker run -p 5000:5000 menu-system
     envVars:
       - key: PYTHON_VERSION
@@ -22,6 +32,12 @@ services:
         sync: false
       - key: ADMIN_EMAIL
         sync: false
+      - key: TESSDATA_PREFIX
+        value: /usr/share/tesseract-ocr/4.00/tessdata
+      - key: TESSERACT_PATH
+        value: /usr/bin/tesseract
+      - key: LD_LIBRARY_PATH
+        value: /usr/lib/x86_64-linux-gnu
     healthCheckPath: /
     plan: starter
 
@@ -29,7 +45,17 @@ services:
   - type: worker
     name: menu-worker
     env: docker
-    buildCommand: docker build -f Dockerfile.worker -t menu-worker .
+    buildCommand: |
+      # Debug output
+      echo "Starting worker build process..."
+      pwd
+      ls -la
+      
+      # Build the Docker image
+      docker build -f Dockerfile.worker -t menu-worker .
+      
+      # Test Tesseract in the container
+      docker run menu-worker python test_tesseract.py
     startCommand: docker run menu-worker
     envVars:
       - key: PYTHON_VERSION
@@ -45,4 +71,10 @@ services:
       - key: SMTP_USERNAME
         sync: false
       - key: SMTP_PASSWORD
-        sync: false 
+        sync: false
+      - key: TESSDATA_PREFIX
+        value: /usr/share/tesseract-ocr/4.00/tessdata
+      - key: TESSERACT_PATH
+        value: /usr/bin/tesseract
+      - key: LD_LIBRARY_PATH
+        value: /usr/lib/x86_64-linux-gnu 
