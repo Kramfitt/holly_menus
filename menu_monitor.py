@@ -794,78 +794,82 @@ Holly Lodge Menu System"""
 
     def verify_tesseract_installation(self) -> bool:
         """Verify Tesseract OCR is installed and working"""
-        print("\n=== Tesseract Verification Start ===")
-        
-        # Log environment info
-        print(f"Environment: Render={os.getenv('RENDER', 'false')}")
-        print(f"Current working directory: {os.getcwd()}")
-        print(f"Directory contents: {os.listdir()}")
-        print(f"PATH environment: {os.getenv('PATH')}")
-        
-        # Check environment variables
-        tesseract_path = os.getenv('TESSERACT_PATH')
-        tessdata_prefix = os.getenv('TESSDATA_PREFIX')
-        ld_library_path = os.getenv('LD_LIBRARY_PATH')
-        
-        print(f"TESSERACT_PATH: {tesseract_path}")
-        print(f"TESSDATA_PREFIX: {tessdata_prefix}")
-        print(f"LD_LIBRARY_PATH: {ld_library_path}")
-        
-        # Check for local installation first
-        local_paths = [
-            os.path.join(os.getcwd(), 'bin', 'tesseract'),
-            tesseract_path,
-            '/usr/bin/tesseract',
-            '/usr/local/bin/tesseract',
-            shutil.which('tesseract')
-        ]
-        
-        tesseract_binary = None
-        for path in local_paths:
-            if path and os.path.isfile(path):
-                print(f"✅ Found Tesseract at: {path}")
-                tesseract_binary = path
-                break
-        
-        if not tesseract_binary:
-            print("❌ Tesseract binary not found in any location")
-            return False
-            
-        # Set the Tesseract command for pytesseract
-        pytesseract.pytesseract.tesseract_cmd = tesseract_binary
-        
         try:
-            # Test Tesseract version
-            version = pytesseract.get_tesseract_version()
-            print(f"✅ Tesseract version: {version}")
+            print("\n=== Tesseract Verification Start ===")
             
-            # Test available languages
-            langs = pytesseract.get_languages()
-            print(f"✅ Available languages: {langs}")
+            # Log environment info
+            print(f"Environment: Render={os.getenv('RENDER', 'false')}")
+            print(f"Current working directory: {os.getcwd()}")
+            print(f"Directory contents: {os.listdir()}")
+            print(f"PATH environment: {os.getenv('PATH')}")
             
-            # Create a test image
-            test_image = Image.new('RGB', (200, 50), color='white')
-            draw = ImageDraw.Draw(test_image)
-            draw.text((10, 10), "TEST OCR 123", fill='black')
-            test_image_path = 'test_ocr.png'
-            test_image.save(test_image_path)
+            # Check environment variables
+            tesseract_path = os.getenv('TESSERACT_PATH')
+            tessdata_prefix = os.getenv('TESSDATA_PREFIX')
+            ld_library_path = os.getenv('LD_LIBRARY_PATH')
             
-            # Test OCR functionality
+            print(f"TESSERACT_PATH: {tesseract_path}")
+            print(f"TESSDATA_PREFIX: {tessdata_prefix}")
+            print(f"LD_LIBRARY_PATH: {ld_library_path}")
+            
+            # Check for local installation first
+            local_paths = [
+                os.path.join(os.getcwd(), 'bin', 'tesseract'),  # Our local copy
+                tesseract_path,  # Environment variable path
+                '/usr/bin/tesseract',  # System path
+                '/usr/local/bin/tesseract',  # Alternative system path
+                shutil.which('tesseract')  # PATH search
+            ]
+            
+            tesseract_binary = None
+            for path in local_paths:
+                if path and os.path.isfile(path):
+                    print(f"✅ Found Tesseract at: {path}")
+                    tesseract_binary = path
+                    break
+            
+            if not tesseract_binary:
+                print("❌ Tesseract binary not found in any location")
+                return False
+                
+            # Set the Tesseract command for pytesseract
+            pytesseract.pytesseract.tesseract_cmd = tesseract_binary
+            
             try:
-                text = pytesseract.image_to_string(test_image)
-                print(f"✅ OCR Test result: {text.strip()}")
-                os.remove(test_image_path)
-                return True
-            except Exception as e:
-                print(f"❌ OCR Test failed: {str(e)}")
-                if os.path.exists(test_image_path):
+                # Test Tesseract version
+                version = pytesseract.get_tesseract_version()
+                print(f"✅ Tesseract version: {version}")
+                
+                # Test available languages
+                langs = pytesseract.get_languages()
+                print(f"✅ Available languages: {langs}")
+                
+                # Create a test image
+                test_image = Image.new('RGB', (200, 50), color='white')
+                draw = ImageDraw.Draw(test_image)
+                draw.text((10, 10), "TEST OCR 123", fill='black')
+                test_image_path = 'test_ocr.png'
+                test_image.save(test_image_path)
+                
+                # Test OCR functionality
+                try:
+                    text = pytesseract.image_to_string(test_image)
+                    print(f"✅ OCR Test result: {text.strip()}")
                     os.remove(test_image_path)
+                    return True
+                except Exception as e:
+                    print(f"❌ OCR Test failed: {str(e)}")
+                    if os.path.exists(test_image_path):
+                        os.remove(test_image_path)
+                    return False
+                    
+            except Exception as e:
+                print(f"❌ Tesseract verification failed: {str(e)}")
                 return False
                 
         except Exception as e:
-            print(f"❌ Tesseract verification failed: {str(e)}")
+            print(f"❌ Error during verification: {str(e)}")
             return False
-            
         finally:
             print("=== Tesseract Verification End ===\n")
 
