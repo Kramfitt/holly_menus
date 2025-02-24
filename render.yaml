@@ -2,36 +2,31 @@ services:
   # Web App
   - type: web
     name: menu-system
-    env: docker
+    env: python
     buildCommand: |
-      # Debug output
-      echo "Starting build process..."
-      pwd
-      ls -la
+      # Install system packages
+      apt-get update && apt-get install -y \
+        tesseract-ocr \
+        tesseract-ocr-eng \
+        libtesseract-dev \
+        libleptonica-dev \
+        poppler-utils
       
-      # Build the Docker image
-      docker build -t menu-system .
+      # Install Python dependencies
+      pip install -r requirements.txt
       
-      # Test Tesseract in the container
-      docker run menu-system python test_tesseract.py
-    startCommand: docker run -p 5000:5000 menu-system
+      # Verify Tesseract installation
+      tesseract --version
+      tesseract --list-langs
+      
+      # Test with Python
+      python test_tesseract.py
+    startCommand: gunicorn --timeout 120 --workers 2 --threads 2 --worker-class gthread app:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_KEY
-        sync: false
-      - key: SMTP_SERVER
-        sync: false
-      - key: SMTP_PORT
-        sync: false
-      - key: SMTP_USERNAME
-        sync: false
-      - key: SMTP_PASSWORD
-        sync: false
-      - key: ADMIN_EMAIL
-        sync: false
+      - key: WEB_CONCURRENCY
+        value: "2"
       - key: TESSDATA_PREFIX
         value: /usr/share/tesseract-ocr/4.00/tessdata
       - key: TESSERACT_PATH
@@ -44,34 +39,31 @@ services:
   # Worker Service
   - type: worker
     name: menu-worker
-    env: docker
+    env: python
     buildCommand: |
-      # Debug output
-      echo "Starting worker build process..."
-      pwd
-      ls -la
+      # Install system packages
+      apt-get update && apt-get install -y \
+        tesseract-ocr \
+        tesseract-ocr-eng \
+        libtesseract-dev \
+        libleptonica-dev \
+        poppler-utils
       
-      # Build the Docker image
-      docker build -f Dockerfile.worker -t menu-worker .
+      # Install Python dependencies
+      pip install -r requirements.txt
       
-      # Test Tesseract in the container
-      docker run menu-worker python test_tesseract.py
-    startCommand: docker run menu-worker
+      # Verify Tesseract installation
+      tesseract --version
+      tesseract --list-langs
+      
+      # Test with Python
+      python test_tesseract.py
+    startCommand: python worker.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_KEY
-        sync: false
-      - key: SMTP_SERVER
-        sync: false
-      - key: SMTP_PORT
-        sync: false
-      - key: SMTP_USERNAME
-        sync: false
-      - key: SMTP_PASSWORD
-        sync: false
+      - key: WEB_CONCURRENCY
+        value: "2"
       - key: TESSDATA_PREFIX
         value: /usr/share/tesseract-ocr/4.00/tessdata
       - key: TESSERACT_PATH
