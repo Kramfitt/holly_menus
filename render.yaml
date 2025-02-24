@@ -6,29 +6,36 @@ services:
     dockerfilePath: Dockerfile.web
     dockerCommand: gunicorn app:app
     buildCommand: |
-      # Create directories with sudo
-      sudo mkdir -p /app/.apt/usr/bin
-      sudo chown -R $USER:$USER /app/.apt
-      
       # Install packages with sudo
       sudo apt-get update
       sudo apt-get install -y tesseract-ocr tesseract-ocr-eng libtesseract-dev libleptonica-dev poppler-utils
       
-      # Create symlink with sudo
-      sudo ln -sf /usr/bin/tesseract /app/.apt/usr/bin/tesseract
-      sudo chmod +x /app/.apt/usr/bin/tesseract
+      # Verify Tesseract installation
+      tesseract --version || {
+        echo "Tesseract installation failed"
+        exit 1
+      }
       
-      # Set up environment
-      export PATH="/app/.apt/usr/bin:$PATH"
-      export TESSERACT_PATH=/app/.apt/usr/bin/tesseract
+      tesseract --list-langs || {
+        echo "Tesseract languages not properly installed"
+        exit 1
+      }
       
-      # Verify installation
-      tesseract --version
-      tesseract --list-langs
+      # Set up Tesseract path
+      export TESSERACT_PATH=/usr/bin/tesseract
+      echo "TESSERACT_PATH=$TESSERACT_PATH" >> $RENDER_ENV_FILE
+      
+      # Add Tesseract to PATH
+      echo "PATH=/usr/bin:$PATH" >> $RENDER_ENV_FILE
       
       # Install Python dependencies
       pip install -r requirements.txt
-      python test_tesseract.py
+      
+      # Verify Tesseract works with Python
+      python test_tesseract.py || {
+        echo "Tesseract Python verification failed"
+        exit 1
+      }
     envVars:
       - key: DOCKER_BUILD
         value: "true"
@@ -37,7 +44,7 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: TESSERACT_PATH
-        value: /app/.apt/usr/bin/tesseract
+        value: /usr/bin/tesseract
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
@@ -60,29 +67,36 @@ services:
     dockerfilePath: Dockerfile.worker
     dockerCommand: python worker.py
     buildCommand: |
-      # Create directories with sudo
-      sudo mkdir -p /app/.apt/usr/bin
-      sudo chown -R $USER:$USER /app/.apt
-      
       # Install packages with sudo
       sudo apt-get update
       sudo apt-get install -y tesseract-ocr tesseract-ocr-eng libtesseract-dev libleptonica-dev poppler-utils
       
-      # Create symlink with sudo
-      sudo ln -sf /usr/bin/tesseract /app/.apt/usr/bin/tesseract
-      sudo chmod +x /app/.apt/usr/bin/tesseract
+      # Verify Tesseract installation
+      tesseract --version || {
+        echo "Tesseract installation failed"
+        exit 1
+      }
       
-      # Set up environment
-      export PATH="/app/.apt/usr/bin:$PATH"
-      export TESSERACT_PATH=/app/.apt/usr/bin/tesseract
+      tesseract --list-langs || {
+        echo "Tesseract languages not properly installed"
+        exit 1
+      }
       
-      # Verify installation
-      tesseract --version
-      tesseract --list-langs
+      # Set up Tesseract path
+      export TESSERACT_PATH=/usr/bin/tesseract
+      echo "TESSERACT_PATH=$TESSERACT_PATH" >> $RENDER_ENV_FILE
+      
+      # Add Tesseract to PATH
+      echo "PATH=/usr/bin:$PATH" >> $RENDER_ENV_FILE
       
       # Install Python dependencies
       pip install -r requirements.txt
-      python test_tesseract.py
+      
+      # Verify Tesseract works with Python
+      python test_tesseract.py || {
+        echo "Tesseract Python verification failed"
+        exit 1
+      }
     envVars:
       - key: DOCKER_BUILD
         value: "true"
@@ -91,7 +105,7 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: TESSERACT_PATH
-        value: /app/.apt/usr/bin/tesseract
+        value: /usr/bin/tesseract
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY

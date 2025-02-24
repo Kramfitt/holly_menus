@@ -808,21 +808,23 @@ Holly Lodge Menu System"""
             print(f"Directory contents: {os.listdir(cwd)}")
             print(f"PATH environment: {os.environ.get('PATH', '')}")
             
-            # Check for Tesseract at /usr/bin/tesseract for Docker/Render environments
-            docker_tesseract = '/usr/bin/tesseract'
-            if os.path.exists(docker_tesseract):
-                print(f"Found Tesseract at: {docker_tesseract}")
-                pytesseract.pytesseract.tesseract_cmd = docker_tesseract
-                os.environ['TESSERACT_PATH'] = docker_tesseract
+            # Get Tesseract path from environment or use default
+            tesseract_path = os.getenv('TESSERACT_PATH', '/usr/bin/tesseract')
+            print(f"Using Tesseract path: {tesseract_path}")
+            
+            # Check if Tesseract exists at the specified path
+            if os.path.exists(tesseract_path):
+                print(f"Found Tesseract at: {tesseract_path}")
+                pytesseract.pytesseract.tesseract_cmd = tesseract_path
                 
                 # Verify version and languages
                 try:
-                    version = subprocess.run([docker_tesseract, '--version'], 
+                    version = subprocess.run([tesseract_path, '--version'], 
                                           capture_output=True, text=True, check=True)
                     print(f"Tesseract version:\n{version.stdout}")
                     
                     # Check languages
-                    langs = subprocess.run([docker_tesseract, '--list-langs'],
+                    langs = subprocess.run([tesseract_path, '--list-langs'],
                                         capture_output=True, text=True, check=True)
                     print(f"Available languages:\n{langs.stdout}")
                     
@@ -849,29 +851,59 @@ Holly Lodge Menu System"""
                     
                 except Exception as e:
                     print(f"❌ Error testing Tesseract: {e}")
-                    return False
-            else:
-                print(f"❌ Tesseract not found at {docker_tesseract}")
-                
-                # Try to find Tesseract in PATH
-                tesseract_in_path = shutil.which('tesseract')
-                if tesseract_in_path:
-                    print(f"Found Tesseract in PATH: {tesseract_in_path}")
-                    pytesseract.pytesseract.tesseract_cmd = tesseract_in_path
-                    os.environ['TESSERACT_PATH'] = tesseract_in_path
-                    
-                    # Test the found Tesseract
+                    print("Attempting to run tesseract directly...")
                     try:
-                        version = subprocess.run([tesseract_in_path, '--version'],
+                        # Try running tesseract directly
+                        subprocess.run(['which', 'tesseract'], check=True, capture_output=True, text=True)
+                        subprocess.run(['tesseract', '--version'], check=True, capture_output=True, text=True)
+                        print("✅ Tesseract is available in PATH")
+                        return True
+                    except subprocess.CalledProcessError as sub_e:
+                        print(f"❌ Error running tesseract directly: {sub_e}")
+                        return False
+            
+            # If not found at specified path, try finding in PATH
+            print(f"❌ Tesseract not found at {tesseract_path}")
+            tesseract_in_path = shutil.which('tesseract')
+            if tesseract_in_path:
+                print(f"Found Tesseract in PATH: {tesseract_in_path}")
+                pytesseract.pytesseract.tesseract_cmd = tesseract_in_path
+                os.environ['TESSERACT_PATH'] = tesseract_in_path
+                
+                # Test the found Tesseract
+                try:
+                    version = subprocess.run([tesseract_in_path, '--version'],
+                                          capture_output=True, text=True, check=True)
+                    print(f"Tesseract version:\n{version.stdout}")
+                    return True
+                except Exception as e:
+                    print(f"❌ Error testing Tesseract from PATH: {e}")
+                    return False
+            
+            # Check common installation paths
+            common_paths = [
+                '/usr/bin/tesseract',
+                '/usr/local/bin/tesseract',
+                '/opt/tesseract/bin/tesseract'
+            ]
+            
+            for path in common_paths:
+                if os.path.exists(path):
+                    print(f"Found Tesseract at alternate location: {path}")
+                    pytesseract.pytesseract.tesseract_cmd = path
+                    os.environ['TESSERACT_PATH'] = path
+                    try:
+                        version = subprocess.run([path, '--version'],
                                               capture_output=True, text=True, check=True)
                         print(f"Tesseract version:\n{version.stdout}")
                         return True
                     except Exception as e:
-                        print(f"❌ Error testing Tesseract from PATH: {e}")
-                        return False
-                
-                print("\n❌ Could not locate Tesseract binary")
-                return False
+                        print(f"❌ Error testing Tesseract at {path}: {e}")
+                        continue
+            
+            print("\n❌ Could not locate Tesseract binary")
+            print("Please ensure Tesseract is installed and accessible")
+            return False
             
         except Exception as e:
             print(f"\n❌ Error during Tesseract verification: {e}")
