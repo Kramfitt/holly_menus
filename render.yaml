@@ -13,11 +13,11 @@ services:
       - key: RENDER
         value: "true"
       - key: TESSDATA_PREFIX
-        value: /app/.apt/usr/share/tesseract-ocr/4.00/tessdata
+        value: /usr/share/tesseract-ocr/4.00/tessdata
       - key: TESSERACT_PATH
-        value: /app/.apt/usr/bin/tesseract
+        value: /usr/bin/tesseract
       - key: LD_LIBRARY_PATH
-        value: /app/.apt/usr/lib/x86_64-linux-gnu
+        value: /usr/lib/x86_64-linux-gnu
     healthCheckPath: /health/ocr
     plan: starter
 
@@ -35,8 +35,8 @@ services:
       - key: RENDER
         value: "true"
       - key: TESSDATA_PREFIX
-        value: /app/.apt/usr/share/tesseract-ocr/4.00/tessdata
+        value: /usr/share/tesseract-ocr/4.00/tessdata
       - key: TESSERACT_PATH
-        value: /app/.apt/usr/bin/tesseract
+        value: /usr/bin/tesseract
       - key: LD_LIBRARY_PATH
-        value: /app/.apt/usr/lib/x86_64-linux-gnu 
+        value: /usr/lib/x86_64-linux-gnu 

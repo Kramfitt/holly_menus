@@ -7,17 +7,13 @@ echo "🚀 Starting build process..."
 if [ -n "$RENDER" ] || [ -d "/app" ]; then
     echo "📦 Running on Render - installing system dependencies..."
     
-    # Create .apt directory structure
-    mkdir -p /app/.apt
+    # Use /opt directory which is writable on Render
+    INSTALL_DIR="/opt/render"
+    mkdir -p $INSTALL_DIR
     
-    # Download and extract packages directly
-    echo "📥 Downloading packages..."
-    curl -s https://packagecloud.io/github/git-lfs/gpgkey | gpg --dearmor > /etc/apt/trusted.gpg.d/packagecloud.gpg
+    echo "📥 Installing Tesseract and dependencies..."
     
-    # Add Tesseract repository
-    echo "deb http://deb.debian.org/debian bullseye main" > /etc/apt/sources.list.d/debian.list
-    
-    # Install packages into .apt directory
+    # Install packages directly
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
     apt-get install -y -qq --no-install-recommends \
@@ -25,19 +21,14 @@ if [ -n "$RENDER" ] || [ -d "/app" ]; then
         tesseract-ocr-eng \
         libtesseract-dev \
         libleptonica-dev \
-        poppler-utils \
-        -o Dir::Cache::Archives="/app/.apt/cache"
+        poppler-utils
     
-    # Set up Tesseract paths for the .apt directory
-    export TESSDATA_PREFIX="/app/.apt/usr/share/tesseract-ocr/4.00/tessdata"
-    export TESSERACT_PATH="/app/.apt/usr/bin/tesseract"
-    export LD_LIBRARY_PATH="/app/.apt/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
+    # Set up Tesseract paths
+    export TESSDATA_PREFIX="/usr/share/tesseract-ocr/4.00/tessdata"
+    export TESSERACT_PATH="/usr/bin/tesseract"
+    export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
     
     echo "✅ System packages installed"
-    
-    # Create symbolic links for Tesseract
-    ln -sf /app/.apt/usr/bin/tesseract /usr/local/bin/tesseract
-    ln -sf /app/.apt/usr/share/tesseract-ocr /usr/local/share/tesseract-ocr
     
     # Verify Tesseract installation
     echo "🔍 Verifying Tesseract installation..."
@@ -45,8 +36,20 @@ if [ -n "$RENDER" ] || [ -d "/app" ]; then
     tesseract --list-langs || echo "⚠️ Tesseract languages check failed"
     
     echo "📁 Creating required directories..."
-    mkdir -p temp_images output_images menu_templates logs
-    chmod 777 temp_images output_images menu_templates logs
+    mkdir -p $INSTALL_DIR/temp_images \
+            $INSTALL_DIR/output_images \
+            $INSTALL_DIR/menu_templates \
+            $INSTALL_DIR/logs
+    chmod 777 $INSTALL_DIR/temp_images \
+              $INSTALL_DIR/output_images \
+              $INSTALL_DIR/menu_templates \
+              $INSTALL_DIR/logs
+    
+    # Create symlinks to the app directory
+    ln -sf $INSTALL_DIR/temp_images temp_images
+    ln -sf $INSTALL_DIR/output_images output_images
+    ln -sf $INSTALL_DIR/menu_templates menu_templates
+    ln -sf $INSTALL_DIR/logs logs
     
     echo "📦 Installing Python dependencies..."
     pip install -r requirements.txt
