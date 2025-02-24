@@ -8,17 +8,31 @@ services:
       sudo apt-get update
       sudo apt-get install -y tesseract-ocr tesseract-ocr-eng libtesseract-dev libleptonica-dev poppler-utils
       
-      # Create a persistent directory for Tesseract
-      sudo mkdir -p /opt/tesseract
-      sudo cp $(which tesseract) /opt/tesseract/
-      sudo chmod +x /opt/tesseract/tesseract
+      # Verify Tesseract is installed
+      which tesseract || {
+        echo "Tesseract not found in PATH after installation"
+        exit 1
+      }
       
-      # Set up environment
+      # Create persistent directories
+      sudo mkdir -p /opt/tesseract
+      sudo mkdir -p .apt/usr/bin
+      
+      # Copy Tesseract to both locations
+      TESSERACT_BIN=$(which tesseract)
+      sudo cp $TESSERACT_BIN /opt/tesseract/tesseract
+      sudo cp $TESSERACT_BIN .apt/usr/bin/tesseract
+      
+      # Set permissions
+      sudo chmod +x /opt/tesseract/tesseract
+      sudo chmod +x .apt/usr/bin/tesseract
+      
+      # Set up environment in multiple places for persistence
       echo "export TESSERACT_PATH=/opt/tesseract/tesseract" >> ~/.bashrc
       echo "export PATH=/opt/tesseract:$PATH" >> ~/.bashrc
       source ~/.bashrc
       
-      # Set for current session and Render environment
+      # Set for current session
       export TESSERACT_PATH=/opt/tesseract/tesseract
       export PATH=/opt/tesseract:$PATH
       
@@ -26,13 +40,21 @@ services:
       echo "TESSERACT_PATH=/opt/tesseract/tesseract" >> $RENDER_ENV_FILE
       echo "PATH=/opt/tesseract:$PATH" >> $RENDER_ENV_FILE
       
-      # Verify Tesseract installation
-      $TESSERACT_PATH --version || {
-        echo "Tesseract verification failed"
+      # Verify Tesseract installation in both locations
+      echo "Verifying Tesseract in /opt/tesseract..."
+      /opt/tesseract/tesseract --version || {
+        echo "Tesseract verification failed in /opt/tesseract"
         exit 1
       }
       
-      $TESSERACT_PATH --list-langs || {
+      echo "Verifying Tesseract in .apt/usr/bin..."
+      .apt/usr/bin/tesseract --version || {
+        echo "Tesseract verification failed in .apt/usr/bin"
+        exit 1
+      }
+      
+      # Verify languages are available
+      /opt/tesseract/tesseract --list-langs || {
         echo "Tesseract languages verification failed"
         exit 1
       }
@@ -40,8 +62,34 @@ services:
       # Install Python dependencies
       pip install -r requirements.txt
       
+      # Create test script to verify Python integration
+      cat > test_tesseract.py << 'EOL'
+import pytesseract
+from PIL import Image, ImageDraw
+import os
+
+def test_tesseract():
+    # Create test image
+    img = Image.new('RGB', (200, 50), color='white')
+    draw = ImageDraw.Draw(img)
+    draw.text((10, 10), "TEST OCR 123", fill='black')
+    img.save('test.png')
+    
+    # Try OCR
+    result = pytesseract.image_to_string(Image.open('test.png'))
+    print(f"OCR Result: {result.strip()}")
+    os.remove('test.png')
+    return 'TEST' in result.upper()
+
+if __name__ == '__main__':
+    if not test_tesseract():
+        print("Tesseract test failed")
+        exit(1)
+    print("Tesseract test passed")
+EOL
+      
       # Verify Tesseract works with Python
-      TESSERACT_PATH=$TESSERACT_PATH python test_tesseract.py || {
+      TESSERACT_PATH=/opt/tesseract/tesseract python test_tesseract.py || {
         echo "Python Tesseract verification failed"
         exit 1
       }

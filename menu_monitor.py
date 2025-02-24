@@ -807,6 +807,20 @@ Holly Lodge Menu System"""
             print(f"Directory contents: {os.listdir(cwd)}")
             print(f"PATH environment: {os.environ.get('PATH', '')}")
             
+            # Check for .apt directory in Render environment
+            if is_render:
+                apt_dir = os.path.join(cwd, '.apt')
+                if os.path.exists(apt_dir):
+                    print(f"\nChecking .apt directory: {apt_dir}")
+                    print(f".apt contents: {os.listdir(apt_dir)}")
+                    apt_usr_bin = os.path.join(apt_dir, 'usr', 'bin')
+                    if os.path.exists(apt_usr_bin):
+                        print(f".apt/usr/bin contents: {os.listdir(apt_usr_bin)}")
+                        apt_tesseract = os.path.join(apt_usr_bin, 'tesseract')
+                        if os.path.exists(apt_tesseract):
+                            print(f"Found Tesseract in .apt: {apt_tesseract}")
+                            os.environ['TESSERACT_PATH'] = apt_tesseract
+            
             # Get Tesseract path from environment
             tesseract_path = os.getenv('TESSERACT_PATH')
             print(f"TESSERACT_PATH from env: {tesseract_path}")
@@ -818,6 +832,7 @@ Holly Lodge Menu System"""
                     '/opt/tesseract/tesseract',  # Our custom Render location
                     '/usr/bin/tesseract',
                     '/usr/local/bin/tesseract',
+                    os.path.join(cwd, '.apt', 'usr', 'bin', 'tesseract'),  # Common Render path
                     shutil.which('tesseract')  # Check PATH
                 ]
                 
