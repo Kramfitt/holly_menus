@@ -793,130 +793,81 @@ Holly Lodge Menu System"""
             raise
 
     def verify_tesseract_installation(self) -> bool:
-        """Verify Tesseract OCR is installed and accessible"""
+        """Verify Tesseract OCR is installed and working"""
+        print("\n=== Tesseract Verification Start ===")
+        
+        # Log environment info
+        print(f"Environment: Render={os.getenv('RENDER', 'false')}")
+        print(f"Current working directory: {os.getcwd()}")
+        print(f"Directory contents: {os.listdir()}")
+        print(f"PATH environment: {os.getenv('PATH')}")
+        
+        # Check environment variables
+        tesseract_path = os.getenv('TESSERACT_PATH')
+        tessdata_prefix = os.getenv('TESSDATA_PREFIX')
+        ld_library_path = os.getenv('LD_LIBRARY_PATH')
+        
+        print(f"TESSERACT_PATH: {tesseract_path}")
+        print(f"TESSDATA_PREFIX: {tessdata_prefix}")
+        print(f"LD_LIBRARY_PATH: {ld_library_path}")
+        
+        # Check for local installation first
+        local_paths = [
+            os.path.join(os.getcwd(), 'bin', 'tesseract'),
+            tesseract_path,
+            '/usr/bin/tesseract',
+            '/usr/local/bin/tesseract',
+            shutil.which('tesseract')
+        ]
+        
+        tesseract_binary = None
+        for path in local_paths:
+            if path and os.path.isfile(path):
+                print(f"✅ Found Tesseract at: {path}")
+                tesseract_binary = path
+                break
+        
+        if not tesseract_binary:
+            print("❌ Tesseract binary not found in any location")
+            return False
+            
+        # Set the Tesseract command for pytesseract
+        pytesseract.pytesseract.tesseract_cmd = tesseract_binary
+        
         try:
-            print("\n=== Tesseract Verification Start ===")
+            # Test Tesseract version
+            version = pytesseract.get_tesseract_version()
+            print(f"✅ Tesseract version: {version}")
             
-            # Check environment
-            is_render = os.getenv('RENDER', 'false').lower() == 'true'
-            print(f"Environment: Render={is_render}")
+            # Test available languages
+            langs = pytesseract.get_languages()
+            print(f"✅ Available languages: {langs}")
             
-            # Print current working directory and its contents
-            cwd = os.getcwd()
-            print(f"Current working directory: {cwd}")
-            print(f"Directory contents: {os.listdir(cwd)}")
-            print(f"PATH environment: {os.environ.get('PATH', '')}")
+            # Create a test image
+            test_image = Image.new('RGB', (200, 50), color='white')
+            draw = ImageDraw.Draw(test_image)
+            draw.text((10, 10), "TEST OCR 123", fill='black')
+            test_image_path = 'test_ocr.png'
+            test_image.save(test_image_path)
             
-            # Check for .apt directory in Render environment
-            if is_render:
-                apt_dir = os.path.join(cwd, '.apt')
-                if os.path.exists(apt_dir):
-                    print(f"\nChecking .apt directory: {apt_dir}")
-                    print(f".apt contents: {os.listdir(apt_dir)}")
-                    apt_usr_bin = os.path.join(apt_dir, 'usr', 'bin')
-                    if os.path.exists(apt_usr_bin):
-                        print(f".apt/usr/bin contents: {os.listdir(apt_usr_bin)}")
-                        apt_tesseract = os.path.join(apt_usr_bin, 'tesseract')
-                        if os.path.exists(apt_tesseract):
-                            print(f"Found Tesseract in .apt: {apt_tesseract}")
-                            os.environ['TESSERACT_PATH'] = apt_tesseract
-            
-            # Get Tesseract path from environment
-            tesseract_path = os.getenv('TESSERACT_PATH')
-            print(f"TESSERACT_PATH from env: {tesseract_path}")
-            
-            if not tesseract_path or not os.path.exists(tesseract_path):
-                print("Tesseract path not found in environment or doesn't exist")
-                # Check common locations
-                common_paths = [
-                    '/opt/tesseract/tesseract',  # Our custom Render location
-                    '/usr/bin/tesseract',
-                    '/usr/local/bin/tesseract',
-                    os.path.join(cwd, '.apt', 'usr', 'bin', 'tesseract'),  # Common Render path
-                    shutil.which('tesseract')  # Check PATH
-                ]
-                
-                for path in common_paths:
-                    if path and os.path.exists(path):
-                        print(f"Found Tesseract at: {path}")
-                        tesseract_path = path
-                        # Set environment variable for future use
-                        os.environ['TESSERACT_PATH'] = tesseract_path
-                        break
-                        
-                if not tesseract_path:
-                    print("❌ Could not find Tesseract in any location")
-                    return False
-            
-            print(f"Using Tesseract path: {tesseract_path}")
-            
-            # Verify the binary exists and is executable
-            if not os.path.exists(tesseract_path):
-                print(f"❌ Tesseract not found at: {tesseract_path}")
+            # Test OCR functionality
+            try:
+                text = pytesseract.image_to_string(test_image)
+                print(f"✅ OCR Test result: {text.strip()}")
+                os.remove(test_image_path)
+                return True
+            except Exception as e:
+                print(f"❌ OCR Test failed: {str(e)}")
+                if os.path.exists(test_image_path):
+                    os.remove(test_image_path)
                 return False
                 
-            # Try to make executable if we have permission
-            try:
-                os.chmod(tesseract_path, 0o755)
-                print("✓ Set executable permissions on Tesseract binary")
-            except Exception as e:
-                print(f"Warning: Could not set permissions on Tesseract binary: {e}")
-            
-            # Set the path for pytesseract
-            pytesseract.pytesseract.tesseract_cmd = tesseract_path
-            
-            # Verify Tesseract functionality
-            try:
-                # Check version
-                version = subprocess.run([tesseract_path, '--version'], 
-                                      capture_output=True, text=True, check=True)
-                print(f"✓ Tesseract version:\n{version.stdout.strip()}")
-                
-                # Check languages
-                langs = subprocess.run([tesseract_path, '--list-langs'],
-                                    capture_output=True, text=True, check=True)
-                print(f"✓ Available languages:\n{langs.stdout.strip()}")
-                
-                # Test OCR functionality
-                print("\nTesting OCR functionality:")
-                test_dir = os.path.join(cwd, 'temp_images')
-                os.makedirs(test_dir, exist_ok=True)
-                test_img_path = os.path.join(test_dir, 'test.png')
-                
-                # Create test image
-                test_img = Image.new('RGB', (200, 50), color='white')
-                draw = ImageDraw.Draw(test_img)
-                draw.text((10, 10), "TEST OCR 123", fill='black')
-                test_img.save(test_img_path)
-                
-                # Try OCR
-                result = pytesseract.image_to_string(Image.open(test_img_path))
-                print(f"✓ OCR test result: {result.strip()}")
-                
-                # Clean up
-                os.remove(test_img_path)
-                print("✅ Tesseract verification successful")
-                return True
-                
-            except Exception as e:
-                print(f"❌ Error testing Tesseract: {e}")
-                print("Stack trace:", exc_info=True)
-                
-                # Try running tesseract directly
-                try:
-                    print("\nAttempting to run tesseract directly...")
-                    subprocess.run(['which', 'tesseract'], check=True, capture_output=True, text=True)
-                    subprocess.run([tesseract_path, '--version'], check=True, capture_output=True, text=True)
-                    print("✓ Tesseract is available in PATH")
-                    return True
-                except subprocess.CalledProcessError as sub_e:
-                    print(f"❌ Error running tesseract directly: {sub_e}")
-                    return False
-            
         except Exception as e:
-            print(f"\n❌ Error during Tesseract verification: {e}")
-            print("Stack trace:", exc_info=True)
+            print(f"❌ Tesseract verification failed: {str(e)}")
             return False
+            
+        finally:
+            print("=== Tesseract Verification End ===\n")
 
 def main():
     logger.info("Starting Menu Email Monitor")
